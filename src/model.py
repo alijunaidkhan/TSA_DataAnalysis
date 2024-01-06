@@ -1,7 +1,7 @@
 # model.py
 import pandas as pd
 import numpy as np
-
+from PyQt6.QtWidgets import QMessageBox, QMainWindow, QPushButton, QVBoxLayout, QWidget, QFileDialog, QToolButton
 
 class Model:
     """
@@ -45,14 +45,4 @@ class Model:
         else:
             raise ValueError("Unsupported file type")
 
-    def save_data(self, data, file_path):
-        """
-        Saves data to a specified file.
-
-        Placeholder method to be implemented.
-
-        Args:
-            data: Data to be saved.
-            file_path (str): The path of the file to save data to.
-        """
-        pass
+  
