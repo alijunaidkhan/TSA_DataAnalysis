@@ -7,6 +7,8 @@ from view import View
 from PyQt6.QtWidgets import QMessageBox, QMainWindow, QPushButton, QVBoxLayout, QWidget, QFileDialog, QToolButton
 from PyQt6.QtCore import pyqtSlot
 
+
+
 class Controller:
     """
     The Controller component in the MVC architecture, responsible for handling user interactions,
@@ -53,6 +55,23 @@ class Controller:
             self.model.set_working_directory(directory)
 
 
+    
+    def refresh_data(self):
+        # Get the selected column from the combo box
+        selected_column = self.view.comboBox.currentText()
+
+        # Check if a column is selected
+        if selected_column:
+            # Get the row data for the selected column
+            row_data = self.model.get_row_data(selected_column)
+
+            if row_data is not None:
+                # Display the row data in the QTextEdit
+                self.view.output_display.setPlainText(selected_column)
+            else:
+                # Display a message if the column is not found
+                self.view.output_display.setPlainText(selected_column)
+
     def load_data(self):
         """
         Opens a file dialog for the user to select a file and loads the data.
@@ -77,7 +96,18 @@ class Controller:
                 self.view.update_status_bar(shape_message)
             except Exception as e:
                 self.view.show_message(f"Error loading data: {e}")
+    def on_data_loaded(self):
+        data = self.data_loader_thread.queue.dequeue()
+        self.data_loader_thread.quit()  # Stop the thread
+        self.view.hide_progress_dialog()
+        self.view.display_data(data)
+        shape_message = f"Data Loaded: {data.shape[0]} rows, {data.shape[1]} columns"
+        self.view.update_status_bar(shape_message)
 
+    def on_data_load_error(self, error_message):
+        self.data_loader_thread.quit()  # Stop the thread
+        self.view.hide_progress_dialog()
+        self.view.show_message(f"Error loading data: {error_message}")
     def select_column(self, column_name):
         """
         Handles the selection of a single column from the combobox.
@@ -175,4 +205,4 @@ class Controller:
         # Call the method on the view
         self.view.set_dark_theme()
 
-   
+   # Inside the Controller class in controller.py

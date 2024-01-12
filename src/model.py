@@ -44,5 +44,18 @@ class Model:
         # Add database loading logic here if needed
         else:
             raise ValueError("Unsupported file type")
+   
+    def get_row_data(self, column_name):
+        """
+        Gets the row data for the selected column.
 
-  
+        Args:
+            column_name (str): The name of the selected column.
+
+        Returns:
+            pd.Series: The row data for the selected column or an empty Series if the column is not found.
+        """
+        if hasattr(self, 'data') and column_name in self.data.columns:
+            return self.data[column_name]
+        else:
+            return pd.Series(dtype=object)  # Return an empty Series if the column is not found

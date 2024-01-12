@@ -18,6 +18,14 @@ def get_image_path(image_name):
     return f"{IMAGE_DIRECTORY}/{image_name}"
 class View(QMainWindow):
     columnSelected = pyqtSignal(str)
+    def show_progress_dialog(self):
+        self.progress_dialog = QProgressDialog("Loading Data...", None, 0, 95, self)
+        self.progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+        self.progress_dialog.setCancelButton(None)
+        self.progress_dialog.show()
+
+    def hide_progress_dialog(self):
+        self.progress_dialog.close()
     
     #columnActionRequested = pyqtSignal(str) # Renamed signal for column-related actions
 
@@ -212,6 +220,7 @@ class View(QMainWindow):
                 font-size: 10pt;
             }
         """)
+        
 
     def update_status_bar(self, message):
         """
@@ -269,6 +278,53 @@ class View(QMainWindow):
             for col in range(data_frame.shape[1]):
                 self.table_widget.setItem(
                     row, col, QTableWidgetItem(str(data_frame.iloc[row, col])))
+                   
+    def get_row_data(self, data_frame, column_name):
+ 
+      if column_name is None:
+        raise ValueError("The 'column_name' parameter must be provided.")
+
+      # Check if the table widget already exists
+      if not hasattr(self, 'table_widget'):
+        self.table_widget = QTableWidget()
+        # Add the table widget to the central layout
+        self.central_layout.addWidget(self.table_widget)
+
+    # Clear the table widget and set new row count and column count (for a single column)
+        self.table_widget.clear()
+        self.table_widget.setRowCount(data_frame.shape[0])
+        self.table_widget.setColumnCount(1)  # Displaying only one column
+
+    # Set the header label to the specified column name
+        self.table_widget.setHorizontalHeaderLabels([column_name])
+
+    # Styling the header (unchanged from your original code)
+        header_style = """
+    QHeaderView::section {
+        background-color: #9B1B1B; /* FireBrick red background */
+        color: white;              /* White text color */
+        font-weight: bold;         /* Bold font for the text */
+        border: 1px solid #9B1B1B; /* Darker red border */
+        padding: 3px;              /* Padding inside the header */
+    }
+    """
+        self.table_widget.horizontalHeader().setStyleSheet(header_style)
+
+    # Alternating row colors (unchanged from your original code)
+        self.table_widget.setAlternatingRowColors(True)
+        self.table_widget.setStyleSheet("""
+        QTableWidget {
+            alternate-background-color: #e8e8e8; /* Beige for alternating rows */
+        }
+    """)
+
+    # Populate the table with data from the specified column
+        column_data = data_frame[column_name]
+
+      for row in range(data_frame.shape[0]):
+        self.table_widget.setItem(
+            row, 0, QTableWidgetItem(str(column_data.iloc[row])))
+
 
     def create_docked_widget(self):
         """
@@ -306,12 +362,15 @@ class View(QMainWindow):
         # Connect the table widget's vertical header click event to the update_column_combobox method
         self.table_widget.horizontalHeader().sectionClicked.connect(self.update_column_combobox)
 
+        refresh_button = QPushButton("Refresh", self)
+        refresh_button.clicked.connect(self.controller.refresh_data)
 
-        button = QPushButton("Refresh")
-        button.setFixedHeight(30)
+    # Add the refresh button to the layout
+        self.central_layout.addWidget(refresh_button)
+        refresh_button.setFixedHeight(30)
         column_selection_layout.addWidget(label, 0)
         column_selection_layout.addWidget(self.comboBox, 1)
-        column_selection_layout.addWidget(button, 0)
+        column_selection_layout.addWidget(refresh_button, 0)
         # Create the button for calculating and displaying the shape
        
         # Set layout for buttons_widget
@@ -321,7 +380,7 @@ class View(QMainWindow):
              button = QPushButton(button_labels[i])
              row, col = divmod(i, 2)
              buttons_layout.addWidget(button, row, col)
-             button.clicked.connect(lambda _, label=button_labels[i]: self.calculate_shape(label))
+             #button.clicked.connect(lambda _, label=button_labels[i]: self.calculate_shape(label))
       
 
 
@@ -342,11 +401,7 @@ class View(QMainWindow):
         # Add the docked widget to the main window
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, docked_widget)
         self.table_widget.itemClicked.connect(self.update_column_combobox)
-    def calculate_shape(self):
-
-      if self.selected_column_data:
-         shape = self.selected_column_data.shape
-         sys.displayhook(shape)
+ 
     
     def update_column_combobox(self, logical_index):
         """
@@ -356,7 +411,7 @@ class View(QMainWindow):
         self.comboBox.clear()
         self.comboBox.addItem(column_name)
     
-   
+
 
 
     def set_light_theme(self):
@@ -366,12 +421,6 @@ class View(QMainWindow):
             background-color: #FFFFFF;
             color: #000000;
         """)
-   
-    def handle_button_click(self, column_label):
-        """
-        Handles the button click and emits the custom signal with the selected column name.
-        """
-        self.columnSelected.emit(column_label)
 
     def set_dark_theme(self):
         # Placeholder implementation
