@@ -55,7 +55,6 @@ class Controller:
             self.model.set_working_directory(directory)
 
 
-    
     def refresh_data(self):
         # Get the selected column from the combo box
         selected_column = self.view.comboBox.currentText()
@@ -63,15 +62,70 @@ class Controller:
         # Check if a column is selected
         if selected_column:
             # Get the row data for the selected column
-            row_data = self.model.get_row_data(selected_column)
+            column_index = self.view.get_column_index(selected_column)
+            row_data = self.view.retrieve_column_data(column_index)
 
-            if row_data is not None:
-                # Display the row data in the QTextEdit
-                self.view.output_display.setPlainText(selected_column)
-            else:
-                # Display a message if the column is not found
-                self.view.output_display.setPlainText(selected_column)
+            # Convert the list to a string and display in the QTextEdit
+            row_data_str = "\n".join(map(str, row_data))
+            self.view.output_display.setPlainText(row_data_str)
+  
+    def calculate_and_display_shape(self):
+        selected_column = self.view.comboBox.currentText()
+        if selected_column:
+            column_index = self.view.get_column_index(selected_column)
+            column_data = self.view.retrieve_column_data(column_index)
+            shape_message = f"Shape of '{selected_column}': {len(column_data)} Rows"
+            self.view.output_display.setPlainText(shape_message)
 
+
+    def calculate_and_display_unique(self):
+        selected_column = self.view.comboBox.currentText()
+        if selected_column:
+            column_index = self.view.get_column_index(selected_column)
+            column_data = self.view.retrieve_column_data(column_index)
+            unique_values = set(column_data)
+        
+            unique_count = len(unique_values)
+            output_text3 = f"Total Unique values in '{selected_column}': {unique_count}\n"
+            output_text = "\n".join(map(str, unique_values))
+            output_text2= f"Unique Value List:\n"
+            self.view.output_display.setPlainText(output_text3+output_text2+output_text)
+        else:
+            self.view.output_display.setPlainText("Plese Select Colunm")
+    def calculate_and_display_type(self):
+        selected_column = self.view.comboBox.currentText()
+        if selected_column:
+            column_index = self.view.get_column_index(selected_column)
+            column_data = self.view.retrieve_column_data(column_index)
+            data_types = set(type(item).__name__ for item in column_data)
+            output_text = "\n".join(map(str, data_types))
+            self.view.output_display.setPlainText(output_text)
+        else:
+            self.view.output_display.setPlainText("Plese Select Colunm")
+    def calculate_and_display_missing(self):
+        selected_column = self.view.comboBox.currentText()
+        if selected_column:
+            column_index = self.view.get_column_index(selected_column)
+            column_data = self.view.retrieve_column_data(column_index)
+            missing_values = column_data.count("")
+            output_text = f"Missing values in '{selected_column}': {missing_values}"
+            self.view.output_display.setPlainText(output_text)
+    def calculate_and_display_statistics(self):
+        # Perform actions related to "Statistics" button
+        # You can access the data and calculate statistics here
+        pass
+
+    def calculate_and_display_nans(self):
+        selected_column = self.view.comboBox.currentText()
+        if selected_column:
+            column_index = self.view.get_column_index(selected_column)
+            column_data = self.view.retrieve_column_data(column_index)
+            nan_values = column_data.count("nan")  # Assuming NaN is represented as a string in your data
+            output_text = f"NaN values in '{selected_column}': {nan_values}"
+            self.view.output_display.setPlainText(output_text)
+        else:
+            self.view.output_display.setPlainText("Plese Select Colunm")
+    
     def load_data(self):
         """
         Opens a file dialog for the user to select a file and loads the data.

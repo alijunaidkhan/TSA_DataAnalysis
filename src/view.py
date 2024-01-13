@@ -234,7 +234,7 @@ class View(QMainWindow):
         """
         QMessageBox.information(self, "Information", message)
 
-    def display_data(self, data_frame):
+    def display_data(self, data_frame,):
         """
         Displays the given DataFrame in a QTableWidget, replacing any existing data.
         Args:
@@ -278,52 +278,45 @@ class View(QMainWindow):
             for col in range(data_frame.shape[1]):
                 self.table_widget.setItem(
                     row, col, QTableWidgetItem(str(data_frame.iloc[row, col])))
-                   
-    def get_row_data(self, data_frame, column_name):
- 
-      if column_name is None:
-        raise ValueError("The 'column_name' parameter must be provided.")
+    # Inside the View class in view.py
 
-      # Check if the table widget already exists
-      if not hasattr(self, 'table_widget'):
-        self.table_widget = QTableWidget()
-        # Add the table widget to the central layout
-        self.central_layout.addWidget(self.table_widget)
+    def retrieve_column_data(self, column_index):
+        """
+        Get data from a specific column of the QTableWidget.
 
-    # Clear the table widget and set new row count and column count (for a single column)
-        self.table_widget.clear()
-        self.table_widget.setRowCount(data_frame.shape[0])
-        self.table_widget.setColumnCount(1)  # Displaying only one column
+        Args:
+            column_index (int): Index of the column.
 
-    # Set the header label to the specified column name
-        self.table_widget.setHorizontalHeaderLabels([column_name])
+        Returns:
+            list: List containing data from the specified column.
+        """
+        column_data = []
+        for row in range(self.table_widget.rowCount()):
+            item = self.table_widget.item(row, column_index)
+            if item is not None:
+                column_data.append(item.text())
+            else:
+                column_data.append("")  # If the item is None, append an empty string
 
-    # Styling the header (unchanged from your original code)
-        header_style = """
-    QHeaderView::section {
-        background-color: #9B1B1B; /* FireBrick red background */
-        color: white;              /* White text color */
-        font-weight: bold;         /* Bold font for the text */
-        border: 1px solid #9B1B1B; /* Darker red border */
-        padding: 3px;              /* Padding inside the header */
-    }
-    """
-        self.table_widget.horizontalHeader().setStyleSheet(header_style)
+        return column_data
+    
+    def get_column_index(self, column_name):
+        """
+        Get the column index based on the column name.
 
-    # Alternating row colors (unchanged from your original code)
-        self.table_widget.setAlternatingRowColors(True)
-        self.table_widget.setStyleSheet("""
-        QTableWidget {
-            alternate-background-color: #e8e8e8; /* Beige for alternating rows */
-        }
-    """)
+        Args:
+            column_name (str): Name of the column.
 
-    # Populate the table with data from the specified column
-        column_data = data_frame[column_name]
+        Returns:
+            int: Index of the column, or -1 if not found.
+        """
+        header_count = self.table_widget.columnCount()
+        for index in range(header_count):
+            header_item = self.table_widget.horizontalHeaderItem(index)
+            if header_item and header_item.text() == column_name:
+                return index
 
-      for row in range(data_frame.shape[0]):
-        self.table_widget.setItem(
-            row, 0, QTableWidgetItem(str(column_data.iloc[row])))
+        return -1  # Return -1 if column name is not found
 
 
     def create_docked_widget(self):
@@ -380,9 +373,21 @@ class View(QMainWindow):
              button = QPushButton(button_labels[i])
              row, col = divmod(i, 2)
              buttons_layout.addWidget(button, row, col)
-             #button.clicked.connect(lambda _, label=button_labels[i]: self.calculate_shape(label))
-      
-
+            
+                    # Connect each button to its corresponding method in the controller
+             if button_labels[i] == "Shape":
+                button.clicked.connect(self.controller.calculate_and_display_shape)
+             elif button_labels[i] == "Unique":
+                button.clicked.connect(self.controller.calculate_and_display_unique)
+             elif button_labels[i] == "Type":
+                button.clicked.connect(self.controller.calculate_and_display_type)
+             elif button_labels[i] == "Missing":
+                button.clicked.connect(self.controller.calculate_and_display_missing)
+             elif button_labels[i] == "Statistics":
+                button.clicked.connect(self.controller.calculate_and_display_statistics)
+             elif button_labels[i] == "NaNs":
+                button.clicked.connect(self.controller.calculate_and_display_nans)
+ 
 
         # Set layout for display_results_widget
         display_results_layout = QVBoxLayout(display_results_widget)
@@ -411,6 +416,27 @@ class View(QMainWindow):
         self.comboBox.clear()
         self.comboBox.addItem(column_name)
     
+# Inside the Model class
+
+
+    def get_row_data(self, column_name):
+        """
+        Gets the row data for the selected column.
+
+        Args:
+            column_name (str): The name of the selected column.
+
+        Returns:
+            pd.Series: The row data for the selected column, or an empty Series if the column is not found.
+        """
+        if hasattr(self, 'data') and column_name in self.data:
+            # Check if the column has object dtype, indicating non-numeric data
+            if pd.api.types.is_object_dtype(self.data[column_name]):
+                return str(self.data[column_name])
+            else:
+                return self.data[column_name]
+        else:
+            return pd.Series([])  # Return an empty Series if the column is not found
 
 
 
