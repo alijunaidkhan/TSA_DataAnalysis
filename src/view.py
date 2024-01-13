@@ -387,7 +387,7 @@ class View(QMainWindow):
                 button.clicked.connect(self.controller.calculate_and_display_statistics)
              elif button_labels[i] == "NaNs":
                 button.clicked.connect(self.controller.calculate_and_display_nans)
- 
+
 
         # Set layout for display_results_widget
         display_results_layout = QVBoxLayout(display_results_widget)

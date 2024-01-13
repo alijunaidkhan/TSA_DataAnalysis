@@ -1,4 +1,5 @@
 # controller.py
+from statistics import mean, median
 import pandas as pd
 import numpy as np
 from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QFileDialog, QToolButton
@@ -53,9 +54,12 @@ class Controller:
         directory = QFileDialog.getExistingDirectory(self.view, "Select Directory")
         if directory:  # check if a directory was selected
             self.model.set_working_directory(directory)
-
-
     def refresh_data(self):
+  
+        # Clear existing items in the combobox
+        self.view.comboBox.clear()
+        self.view.output_display.clear()
+    def refresh_data1(self):
         # Get the selected column from the combo box
         selected_column = self.view.comboBox.currentText()
 
@@ -68,7 +72,9 @@ class Controller:
             # Convert the list to a string and display in the QTextEdit
             row_data_str = "\n".join(map(str, row_data))
             self.view.output_display.setPlainText(row_data_str)
-  
+        else:
+            self.view.output_display.setPlainText("Plese Select Column")
+    # Inside the View class
     def calculate_and_display_shape(self):
         selected_column = self.view.comboBox.currentText()
         if selected_column:
@@ -76,6 +82,8 @@ class Controller:
             column_data = self.view.retrieve_column_data(column_index)
             shape_message = f"Shape of '{selected_column}': {len(column_data)} Rows"
             self.view.output_display.setPlainText(shape_message)
+        else:
+            self.view.output_display.setPlainText("Plese Select Column")
 
 
     def calculate_and_display_unique(self):
@@ -91,17 +99,44 @@ class Controller:
             output_text2= f"Unique Value List:\n"
             self.view.output_display.setPlainText(output_text3+output_text2+output_text)
         else:
-            self.view.output_display.setPlainText("Plese Select Colunm")
+            self.view.output_display.setPlainText("Plese Select Column")
+
+
     def calculate_and_display_type(self):
         selected_column = self.view.comboBox.currentText()
         if selected_column:
             column_index = self.view.get_column_index(selected_column)
             column_data = self.view.retrieve_column_data(column_index)
-            data_types = set(type(item).__name__ for item in column_data)
-            output_text = "\n".join(map(str, data_types))
+            data_types = set()
+            for value in column_data:
+                # Try converting the value to a number
+                try:
+                    converted_value = float(value)
+                except ValueError:
+                    # If conversion fails, use the original value
+                    converted_value = value
+
+                data_types.add(type(converted_value).__name__)
+
+            output_text = f"Data types in '{selected_column}':\n"
+            for category, types in {
+                'Text Type': {'str'},
+                'Numeric Types': {'int', 'float', 'complex'},
+                'Sequence Types': {'list', 'tuple', 'range'},
+                'Mapping Type': {'dict'},
+                'Set Types': {'set', 'frozenset'},
+                'Boolean Type': {'bool'},
+                'Binary Types': {'bytes', 'bytearray', 'memoryview'},
+                'None Type': {'NoneType'}
+            }.items():
+                matching_types = data_types.intersection(types)
+                if matching_types:
+                    output_text += f"{category}: {', '.join(matching_types)}\n"
+
             self.view.output_display.setPlainText(output_text)
         else:
-            self.view.output_display.setPlainText("Plese Select Colunm")
+            self.view.output_display.setPlainText("Plese Select Column")
+    
     def calculate_and_display_missing(self):
         selected_column = self.view.comboBox.currentText()
         if selected_column:
@@ -110,21 +145,52 @@ class Controller:
             missing_values = column_data.count("")
             output_text = f"Missing values in '{selected_column}': {missing_values}"
             self.view.output_display.setPlainText(output_text)
+        else:
+            self.view.output_display.setPlainText("Plese Select Column")
+
+
     def calculate_and_display_statistics(self):
-        # Perform actions related to "Statistics" button
-        # You can access the data and calculate statistics here
-        pass
+        selected_column = self.view.comboBox.currentText()
+        if selected_column:
+            column_index = self.view.get_column_index(selected_column)
+            column_data = self.view.retrieve_column_data(column_index)
+
+            # Check if all values in the column are numeric
+            if all(self.is_numeric(value) for value in column_data):
+                numeric_values = [float(value) for value in column_data]
+
+                # Calculate statistics
+                statistics_text = f"Statistics for '{selected_column}':\n"
+                statistics_text += f"Count: {len(numeric_values)}\n"
+                statistics_text += f"Mean: {mean(numeric_values)}\n"
+                statistics_text += f"Median: {median(numeric_values)}\n"
+                statistics_text += f"Minimum: {min(numeric_values)}\n"
+                statistics_text += f"Maximum: {max(numeric_values)}\n"
+            else:
+                statistics_text = f"The all values of column '{selected_column}' is not numeric. Try again."
+
+            self.view.output_display.setPlainText(statistics_text)
+        else:
+            self.view.output_display.setPlainText("Plese Select Column")
+
+    def is_numeric(self, value):
+        try:
+            float(value)
+            return True
+        except ValueError:
+            return False
+
 
     def calculate_and_display_nans(self):
         selected_column = self.view.comboBox.currentText()
         if selected_column:
             column_index = self.view.get_column_index(selected_column)
             column_data = self.view.retrieve_column_data(column_index)
-            nan_values = column_data.count("nan")  # Assuming NaN is represented as a string in your data
+            nan_values = column_data.count("nan") +column_data.count("NaN")+column_data.count("NAN") # Assuming NaN is represented as a string in your data
             output_text = f"NaN values in '{selected_column}': {nan_values}"
             self.view.output_display.setPlainText(output_text)
         else:
-            self.view.output_display.setPlainText("Plese Select Colunm")
+            self.view.output_display.setPlainText("Plese Select Column")
     
     def load_data(self):
         """
