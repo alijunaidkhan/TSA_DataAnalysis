@@ -443,18 +443,93 @@ class View(QMainWindow):
     def set_light_theme(self):
         # Placeholder implementation
         self.setStyleSheet("""
-            /* Light Theme Styles */
-            background-color: #FFFFFF;
-            color: #000000;
-        """)
+            QPushButton {
+                background-color: #0078D7; /* Blue background */
+                color: white;              /* White text */
+                border-radius: 7px;       /* Rounded corners */
+                padding: 6px;              /* Padding for text */
+                font-weight: bold;         /* Bold font */
+            }
+            QPushButton:hover {
+                background-color: #0056b3; /* Darker blue on hover */
+            }
+            QComboBox {
+                border: 2px solid #0078D7; /* Blue border */
+                border-radius: 7px;       /* Rounded corners */
+                padding: 3px;              /* Padding inside the combobox */
+                color: #0078D7;            /* Blue text */
+                background-color: white;   /* White background */
+            }
+            QComboBox::drop-down {
+                border: none;              /* No border for the dropdown button */
 
-    def set_dark_theme(self):
-        # Placeholder implementation
-        self.setStyleSheet("""
-            /* Dark Theme Styles */
-            background-color: #1E1E1E;
-            color: #FFFFFF;
         """)
+    def set_dark_theme(self):
+    # Dark theme styles
+     dark_theme = """
+        background-color: #2E2E2E;  /* Dark background */
+        color: #FFFFFF;            /* White text */
+    """
+    
+    # Apply dark theme to the entire application
+     self.setStyleSheet(dark_theme)
+
+    # Apply dark theme styles to QMenuBar
+     self.menuBar().setStyleSheet("""
+        QMenuBar {
+            background-color: #333333; /* Darker background for the menu bar */
+            color: #FFFFFF;
+            border: 1px solid #1E1E1E; /* Slightly lighter border */
+            padding: 5px; /* Padding for the menu bar */
+        }
+        QMenuBar::item {
+            background-color: #333333; /* Darker background for menu items */
+            color: #FFFFFF;
+            padding: 8px 15px; /* Adjusted padding for menu items */
+        }
+        QMenuBar::item:selected {
+            background-color: #4A4A4A; /* Slightly lighter background on selection */
+        }
+    """)
+
+    # Apply dark theme styles to QTableWidget
+     self.table_widget.setStyleSheet("""
+        QTableWidget {
+            alternate-background-color: #000000; /* Darker alternate rows */
+            color: #FFFFFF;
+            selection-background-color: #4A4A4A; /* Slightly lighter background on selection */
+            selection-color: #FFFFFF; /* Text color for selection */
+        }
+    """)
+
+    # Apply dark theme styles to QHeaderView
+     self.table_widget.horizontalHeader().setStyleSheet("""
+        QHeaderView::section {
+            background-color: #333333; /* Darker background for header */
+            color: #FFFFFF;
+            font-weight: bold;
+            border: 1px solid #1E1E1E; /* Slightly lighter border */
+            padding: 10px 15px;  /* Increased padding for header */
+        }
+                                                        
+
+                                                                                            
+    """)
+         # Apply dark theme styles to QHeaderView
+     self.table_widget.verticalHeader().setStyleSheet("""
+        QHeaderView::section {
+            background-color: #333333; /* Darker background for header */
+            color: #FFFFFF;
+            font-weight: bold;
+            border: 1px solid #1E1E1E; /* Slightly lighter border */
+            padding: 10px 15px;  /* Increased padding for header */
+        }
+                                                        
+                                                        
+    """)
+
+
+
     def show_about_software(self):
         # Placeholder implementation
         QMessageBox.information(self, "About Software", "This is a placeholder for the About Software information.")

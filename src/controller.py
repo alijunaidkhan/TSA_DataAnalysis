@@ -260,21 +260,7 @@ class Controller:
         This method is a placeholder and should be implemented to modify the view's appearance according to the selected theme.
         """
         pass
-    def set_light_theme(self):
-        # Placeholder implementation
-        self.setStyleSheet("""
-            /* Light Theme Styles */
-            background-color: #FFFFFF;
-            color: #000000;
-        """)
-
-    def set_dark_theme(self):
-        # Placeholder implementation
-        self.setStyleSheet("""
-            /* Dark Theme Styles */
-            background-color: #1E1E1E;
-            color: #FFFFFF;
-        """)
+  
     def show_about_software(self):
         # Placeholder implementation
         QMessageBox.information(self, "About Software", "This is a placeholder for the About Software information.")
