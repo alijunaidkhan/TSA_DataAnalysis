@@ -1,7 +1,7 @@
 # model.py
 import pandas as pd
 import numpy as np
-from PyQt6.QtWidgets import QMessageBox, QMainWindow, QPushButton, QVBoxLayout, QWidget, QFileDialog, QToolButton
+
 
 class Model:
     """
@@ -16,6 +16,7 @@ class Model:
         Initializes the Model with default values.
         """
         self.working_directory = None
+        self.data_frame = None  # Initialize the data_frame attribute
 
     def set_working_directory(self, directory):
         """
@@ -29,19 +30,65 @@ class Model:
     def load_data(self, file_path, file_type):
         """
         Loads data from the specified file into a pandas DataFrame.
-
         Args:
             file_path (str): Path of the file to be loaded.
             file_type (str): Type of the file ('csv', 'excel', or 'database').
-
         Returns:
             pd.DataFrame: The loaded data.
         """
         if file_type == 'csv':
-            return pd.read_csv(file_path)
+            self.data_frame = pd.read_csv(file_path)
         elif file_type == 'excel':
-            return pd.read_excel(file_path)
-        # Add database loading logic here if needed
+            self.data_frame = pd.read_excel(file_path)
         else:
             raise ValueError("Unsupported file type")
-   
+        return self.data_frame  # Return the loaded DataFrame
+
+    def save_data(self, data, file_path):
+        """
+        Saves data to a specified file.
+
+        Placeholder method to be implemented.
+
+        Args:
+            data: Data to be saved.
+            file_path (str): The path of the file to save data to.
+        """
+        pass
+######################################################## trying Functionalities for docked widget#####################################################
+#
+#
+####################################################################################################################################################
+
+    def set_index_and_preserve_column(self, column_name):
+        """
+        Sets the specified column as the index of the DataFrame, while preserving the column in the data.
+        Args:column_name (str): The name of the column to set as the index.
+        """
+        if self.data_frame is not None and column_name in self.data_frame.columns:
+            # Create a copy of the column to be used as index
+            self.data_frame['index_'] = self.data_frame[column_name]
+            # Set the column as index
+            self.data_frame.set_index(column_name, inplace=True)
+
+        else:
+            raise ValueError("Column not found in DataFrame")
+
+    def set_frequency(self, freq):
+        """
+        Sets the frequency of the DataFrame index.
+        Args: freq (str): The frequency string to set."""
+
+        if self.data_frame is not None:
+            # Assuming the index is already a datetime-like index
+            self.data_frame.index.freq = freq
+            print(self.data_frame.index.freq)
+        else:
+            raise ValueError("DataFrame is not loaded or index is not datetime.")
+
+    def get_data_for_columns(self, columns):
+        """Fetch data for the specified columns."""
+        if self.data_frame is not None and all(col in self.data_frame.columns for col in columns):
+            return self.data_frame[columns]
+        else:
+            raise ValueError("One or more selected columns are not in the DataFrame")
