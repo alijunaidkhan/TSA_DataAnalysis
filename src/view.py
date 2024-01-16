@@ -6,7 +6,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from PyQt6.QtCore import Qt, QUrl
-from PyQt6.QtGui import QAction, QStandardItem, QStandardItemModel, QDesktopServices
+from PyQt6.QtGui import QAction, QStandardItem, QStandardItemModel, QDesktopServices,QIcon
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget, QTabWidget, \
     QTableWidget, QTableWidgetItem, QHBoxLayout, QLabel, QLineEdit, QGridLayout, QDialog, QGroupBox, QRadioButton, QComboBox, QTextEdit, QMessageBox, QButtonGroup, QDockWidget
 os.environ['QT_API'] = 'pyqt6'
@@ -38,7 +38,9 @@ class View(QMainWindow):
         """
         Initializes the user interface components of the application.
         """
-        self.setWindowTitle("My Application")
+        self.setWindowTitle("TSA")
+        icon = QIcon('images/bulb.png')
+        self.setWindowIcon(icon) 
         self.setGeometry(100, 100, 800, 600)
 
         self.create_menus()
@@ -61,7 +63,11 @@ class View(QMainWindow):
 
         # Create an initially empty QTableWidget
         self.table_widget = QTableWidget()
-        self.table_widget.setStyleSheet("background-color: grey;")  # 333333
+        image_path = 'images/bulb.png'
+        self.table_widget.setStyleSheet(f"background-image: url({image_path});"
+                                        f"background-repeat: no-repeat; background-position: center;"
+                                        f"background-size: 100% 100%;")
+
         # Add the table widget to the central layout
         self.central_layout.addWidget(self.table_widget)
 
@@ -92,65 +98,113 @@ class View(QMainWindow):
 
         """)
 
+    
+    def set_light_theme(self):
+        # Placeholder implementation
+        self.setStyleSheet("""
+            /* Light Theme Styles */
+            background-color: #FFFFFF;
+            color: #000000;
+        """)
+
+    def set_dark_theme(self):
+        # Placeholder implementation
+        self.setStyleSheet("""
+            /* Dark Theme Styles */
+            background-color: #1E1E1E;
+            color: #FFFFFF;
+        """)
     def create_menus(self):
         """
         Creates the menu bar and adds menus to it.
         """
         menu_bar = self.menuBar()  # Use the existing menu bar of QMainWindow
         file_menu = menu_bar.addMenu("&File")
+      #  change_theme_icon = file_menu.addMenu("Theme")
 
-        # Actions for the file menu
-        file_menu.addAction(QAction("&Set Directory", self,
-                            triggered=self.controller.set_directory))
-        file_menu.addAction(QAction("&Load Data", self, triggered=self.controller.load_data))
-        file_menu.addAction(QAction("&Save As...", self, triggered=self.controller.save_as))
-        file_menu.addAction(QAction("&Themes", self, triggered=self.controller.change_theme))
-        file_menu.addAction(QAction("E&xit", self, triggered=self.close))
+
+# Define icons for each action
+        set_directory_icon = QIcon('images/set_directory_icon.png')
+        load_data_icon = QIcon('images/load_data_icon.png')
+        save_as_icon = QIcon('images/save_as_icon.png')
+        change_theme_icon = QIcon('images/change_theme_icon.png')
+                # Light Theme Action
+
+
+        exit_icon = QIcon('images/exit_icon.png')
+
+# Actions for the file menu
+        set_directory_action = QAction(set_directory_icon, "&Set Directory", self, triggered=self.controller.set_directory)
+        load_data_action = QAction(load_data_icon, "&Load Data", self, triggered=self.controller.load_data)
+        save_as_action = QAction(save_as_icon, "&Save As...", self, triggered=self.controller.save_as)
+        change_theme_action = QAction(change_theme_icon, "&Themes", self, triggered=self.controller.change_theme)
+        exit_action = QAction(exit_icon, "E&xit", self, triggered=self.close)
+
+# Set icons for each action
+        set_directory_action.setIcon(set_directory_icon)
+        load_data_action.setIcon(load_data_icon)
+        save_as_action.setIcon(save_as_icon)
+        change_theme_action.setIcon(change_theme_icon)
+        exit_action.setIcon(exit_icon)
+
+# Add actions to the file menu
+        file_menu.addAction(set_directory_action)
+        file_menu.addAction(load_data_action)
+        file_menu.addAction(save_as_action)
+        file_menu.addAction(change_theme_action)
+        file_menu.addAction(exit_action)
 
 ##########################################################################################################
 ############################### Explore menu #############################################################
         # Create 'Explore' menu
+
         explore_menu = self.menuBar().addMenu("&Explore")
-        # Add actions to 'Explore' menu
-        data_info_action = QAction("&Data Info", self)
+
+# Add actions to 'Explore' menu
+        data_info_icon = QIcon('images/data_info_icon.png')
+        data_info_action = QAction(data_info_icon, "&Data Info", self)
         data_info_action.triggered.connect(self.controller.open_data_info)
         explore_menu.addAction(data_info_action)
 
-        # Repeat for other actions...
-        # Set Index
-        set_index_action = QAction("&Set Index", self)
+# Set Index
+        set_index_icon = QIcon('images/set_index_icon.png')
+        set_index_action = QAction(set_index_icon, "&Set Index", self)
         set_index_action.triggered.connect(self.controller.set_index)
         explore_menu.addAction(set_index_action)
 
-        # Set Frequency
-        set_frequency_action = QAction("&Set Frequency", self)
+# Set Frequency
+        set_frequency_icon = QIcon('images/set_frequency_icon.png')
+        set_frequency_action = QAction(set_frequency_icon, "&Set Frequency", self)
         set_frequency_action.triggered.connect(self.controller.set_frequency)
         explore_menu.addAction(set_frequency_action)
 
-        # Time Series Plots submenu actions for different plot types
+# Time Series Plots submenu actions for different plot types
         time_series_plots_menu = explore_menu.addMenu("&Time Series Plots")
-        
-        # Line Plot action
-        line_plot_action = QAction("&Line Plot", self)
+
+# Line Plot action
+        line_plot_icon = QIcon('images/line_plot_icon.png')
+        line_plot_action = QAction(line_plot_icon, "&Line Plot", self)
         line_plot_action.triggered.connect(self.controller.open_line_plot_dialog)
         time_series_plots_menu.addAction(line_plot_action)
 
-        #Seasonal Decompose action
-        seasonal_decompose_action = QAction("&Seasonal Decomposition", self)
+# Seasonal Decompose action
+        seasonal_decompose_icon = QIcon('images/seasonal_decompose_icon.png')
+        seasonal_decompose_action = QAction(seasonal_decompose_icon, "&Seasonal Decomposition", self)
         seasonal_decompose_action.triggered.connect(self.controller.open_seasonal_decompose_dialog)
-        time_series_plots_menu.addAction(seasonal_decompose_action)        
+        time_series_plots_menu.addAction(seasonal_decompose_action)
 
-
-        #time_series_action.triggered.connect(self.controller.open_time_series_plot_dialog)
-        #explore_menu.addAction(time_series_action)
-
-        # Stationarity Test (with sub-actions)
+# Stationarity Test (with sub-actions)
         stationarity_menu = explore_menu.addMenu("&Stationarity Test")
-        visual_test_action = QAction("&Visually", self)
+
+# Visual test action
+        visual_test_icon = QIcon('images/visual_test_icon.png')
+        visual_test_action = QAction(visual_test_icon, "&Visually", self)
         visual_test_action.triggered.connect(self.controller.stationarity_test_visual)
         stationarity_menu.addAction(visual_test_action)
 
-        statistical_test_action = QAction("&Statistically", self)
+# Statistical test action
+        statistical_test_icon = QIcon('images/statistical_test_icon.png')
+        statistical_test_action = QAction(statistical_test_icon, "&Statistically", self)
         statistical_test_action.triggered.connect(self.controller.stationarity_test_statistical)
         stationarity_menu.addAction(statistical_test_action)
 
