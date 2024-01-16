@@ -1,1 +1,4 @@
+#ignore files from git repo
 *.pyc
+
+/__pycache__/
