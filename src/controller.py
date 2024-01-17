@@ -3,8 +3,7 @@ import pandas as pd
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
 from model import Model
 from view import View, DataInfoDialog, SetIndexDialog, SetFrequencyDialog
-
-
+from PyQt6.QtGui import QIcon
 class Controller:
     """
     The Controller component in the MVC architecture, responsible for handling user interactions,
@@ -33,8 +32,11 @@ class Controller:
         """
         Opens a dialog for the user to select a directory and updates the model's working directory.
         """
+        
         directory = QFileDialog.getExistingDirectory(self.view, "Select Directory")
         if directory:  # check if a directory was selected
+            icon = QIcon('images/set_directory_icon.png')
+            self.view.setWindowIcon(icon)
             self.model.set_working_directory(directory)
 
     def load_data(self):
@@ -42,11 +44,13 @@ class Controller:
         Opens a file dialog for the user to select a file and loads the data.
         """
         file_dialog = QFileDialog(self.view)
+
         file_path, _ = file_dialog.getOpenFileName(
             #self.view, "Open File", "", "Excel Files (*.xlsx);;CSV Files (*.csv)")
             self.view, "Open File", "", "CSV Files (*.csv);;Excel Files (*.xlsx)")
             
         if file_path:
+ 
             if file_path.endswith('.csv'):
                 file_type = 'csv'
             elif file_path.endswith('.xlsx'):
@@ -279,6 +283,71 @@ class Controller:
             self.view.lineplotting_dialog.plot_data(data_to_plot)
         else:
             self.view.show_message("Warning", "No columns selected for plotting.")
-
+##########################################################################################
+    """For Decomposition of Series"""           
+##########################################################################################            
+            
     def open_seasonal_decompose_dialog(self):
-        pass
+        """Opens the Seasonal Decompose Dialog."""
+        if self.model.data_frame is not None:
+            series_list = self.model.data_frame.columns.tolist()
+            self.view.seasonal_decompose_dialog.populate_series(series_list)
+            self.view.seasonal_decompose_dialog.show()
+        else:
+            self.view.show_message("Warning", "No data loaded for decomposition.")
+
+
+
+
+    def perform_seasonal_decomposition(self, series_name, period, model_type):
+        """
+        Handles the seasonal decomposition request.
+
+        Args:
+            series_name (str): The name of the series to decompose.
+            period (int): The period of the seasonal component.
+            model_type (str): Type of decomposition model ('additive' or 'multiplicative').
+        """
+        try:
+            decomposition_result = self.model.seasonal_decompose(series_name, period, model_type)
+            self.view.seasonal_decompose_dialog.plot_decomposition(decomposition_result)
+        except Exception as e:
+            self.view.show_message("Error", str(e))
+
+    """ End of Decomposition"""
+            
+
+##########################################################################################
+    """For ACF/PACF and Lag Plot"""           
+##########################################################################################  
+
+    def open_lag_acf_pacf_dialog(self):
+        """Opens the window for the lag, acf, and pacf plots."""
+        if self.model.data_frame is not None:
+            series_list = self.model.data_frame.columns.tolist()
+            self.view.lag_acf_pacf_dialog.populate_series(series_list)
+            self.view.lag_acf_pacf_dialog.show()
+        else:
+            QMessageBox.warning(self.view, "Warning", "No data loaded for ACF/PACF analysis.")
+
+    def perform_lag_acf_pacf_analysis(self, series_name, number_of_lags):
+        """
+        Handles the lag, ACF, and PACF analysis request.
+
+        Args:
+            series_name (str): The name of the series to analyze.
+            number_of_lags (int): The number of lags to be used in the analysis.
+        """
+        try:
+            # Pass the series data directly to the view's plotting methods
+            series_data = self.model.data_frame[series_name]
+            self.view.lag_acf_pacf_dialog.plot_lag(series_data)
+            self.view.lag_acf_pacf_dialog.plot_acf(series_data, number_of_lags)
+            self.view.lag_acf_pacf_dialog.plot_pacf(series_data, number_of_lags)
+        except Exception as e:
+            QMessageBox.critical(self.view, "Error", str(e))
+
+
+
+
+  

@@ -6,12 +6,17 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from PyQt6.QtCore import Qt, QUrl
-from PyQt6.QtGui import QAction, QStandardItem, QStandardItemModel, QDesktopServices,QIcon
+from PyQt6.QtGui import QAction, QIcon,QStandardItem, QStandardItemModel, QDesktopServices
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget, QTabWidget, \
-    QTableWidget, QTableWidgetItem, QHBoxLayout, QLabel, QLineEdit, QGridLayout, QDialog, QGroupBox, QRadioButton, QComboBox, QTextEdit, QMessageBox, QButtonGroup, QDockWidget
+    QTableWidget, QTableWidgetItem, QHBoxLayout, QLabel, QLineEdit, QGridLayout, QDialog, QGroupBox,\
+    QRadioButton, QComboBox, QTextEdit, QMessageBox, QButtonGroup, QDockWidget,QSpinBox, QSpacerItem, QSizePolicy
 os.environ['QT_API'] = 'pyqt6'
-
 matplotlib.use('QtAgg')
+
+from statsmodels.tsa.seasonal import seasonal_decompose
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+from pandas.plotting import lag_plot
+
 
 
 class View(QMainWindow):
@@ -29,17 +34,25 @@ class View(QMainWindow):
             controller (Controller): The controller instance for the view to communicate with.
         """
         super().__init__()
-        # Initialize the plotting dialog
+                
         self.controller = controller
+        # Initialize the plotting dialog
+    
         self.lineplotting_dialog = PlottingDialog(controller=self.controller)
+                # Initialize the seasonal decomposition dialog
+        self.seasonal_decompose_dialog = SeasonalDecomposeDialog(controller=self.controller)
+        #Initialize the LagAcfPacfDialog dialog
+        self.lag_acf_pacf_dialog = LagAcfPacfDialog(controller=self.controller)
+
         self.init_ui()
 
     def init_ui(self):
         """
         Initializes the user interface components of the application.
         """
+       
         self.setWindowTitle("TSA")
-        icon = QIcon('images/bulb.png')
+        icon = QIcon('images/bulb_icon.png')
         self.setWindowIcon(icon) 
         self.setGeometry(100, 100, 800, 600)
 
@@ -63,12 +76,16 @@ class View(QMainWindow):
 
         # Create an initially empty QTableWidget
         self.table_widget = QTableWidget()
+        self.table_widget.setStyleSheet("background-color: grey;")  # 333333
         image_path = 'images/bulb.png'
-        self.table_widget.setStyleSheet(f"background-image: url({image_path});"
-                                        f"background-repeat: no-repeat; background-position: center;"
-                                        f"background-size: 100% 100%;")
+        style_sheet = (
+         f"border-image: url({image_path}) 0 0 0 0 stretch stretch;"
+          "background-position: center;"
+          "width: 500px; height: 320px;" 
+          )
 
-        # Add the table widget to the central layout
+
+        self.table_widget.setStyleSheet(style_sheet)
         self.central_layout.addWidget(self.table_widget)
 
         self.setCentralWidget(self.central_widget)
@@ -133,12 +150,13 @@ class View(QMainWindow):
 
         exit_icon = QIcon('images/exit_icon.png')
 
+
 # Actions for the file menu
         set_directory_action = QAction(set_directory_icon, "&Set Directory", self, triggered=self.controller.set_directory)
         load_data_action = QAction(load_data_icon, "&Load Data", self, triggered=self.controller.load_data)
         save_as_action = QAction(save_as_icon, "&Save As...", self, triggered=self.controller.save_as)
         change_theme_action = QAction(change_theme_icon, "&Themes", self, triggered=self.controller.change_theme)
-        exit_action = QAction(exit_icon, "E&xit", self, triggered=self.close)
+        exit_action = QAction(exit_icon, "&Exit", self, triggered=self.close)
 
 # Set icons for each action
         set_directory_action.setIcon(set_directory_icon)
@@ -159,6 +177,8 @@ class View(QMainWindow):
         # Create 'Explore' menu
 
         explore_menu = self.menuBar().addMenu("&Explore")
+        # Add actions to 'Explore' menu
+        data_info_action = QAction("&Data Info", self)
 
 # Add actions to 'Explore' menu
         data_info_icon = QIcon('images/data_info_icon.png')
@@ -166,20 +186,29 @@ class View(QMainWindow):
         data_info_action.triggered.connect(self.controller.open_data_info)
         explore_menu.addAction(data_info_action)
 
+        # Repeat for other actions...
+        # Set Index
+        set_index_action = QAction("&Set Index", self)
 # Set Index
         set_index_icon = QIcon('images/set_index_icon.png')
         set_index_action = QAction(set_index_icon, "&Set Index", self)
         set_index_action.triggered.connect(self.controller.set_index)
         explore_menu.addAction(set_index_action)
 
+        # Set Frequency
+        set_frequency_action = QAction("&Set Frequency", self)
 # Set Frequency
         set_frequency_icon = QIcon('images/set_frequency_icon.png')
         set_frequency_action = QAction(set_frequency_icon, "&Set Frequency", self)
         set_frequency_action.triggered.connect(self.controller.set_frequency)
         explore_menu.addAction(set_frequency_action)
 
+        # Time Series Plots submenu actions for different plot types
 # Time Series Plots submenu actions for different plot types
         time_series_plots_menu = explore_menu.addMenu("&Time Series Plots")
+        
+        # Line Plot action
+        line_plot_action = QAction("&Line Plot", self)
 
 # Line Plot action
         line_plot_icon = QIcon('images/line_plot_icon.png')
@@ -187,14 +216,26 @@ class View(QMainWindow):
         line_plot_action.triggered.connect(self.controller.open_line_plot_dialog)
         time_series_plots_menu.addAction(line_plot_action)
 
+        #Seasonal Decompose action
+        seasonal_decompose_action = QAction("&Seasonal Decomposition", self)
 # Seasonal Decompose action
         seasonal_decompose_icon = QIcon('images/seasonal_decompose_icon.png')
         seasonal_decompose_action = QAction(seasonal_decompose_icon, "&Seasonal Decomposition", self)
         seasonal_decompose_action.triggered.connect(self.controller.open_seasonal_decompose_dialog)
-        time_series_plots_menu.addAction(seasonal_decompose_action)
+        time_series_plots_menu.addAction(seasonal_decompose_action)        
 
+        #Lag, ACF and PACF action
+        lag_acf_pacf_action = QAction("&Lag | ACF | PACF", self)
+        lag_acf_pacf_action.triggered.connect(self.controller.open_lag_acf_pacf_dialog)
+        time_series_plots_menu.addAction(lag_acf_pacf_action)           
+
+        #time_series_action.triggered.connect(self.controller.open_time_series_plot_dialog)
+        #explore_menu.addAction(time_series_action)
+
+        # Stationarity Test (with sub-actions)
 # Stationarity Test (with sub-actions)
         stationarity_menu = explore_menu.addMenu("&Stationarity Test")
+        visual_test_action = QAction("&Visually", self)
 
 # Visual test action
         visual_test_icon = QIcon('images/visual_test_icon.png')
@@ -202,6 +243,7 @@ class View(QMainWindow):
         visual_test_action.triggered.connect(self.controller.stationarity_test_visual)
         stationarity_menu.addAction(visual_test_action)
 
+        statistical_test_action = QAction("&Statistically", self)
 # Statistical test action
         statistical_test_icon = QIcon('images/statistical_test_icon.png')
         statistical_test_action = QAction(statistical_test_icon, "&Statistically", self)
@@ -336,6 +378,14 @@ class View(QMainWindow):
     def update_plotting_dialog_columns(self, columns):
         if self.plotting_dialog is not None:
             self.plotting_dialog.update_combobox_items(columns)
+    def update_column_combobox(self, logical_index):
+        """
+        Updates the combobox with the selected column name.
+        """
+        column_name = self.table_widget.horizontalHeaderItem(logical_index).text()
+        self.comboBox.clear()
+        self.comboBox.addItem(column_name)
+    
 
 ##################################################################################################################
 
@@ -362,6 +412,9 @@ class View(QMainWindow):
         self.comboBox = QComboBox(column_selection_widget)
         self.comboBox.setObjectName("columnComboBox")
         self.comboBox.setFixedHeight(30)
+        self.table_widget.horizontalHeader().sectionClicked.connect(self.update_column_combobox)
+        #self.table_widget.itemClicked.connect(self.update_column_combobox)
+
 
         refresh_button = QPushButton("Refresh", column_selection_widget)
         refresh_button.setObjectName("refreshButton")
@@ -429,6 +482,8 @@ class DataInfoDialog(QDialog):
         self.controller = controller
 
         self.setWindowTitle("Data Information")
+        icon = QIcon('images/data_info_icon.png')
+        self.setWindowIcon(icon) 
         self.setGeometry(300, 300, 600, 400)  # Adjust size and position as needed
 
         # Create the tab widget
@@ -525,6 +580,17 @@ class DataInfoDialog(QDialog):
             QMessageBox.warning(self, "Warning", "Please select columns and a data type.")
 
     def add_buttons(self):
+        self.setStyleSheet("""
+            QPushButton {
+                background-color: #96b1c2; /* grey background */
+                color: white;              /* White text */
+                border-radius: 7px;       /* Rounded corners */
+                padding: 6px;              /* Padding for text */
+                font-weight: bold;         /* Bold font */
+            }
+            QPushButton:hover {
+                background-color: #1b4972; /* Darker blue on hover */
+            }""")
         # Buttons for dialog actions
         button_layout = QHBoxLayout()
         self.confirm_exit_button = QPushButton("Confirm and Exit", self)
@@ -563,6 +629,16 @@ class DataInfoDialog(QDialog):
 
     def populate_data_info(self, data_info):
         self.table_widget.setColumnCount(3)
+        header_style = """
+        QHeaderView::section {
+            background-color: #B22222; /* FireBrick red background */
+            color: white;              /* White text color */
+            font-weight: bold;         /* Bold font for the text */
+            border: 1px solid #9B1B1B; /* Darker red border */
+            padding: 3px;              /* Padding inside the header */
+        }
+        """
+        self.table_widget.horizontalHeader().setStyleSheet(header_style)
         self.table_widget.setHorizontalHeaderLabels(['Column', 'DataType', 'Missing Values'])
         self.table_widget.setRowCount(len(data_info['columns']))
 
@@ -618,6 +694,8 @@ class SetIndexDialog(QDialog):
     def __init__(self, columns, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Set Index")
+        icon = QIcon('images/set_index_icon.png')
+        self.setWindowIcon(icon) 
         self.setGeometry(300, 300, 400, 150)
 
         # Main layout
@@ -659,6 +737,8 @@ class SetFrequencyDialog(QDialog):
         super().__init__(parent)
 
         self.setWindowTitle("Set Frequency")
+        icon = QIcon('images/set_frequency_icon.png')
+        self.setWindowIcon(icon) 
         self.setMinimumSize(500, 250)  # Adjust the size as needed
         layout = QVBoxLayout(self)
 
@@ -792,6 +872,8 @@ class PlottingDialog(QMainWindow):
         super().__init__(parent)
         self.controller = controller
         self.setWindowTitle("Line Plot")
+        icon = QIcon('images/line_plot_icon.png')
+        self.setWindowIcon(icon) 
         self.setGeometry(100, 100, 1000, 800)  
 
         # Create a central widget
@@ -862,4 +944,260 @@ class PlottingDialog(QMainWindow):
         """Updates the items in the combobox."""
         self.column_selector.clear()  # Clear any existing items
         for item in items:
-            self.column_selector.addItem(item)  # Add new items
+            self.column_selector.addItem(item)  
+
+           
+
+######################################################### 
+""" Decomposition plot funtionalities below"""
+#########################################################
+
+class MplCanvas(FigureCanvasQTAgg):
+    def __init__(self, parent=None, width=5, height=4, dpi=100):
+        fig = Figure(figsize=(width, height), dpi=dpi)
+        self.axes = fig.add_subplot(111)
+        super().__init__(fig)
+
+class SeasonalDecomposeDialog(QMainWindow):
+    def __init__(self, controller, parent=None):
+        super().__init__(parent)
+        self.controller = controller
+        self.setWindowTitle("Seasonal Decomposition")
+        self.setGeometry(100, 100, 1000, 800)
+
+        # Create a central widget
+        central_widget = QWidget(self)
+        self.setCentralWidget(central_widget)
+        main_layout = QVBoxLayout(central_widget)
+
+        # Parameters layout for series, period, and model
+        parameters_layout = QHBoxLayout()
+
+        # Series selection combobox and label
+        self.series_label = QLabel("Select Series:")
+        self.series_combobox = QComboBox()
+        self.series_combobox.setFixedHeight(30)
+        parameters_layout.addWidget(self.series_label)
+        parameters_layout.addWidget(self.series_combobox,2)
+
+        # Period selection spinbox and label
+        self.period_label = QLabel("Period:")
+        self.period_spin_box = QSpinBox()
+        self.period_spin_box.setFixedHeight(30)
+        self.period_spin_box.setMinimum(1)
+        self.period_spin_box.setMaximum(365)
+        parameters_layout.addWidget(self.period_label)
+        parameters_layout.addWidget(self.period_spin_box,1)
+
+        # Model selection radio buttons and label
+        self.model_label = QLabel("Model:")
+        self.additive_radio = QRadioButton("Additive")
+        self.multiplicative_radio = QRadioButton("Multiplicative")
+        self.additive_radio.setChecked(True)
+        self.model_group = QButtonGroup()
+        self.model_group.addButton(self.additive_radio)
+        self.model_group.addButton(self.multiplicative_radio)
+        parameters_layout.addWidget(self.model_label)
+        parameters_layout.addWidget(self.additive_radio,1)
+        parameters_layout.addWidget(self.multiplicative_radio,1)
+
+        # Add parameters layout to the main layout
+        main_layout.addLayout(parameters_layout)
+
+
+        buttons_layout = QHBoxLayout()
+        buttons_layout.addStretch(1)  # Add stretch to push buttons to the middle
+        
+        self.help_button = QPushButton("Help")
+        self.help_button.setFixedHeight(30)
+        self.help_button.setMinimumWidth(100)  # Set minimum width for the button
+        # Future implementation: self.help_button.clicked.connect(self.on_help_clicked)
+        buttons_layout.addWidget(self.help_button)
+
+        # Create a horizontal spacer item that will go between the buttons
+        spacer_item = QSpacerItem(200, 30, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum)
+        buttons_layout.addSpacerItem(spacer_item)
+
+        self.decompose_button = QPushButton("Decompose")
+        self.decompose_button.setFixedHeight(30)
+        self.decompose_button.setMinimumWidth(100)  # Set minimum width for the button
+        self.decompose_button.clicked.connect(self.on_decompose_clicked)
+        buttons_layout.addWidget(self.decompose_button)
+
+        buttons_layout.addStretch(1)  # Add stretch to push buttons to the middle
+        main_layout.addLayout(buttons_layout)
+
+        # Canvas for plotting
+        self.canvas = MplCanvas(self, width=12, height=8, dpi=100)
+        main_layout.addWidget(self.canvas)
+
+        # Navigation toolbar for the canvas
+        self.toolbar = NavigationToolbar(self.canvas, self)
+        main_layout.addWidget(self.toolbar)
+
+        # Set the main layout stretch factors to give more space to the canvas
+        main_layout.setStretchFactor(self.canvas, 3)
+
+    
+    def populate_series(self, series_list):
+        """Populate the combobox with series names."""
+        self.series_combobox.clear()
+        for series in series_list:
+            self.series_combobox.addItem(series)
+
+    def on_decompose_clicked(self):
+        """Handle the decompose button click event."""
+        selected_series = self.series_combobox.currentText()
+        if not selected_series:
+            QMessageBox.warning(self, "Warning", "Please select a series to decompose.")
+            return
+
+        period = self.period_spin_box.value()
+        model_type = 'additive' if self.additive_radio.isChecked() else 'multiplicative'
+
+        # Call the controller's method to perform decomposition.
+        if self.controller:
+            self.controller.perform_seasonal_decomposition(selected_series, period, model_type)
+
+
+
+    def plot_decomposition(self, decomposition_result):
+        """Plot the decomposition result on the canvas."""
+        self.canvas.figure.clf()  # Clear the figure to create a fresh plot area
+
+        # Create subplots
+        ax_observed = self.canvas.figure.add_subplot(411)
+        ax_trend = self.canvas.figure.add_subplot(412)
+        ax_seasonal = self.canvas.figure.add_subplot(413)
+        ax_resid = self.canvas.figure.add_subplot(414)
+
+        # Plot the components
+        ax_observed.plot(decomposition_result.observed)
+        ax_observed.set_ylabel('Observed')
+
+        ax_trend.plot(decomposition_result.trend)
+        ax_trend.set_ylabel('Trend')
+
+        ax_seasonal.plot(decomposition_result.seasonal)
+        ax_seasonal.set_ylabel('Seasonal')
+
+        ax_resid.plot(decomposition_result.resid)
+        ax_resid.set_ylabel('Residual')
+
+        # Adjust layout
+        self.canvas.figure.tight_layout()
+        self.canvas.draw()
+#################################################################
+"""End of Decomposition plot"""
+
+
+#################################################################
+"""Lag, ACF, PACF plots starts here"""
+#################################################################
+# class MplCanvas(FigureCanvasQTAgg):
+#     def __init__(self, parent=None, width=5, height=4, dpi=100):
+#         fig = Figure(figsize=(width, height), dpi=dpi)
+#         self.axes = fig.add_subplot(111)
+#         super().__init__(fig)
+
+# Import necessary components from PyQt6 and matplotlib
+
+from PyQt6.QtWidgets import (QMainWindow, QVBoxLayout, QHBoxLayout, QWidget,
+                             QLabel, QComboBox, QSpinBox, QPushButton)
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+from matplotlib.figure import Figure
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+from pandas.plotting import lag_plot
+
+class LagAcfPacfDialog(QMainWindow):
+    def __init__(self, controller, parent=None):
+        super().__init__(parent)
+        self.controller = controller
+        self.init_ui()
+
+    def init_ui(self):
+        self.setWindowTitle("Lag, ACF, and PACF Analysis")
+        self.setGeometry(100, 100, 800, 600)
+        
+        # Main layout
+        main_layout = QVBoxLayout()
+        
+        # Parameters layout
+        parameters_layout = self.create_parameters_layout()
+        main_layout.addLayout(parameters_layout)
+        
+        # Matplotlib canvas
+        self.canvas = FigureCanvasQTAgg(Figure(figsize=(10, 8)))
+        self.add_plots_to_canvas()
+        main_layout.addWidget(self.canvas)
+        
+        # Matplotlib navigation toolbar
+        self.toolbar = NavigationToolbar(self.canvas, self)
+        main_layout.addWidget(self.toolbar)
+        
+        # Set the layout to the central widget
+        central_widget = QWidget()
+        central_widget.setLayout(main_layout)
+        self.setCentralWidget(central_widget)
+        
+
+    def create_parameters_layout(self):
+        parameters_layout = QHBoxLayout()
+        self.series_combobox = QComboBox()
+        parameters_layout.addWidget(QLabel("Select Series:"))
+        parameters_layout.addWidget(self.series_combobox)
+        self.lags_spin_box = QSpinBox()
+        self.lags_spin_box.setRange(1, 100)  # Assuming 100 is a sensible maximum
+        parameters_layout.addWidget(QLabel("Number of Lags:"))
+        parameters_layout.addWidget(self.lags_spin_box)
+        plot_button = QPushButton("Plot")
+        plot_button.clicked.connect(self.on_plot_button_clicked)
+        parameters_layout.addWidget(plot_button)
+        return parameters_layout
+
+    def add_plots_to_canvas(self):
+        grid_spec = self.canvas.figure.add_gridspec(2, 2)
+        self.lag_axes = self.canvas.figure.add_subplot(grid_spec[0, :])  # Span all columns
+        self.acf_axes = self.canvas.figure.add_subplot(grid_spec[1, 0])
+        self.pacf_axes = self.canvas.figure.add_subplot(grid_spec[1, 1])
+
+    def on_plot_button_clicked(self):
+        series_name = self.series_combobox.currentText()
+        number_of_lags = self.lags_spin_box.value()
+        self.controller.perform_lag_acf_pacf_analysis(series_name, number_of_lags)
+
+    # Plotting methods are called by the controller
+    def plot_lag(self, series):
+        self.lag_axes.clear()
+        lag_plot(series, ax=self.lag_axes)
+        self.lag_axes.set_title('Lag Plot')
+        self.canvas.draw_idle()
+
+    def plot_acf(self, series, lags):
+        self.acf_axes.clear()
+        plot_acf(series, lags=lags, ax=self.acf_axes)
+        self.acf_axes.set_title('Autocorrelation Function (ACF)')
+        self.canvas.draw_idle()
+
+    def plot_pacf(self, series, lags):
+        self.pacf_axes.clear()
+        plot_pacf(series, lags=lags, ax=self.pacf_axes)
+        self.pacf_axes.set_title('Partial Autocorrelation Function (PACF)')
+        self.canvas.draw_idle()
+
+    def clear_plots(self):
+        """Clears all the plots from the canvas."""
+        self.lag_axes.clear()
+        self.acf_axes.clear()
+        self.pacf_axes.clear()
+        self.canvas.draw_idle()
+
+    def populate_series(self, series_list):
+        """Populates the combobox with a list of series names."""
+        self.series_combobox.clear()
+        self.series_combobox.addItems(series_list)
+
+    def update_status_bar(self, message):
+        """Updates the status bar with a message."""
+        self.statusBar().showMessage(message)
+

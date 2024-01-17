@@ -1,6 +1,12 @@
 # model.py
 import pandas as pd
 import numpy as np
+from statsmodels.tsa.seasonal import seasonal_decompose
+from statsmodels.tsa.stattools import acf, pacf
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+
+
+
 
 
 class Model:
@@ -92,3 +98,40 @@ class Model:
             return self.data_frame[columns]
         else:
             raise ValueError("One or more selected columns are not in the DataFrame")
+
+
+
+    def seasonal_decompose(self, series_name, period, model_type):
+            """
+            Perform seasonal decomposition on a time series.
+            Args:
+                series_name (str): The name of the series to decompose.
+                period (int): The period of the seasonal component.
+                model_type (str): Type of decomposition model ('additive' or 'multiplicative').
+
+            Returns:
+                DecomposeResult: The result of the decomposition.
+            """
+            if series_name not in self.data_frame.columns:
+                raise ValueError(f"Series '{series_name}' not found in data.")
+
+            series = self.data_frame[series_name]
+            result = seasonal_decompose(series, model=model_type, period=period)
+            return result
+    ############################################################################################
+
+
+
+    def get_series_data(self, series_name):
+        """
+        Retrieve the time series data for the given series name.
+
+        Args:
+            series_name (str): The name of the series to retrieve.
+
+        Returns:
+            pd.Series: The requested time series data.
+        """
+        if series_name not in self.data_frame.columns:
+            raise ValueError(f"Series '{series_name}' not found in the DataFrame.")
+        return self.data_frame[series_name]
