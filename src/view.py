@@ -416,9 +416,10 @@ class View(QMainWindow):
         self.comboBox.setFixedHeight(30)
         self.table_widget.horizontalHeader().sectionClicked.connect(self.update_column_combobox)
         #self.table_widget.itemClicked.connect(self.update_column_combobox)
-
+      
 
         refresh_button = QPushButton("Refresh", column_selection_widget)
+        refresh_button.setToolTip("Refresh the data and update column names.")
         refresh_button.setObjectName("refreshButton")
         refresh_button.setFixedHeight(30)
 
@@ -430,11 +431,24 @@ class View(QMainWindow):
         buttons_widget = QWidget(central_widget)
         buttons_layout = QGridLayout(buttons_widget)
         self.buttons = {}
+        button_info = {
+    "Shape": "Calculate the shape of the data.",
+    "Unique": "Calculate unique values in the data.",
+    "Type": "Calculate data types of columns.",
+    "Missing": "Calculate the number of missing values.",
+    "Statistics": "Calculate basic statistics of the data.",
+    "NaNs": "Calculate the number of NaN values in the data."
+}
+
         button_labels = ["Shape", "Unique", "Type", "Missing", "Statistics", "NaNs"]
+
+
+#self.buttons[label].clicked.connect(getattr(self.controller, f"calculate_{label.lower()}"))
         for i, label in enumerate(button_labels):
             button = QPushButton(label, buttons_widget)
             button.setObjectName(f"{label.lower()}Button")
             self.buttons[label] = button
+            self.buttons[label].setToolTip(button_info[label])
             row, col = divmod(i, 2)
             buttons_layout.addWidget(button, row, col)
 
