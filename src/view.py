@@ -145,6 +145,7 @@ class View(QMainWindow):
         load_data_icon = QIcon('images/load_data_icon.png')
         save_as_icon = QIcon('images/save_as_icon.png')
         change_theme_icon = QIcon('images/change_theme_icon.png')
+   
                 # Light Theme Action
 
 
@@ -225,7 +226,8 @@ class View(QMainWindow):
         time_series_plots_menu.addAction(seasonal_decompose_action)        
 
         #Lag, ACF and PACF action
-        lag_acf_pacf_action = QAction("&Lag | ACF | PACF", self)
+        lag_acf_pacf_icon = QIcon('images/acf_icon.png')
+        lag_acf_pacf_action = QAction(lag_acf_pacf_icon,"&Lag | ACF | PACF", self)
         lag_acf_pacf_action.triggered.connect(self.controller.open_lag_acf_pacf_dialog)
         time_series_plots_menu.addAction(lag_acf_pacf_action)           
 
@@ -963,6 +965,8 @@ class SeasonalDecomposeDialog(QMainWindow):
         super().__init__(parent)
         self.controller = controller
         self.setWindowTitle("Seasonal Decomposition")
+        icon = QIcon('images/seasonal_decompose_icon.png')
+        self.setWindowIcon(icon) 
         self.setGeometry(100, 100, 1000, 800)
 
         # Create a central widget
@@ -1117,6 +1121,8 @@ class LagAcfPacfDialog(QMainWindow):
 
     def init_ui(self):
         self.setWindowTitle("Lag, ACF, and PACF Analysis")
+        icon = QIcon('images/acf_icon.png')
+        self.setWindowIcon(icon) 
         self.setGeometry(100, 100, 800, 600)
         
         # Main layout
