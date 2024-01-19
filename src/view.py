@@ -43,6 +43,8 @@ class View(QMainWindow):
         self.seasonal_decompose_dialog = SeasonalDecomposeDialog(controller=self.controller)
         #Initialize the LagAcfPacfDialog dialog
         self.lag_acf_pacf_dialog = LagAcfPacfDialog(controller=self.controller)
+        # Inside the View class
+        self.unit_root_test_dialog = UnitRootTestDialog(controller=self.controller)
 
         self.init_ui()
 
@@ -141,15 +143,15 @@ class View(QMainWindow):
 
 
 # Define icons for each action
-        set_directory_icon = QIcon('images/set_directory_icon.png')
-        load_data_icon = QIcon('images/load_data_icon.png')
-        save_as_icon = QIcon('images/save_as_icon.png')
-        change_theme_icon = QIcon('images/change_theme_icon.png')
+        set_directory_icon = QIcon('images/set_directory_icon.svg')
+        load_data_icon = QIcon('images/load_data_icon.svg')
+        save_as_icon = QIcon('images/save_as_icon.svg')
+        change_theme_icon = QIcon('images/change_theme_icon.svg')
    
                 # Light Theme Action
 
 
-        exit_icon = QIcon('images/exit_icon.png')
+        exit_icon = QIcon('images/exit_icon.svg')
 
 
 # Actions for the file menu
@@ -182,7 +184,7 @@ class View(QMainWindow):
         data_info_action = QAction("&Data Info", self)
 
 # Add actions to 'Explore' menu
-        data_info_icon = QIcon('images/data_info_icon.png')
+        data_info_icon = QIcon('images/data_info_icon.svg')
         data_info_action = QAction(data_info_icon, "&Data Info", self)
         data_info_action.triggered.connect(self.controller.open_data_info)
         explore_menu.addAction(data_info_action)
@@ -191,7 +193,7 @@ class View(QMainWindow):
         # Set Index
         set_index_action = QAction("&Set Index", self)
 # Set Index
-        set_index_icon = QIcon('images/set_index_icon.png')
+        set_index_icon = QIcon('images/set_index_icon.svg')
         set_index_action = QAction(set_index_icon, "&Set Index", self)
         set_index_action.triggered.connect(self.controller.set_index)
         explore_menu.addAction(set_index_action)
@@ -199,7 +201,7 @@ class View(QMainWindow):
         # Set Frequency
         set_frequency_action = QAction("&Set Frequency", self)
 # Set Frequency
-        set_frequency_icon = QIcon('images/set_frequency_icon.png')
+        set_frequency_icon = QIcon('images/set_frequency_icon.svg')
         set_frequency_action = QAction(set_frequency_icon, "&Set Frequency", self)
         set_frequency_action.triggered.connect(self.controller.set_frequency)
         explore_menu.addAction(set_frequency_action)
@@ -212,7 +214,7 @@ class View(QMainWindow):
         line_plot_action = QAction("&Line Plot", self)
 
 # Line Plot action
-        line_plot_icon = QIcon('images/line_plot_icon.png')
+        line_plot_icon = QIcon('images/line_plot_icon.svg')
         line_plot_action = QAction(line_plot_icon, "&Line Plot", self)
         line_plot_action.triggered.connect(self.controller.open_line_plot_dialog)
         time_series_plots_menu.addAction(line_plot_action)
@@ -220,37 +222,32 @@ class View(QMainWindow):
         #Seasonal Decompose action
         seasonal_decompose_action = QAction("&Seasonal Decomposition", self)
 # Seasonal Decompose action
-        seasonal_decompose_icon = QIcon('images/seasonal_decompose_icon.png')
+        seasonal_decompose_icon = QIcon('images/seasonal_decompose_icon.svg')
         seasonal_decompose_action = QAction(seasonal_decompose_icon, "&Seasonal Decomposition", self)
         seasonal_decompose_action.triggered.connect(self.controller.open_seasonal_decompose_dialog)
         time_series_plots_menu.addAction(seasonal_decompose_action)        
 
         #Lag, ACF and PACF action
-        lag_acf_pacf_icon = QIcon('images/acf_icon.png')
+        lag_acf_pacf_icon = QIcon('images/acf_icon.svg')
         lag_acf_pacf_action = QAction(lag_acf_pacf_icon,"&Lag | ACF | PACF", self)
         lag_acf_pacf_action.triggered.connect(self.controller.open_lag_acf_pacf_dialog)
         time_series_plots_menu.addAction(lag_acf_pacf_action)           
 
-        #time_series_action.triggered.connect(self.controller.open_time_series_plot_dialog)
-        #explore_menu.addAction(time_series_action)
-
-        # Stationarity Test (with sub-actions)
+#+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 
 # Stationarity Test (with sub-actions)
         stationarity_menu = explore_menu.addMenu("&Stationarity Test")
-        visual_test_action = QAction("&Visually", self)
 
-# Visual test action
-        visual_test_icon = QIcon('images/visual_test_icon.png')
-        visual_test_action = QAction(visual_test_icon, "&Visually", self)
-        visual_test_action.triggered.connect(self.controller.stationarity_test_visual)
-        stationarity_menu.addAction(visual_test_action)
+#unit root hypothesis test: Augmented Dickey-Fuller (ADF) and Kwiatkowski-Phillips-Schmidt-Shin (KPSS)
+        unit_root_test_action_icon = QIcon('images/unit_root.svg')
+        unit_root_test_action = QAction(unit_root_test_action_icon, "&Unit Root Test", self)
+        unit_root_test_action.triggered.connect(self.controller.open_unit_root_test_dialog)  # method in controller.py
+        stationarity_menu.addAction(unit_root_test_action)
 
-        statistical_test_action = QAction("&Statistically", self)
-# Statistical test action
-        statistical_test_icon = QIcon('images/statistical_test_icon.png')
-        statistical_test_action = QAction(statistical_test_icon, "&Statistically", self)
-        statistical_test_action.triggered.connect(self.controller.stationarity_test_statistical)
-        stationarity_menu.addAction(statistical_test_action)
+
+       
+
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     def create_status_bar(self):
         """
@@ -416,10 +413,9 @@ class View(QMainWindow):
         self.comboBox.setFixedHeight(30)
         self.table_widget.horizontalHeader().sectionClicked.connect(self.update_column_combobox)
         #self.table_widget.itemClicked.connect(self.update_column_combobox)
-      
+
 
         refresh_button = QPushButton("Refresh", column_selection_widget)
-        refresh_button.setToolTip("Refresh the data and update column names.")
         refresh_button.setObjectName("refreshButton")
         refresh_button.setFixedHeight(30)
 
@@ -431,24 +427,11 @@ class View(QMainWindow):
         buttons_widget = QWidget(central_widget)
         buttons_layout = QGridLayout(buttons_widget)
         self.buttons = {}
-        button_info = {
-    "Shape": "Calculate the shape of the data.",
-    "Unique": "Calculate unique values in the data.",
-    "Type": "Calculate data types of columns.",
-    "Missing": "Calculate the number of missing values.",
-    "Statistics": "Calculate basic statistics of the data.",
-    "NaNs": "Calculate the number of NaN values in the data."
-}
-
         button_labels = ["Shape", "Unique", "Type", "Missing", "Statistics", "NaNs"]
-
-
-#self.buttons[label].clicked.connect(getattr(self.controller, f"calculate_{label.lower()}"))
         for i, label in enumerate(button_labels):
             button = QPushButton(label, buttons_widget)
             button.setObjectName(f"{label.lower()}Button")
             self.buttons[label] = button
-            self.buttons[label].setToolTip(button_info[label])
             row, col = divmod(i, 2)
             buttons_layout.addWidget(button, row, col)
 
@@ -498,7 +481,7 @@ class DataInfoDialog(QDialog):
         self.controller = controller
 
         self.setWindowTitle("Data Information")
-        icon = QIcon('images/data_info_icon.png')
+        icon = QIcon('images/data_info_icon.svg')
         self.setWindowIcon(icon) 
         self.setGeometry(300, 300, 600, 400)  # Adjust size and position as needed
 
@@ -710,7 +693,7 @@ class SetIndexDialog(QDialog):
     def __init__(self, columns, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Set Index")
-        icon = QIcon('images/set_index_icon.png')
+        icon = QIcon('images/set_index_icon.svg')
         self.setWindowIcon(icon) 
         self.setGeometry(300, 300, 400, 150)
 
@@ -753,7 +736,7 @@ class SetFrequencyDialog(QDialog):
         super().__init__(parent)
 
         self.setWindowTitle("Set Frequency")
-        icon = QIcon('images/set_frequency_icon.png')
+        icon = QIcon('images/set_frequency_icon.svg')
         self.setWindowIcon(icon) 
         self.setMinimumSize(500, 250)  # Adjust the size as needed
         layout = QVBoxLayout(self)
@@ -888,7 +871,7 @@ class PlottingDialog(QMainWindow):
         super().__init__(parent)
         self.controller = controller
         self.setWindowTitle("Line Plot")
-        icon = QIcon('images/line_plot_icon.png')
+        icon = QIcon('images/line_plot_icon.svg')
         self.setWindowIcon(icon) 
         self.setGeometry(100, 100, 1000, 800)  
 
@@ -979,7 +962,7 @@ class SeasonalDecomposeDialog(QMainWindow):
         super().__init__(parent)
         self.controller = controller
         self.setWindowTitle("Seasonal Decomposition")
-        icon = QIcon('images/seasonal_decompose_icon.png')
+        icon = QIcon('images/seasonal_decompose_icon.svg')
         self.setWindowIcon(icon) 
         self.setGeometry(100, 100, 1000, 800)
 
@@ -1112,14 +1095,6 @@ class SeasonalDecomposeDialog(QMainWindow):
 #################################################################
 """Lag, ACF, PACF plots starts here"""
 #################################################################
-# class MplCanvas(FigureCanvasQTAgg):
-#     def __init__(self, parent=None, width=5, height=4, dpi=100):
-#         fig = Figure(figsize=(width, height), dpi=dpi)
-#         self.axes = fig.add_subplot(111)
-#         super().__init__(fig)
-
-# Import necessary components from PyQt6 and matplotlib
-
 from PyQt6.QtWidgets import (QMainWindow, QVBoxLayout, QHBoxLayout, QWidget,
                              QLabel, QComboBox, QSpinBox, QPushButton)
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
@@ -1135,7 +1110,7 @@ class LagAcfPacfDialog(QMainWindow):
 
     def init_ui(self):
         self.setWindowTitle("Lag, ACF, and PACF Analysis")
-        icon = QIcon('images/acf_icon.png')
+        icon = QIcon('images/acf_icon.svg')
         self.setWindowIcon(icon) 
         self.setGeometry(100, 100, 800, 600)
         
@@ -1221,3 +1196,157 @@ class LagAcfPacfDialog(QMainWindow):
         """Updates the status bar with a message."""
         self.statusBar().showMessage(message)
 
+# ##################################################################################################
+# """The code below is for unit root test: ADF and KPSS"""
+# ##################################################################################################
+# class ADFTestDialog(QMainWindow):
+#     def __init__(self, controller, parent=None):
+#         super().__init__(parent)
+#         print("Initializing ADF Test Dialog")  # Debug print
+#         self.controller = controller
+#         self.init_ui()
+
+#     def init_ui(self):
+#         self.setWindowTitle("ADF Test")
+#         icon = QIcon('images/adf_icon.png')  # Replace with your ADF icon
+#         self.setWindowIcon(icon)
+#         self.setGeometry(100, 100, 600, 400)  # Adjust size and position as needed
+
+#         # Main layout
+#         main_layout = QVBoxLayout()
+
+#         # Parameters layout
+#         parameters_layout = self.create_parameters_layout()
+#         main_layout.addLayout(parameters_layout)
+
+#         # TextEdit to display results
+#         self.results_text_edit = QTextEdit(self)
+#         self.results_text_edit.setReadOnly(True)  # Make the text edit read-only
+#         main_layout.addWidget(self.results_text_edit)
+
+#         # Set the layout to the central widget
+#         central_widget = QWidget()
+#         central_widget.setLayout(main_layout)
+#         self.setCentralWidget(central_widget)
+
+#     def create_parameters_layout(self):
+#         parameters_layout = QHBoxLayout()
+#         self.column_combobox = QComboBox()
+#         parameters_layout.addWidget(QLabel("Select Column:"))
+#         parameters_layout.addWidget(self.column_combobox)
+#         adf_test_button = QPushButton("Perform ADF Test")
+#         adf_test_button.clicked.connect(self.on_adf_test_button_clicked)
+#         parameters_layout.addWidget(adf_test_button)
+#         return parameters_layout
+
+#     def on_adf_test_button_clicked(self):
+#         column_name = self.column_combobox.currentText()
+#         self.controller.perform_adf_test(column_name)
+
+#     def populate_columns(self, column_list):
+#         """Populates the combobox with a list of column names."""
+#         self.column_combobox.clear()
+#         self.column_combobox.addItems(column_list)
+
+#     def display_adf_result(self, result):
+#         """Displays the ADF test result in the QTextEdit."""
+#         self.results_text_edit.setText(result)
+
+#     def update_status_bar(self, message):
+#         """Updates the status bar with a message."""
+#         self.statusBar().showMessage(message)
+
+# ##################################################################################################
+# """The code below is for unit root test: ADF and KPSS"""
+# ##################################################################################################
+class UnitRootTestDialog(QMainWindow):
+    def __init__(self, controller, parent=None):
+        super().__init__(parent)
+        self.controller = controller
+        self.init_ui()
+
+    def init_ui(self):
+        self.setWindowTitle("Unit Root Test")
+        icon = QIcon('images/unit_root.svg')  # Update with a suitable icon
+        self.setWindowIcon(icon)
+        self.setFixedSize(600, 400)
+
+        # Main vertical layout
+        main_layout = QVBoxLayout()
+
+        # Top parameters layout
+        top_layout = self.create_parameters_layout()
+        main_layout.addLayout(top_layout)
+
+        # TextEdit for results
+        self.results_text_edit = QTextEdit(self)
+        self.results_text_edit.setReadOnly(True)
+        main_layout.addWidget(self.results_text_edit)
+
+        # Bottom buttons layout
+        bottom_layout = QHBoxLayout()
+        help_button = QPushButton("Help")
+        help_button.setFixedHeight(30)
+        test_button = QPushButton("Test")
+        test_button.setFixedHeight(30)
+        test_button.clicked.connect(self.on_test_button_clicked)
+        ok_button = QPushButton("OK")
+        ok_button.setFixedHeight(30)
+        ok_button.clicked.connect(self.close)  # Assuming you want 'OK' to close the dialog
+        bottom_layout.addWidget(help_button)
+        bottom_layout.addWidget(test_button)
+        bottom_layout.addWidget(ok_button)
+
+        # Add bottom_layout to main_layout
+        main_layout.addLayout(bottom_layout)
+
+        # Central widget setup
+        central_widget = QWidget()
+        central_widget.setLayout(main_layout)
+        self.setCentralWidget(central_widget)
+
+    def create_parameters_layout(self):
+        parameters_layout = QHBoxLayout()
+
+        # Column selection label
+        label_select_column = QLabel("Select Column:")
+        parameters_layout.addWidget(label_select_column)
+
+        # Column selection combobox
+        self.column_combobox = QComboBox()
+        self.column_combobox.setFixedHeight(30)
+        parameters_layout.addWidget(self.column_combobox)
+        parameters_layout.setStretchFactor(self.column_combobox, 2)  # Give more stretch to combobox
+
+        # Test type selection label
+        label_select_test = QLabel("Select Test:")
+        parameters_layout.addWidget(label_select_test)
+
+        # Test type selection combobox
+        self.test_type_combobox = QComboBox()
+        self.test_type_combobox.addItems(["ADF Test", "KPSS Test"])
+        self.test_type_combobox.setFixedHeight(30)
+        parameters_layout.addWidget(self.test_type_combobox)
+        parameters_layout.setStretchFactor(self.test_type_combobox, 2)  # Give more stretch to combobox
+
+        return parameters_layout
+
+
+    def on_test_button_clicked(self):
+        column_name = self.column_combobox.currentText()
+        test_type = self.test_type_combobox.currentText()
+        if test_type == "ADF Test":
+            self.controller.perform_adf_test(column_name)
+        elif test_type == "KPSS Test":
+            self.controller.perform_kpss_test(column_name)
+
+
+    def populate_columns(self, column_list):
+        self.column_combobox.clear()
+        self.column_combobox.addItems(column_list)
+
+    def display_test_result(self, result):
+        self.results_text_edit.setText(result)
+
+    def update_status_bar(self, message):
+        self.statusBar().showMessage(message)

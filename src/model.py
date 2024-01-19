@@ -1,9 +1,11 @@
 # model.py
 import pandas as pd
 import numpy as np
+import warnings
 from statsmodels.tsa.seasonal import seasonal_decompose
-from statsmodels.tsa.stattools import acf, pacf
+from statsmodels.tsa.stattools import acf, pacf, adfuller, kpss
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+from statsmodels.tools.sm_exceptions import InterpolationWarning
 
 
 
@@ -135,3 +137,156 @@ class Model:
         if series_name not in self.data_frame.columns:
             raise ValueError(f"Series '{series_name}' not found in the DataFrame.")
         return self.data_frame[series_name]
+    
+##################################################################################################
+    """The code below is for unit root test: ADF and KPSS"""
+##################################################################################################
+    # def get_column_names(self):
+    #     """
+    #     Retrieve the names of all columns in the DataFrame.
+    #     """
+    #     if self.data_frame is not None:
+    #         return self.data_frame.columns.tolist()
+    #     else:
+    #         return []
+
+    # def perform_adf_test(self, column_name):
+    #     """
+    #     Perform the Augmented Dickey-Fuller test on the specified column.
+    #     """
+    #     series = self.data_frame[column_name]
+    #     return self.adf_test(series, title=f'ADF Test for {column_name}')
+
+    # def adf_test(self, series, title=''):
+    #     """
+    #     Perform ADF test and return formatted results as a string.
+    #     """
+    #     result_str = f'<b>Augmented Dickey-Fuller Test: {title}</b><br><br>'
+    #     result = adfuller(series.dropna(), autolag='AIC')  # dropna() handles differenced data
+        
+    #     labels = ['AIC test statistic', 'p-value', '# lags used', '# observations']
+    #     out = pd.Series(result[0:4], index=labels)
+
+    #     result_str += '<table>'
+    #     for label, value in out.items():
+    #         result_str += f'<tr><td><b>{label}</b></td><td>{value:.6f}</td></tr>'
+        
+    #     result_str += '</table><br>'
+    #     result_str += '<b>Critical Values:</b><br><table>'
+    #     for key, val in result[4].items():
+    #         result_str += f'<tr><td>{key}</td><td>{val:.3f}</td></tr>'
+    #     result_str += '</table><br>'
+
+    #     if result[1] <= 0.05:
+    #         conclusion = "<span style='color: darkblue;'>Strong evidence against the null hypothesis,<br>" \
+    #                     "Reject the null hypothesis,<br>" \
+    #                     "Series has no unit root and is stationary.</span>"
+    #     else:
+    #         conclusion = "<span style='color: maroon;'>Weak evidence against the null hypothesis,<br>" \
+    #                     "Fail to reject the null hypothesis,<br>" \
+    #                     "Series has a unit root and is non-stationary.</span>"
+        
+    #     result_str += conclusion
+        
+    #     return result_str
+
+
+    def get_column_names(self):
+        """
+        Retrieve the names of all columns in the DataFrame.
+        """
+        if self.data_frame is not None:
+            return self.data_frame.columns.tolist()
+        else:
+            return []
+
+    def perform_adf_test(self, column_name):
+        """
+        Perform the Augmented Dickey-Fuller test on the specified column.
+        """
+        series = self.data_frame[column_name]
+        return self.adf_test(series, title=f'ADF Test for {column_name}')
+
+    def adf_test(self, series, title=''):
+        """
+        Perform ADF test and return formatted results as a string.
+        """
+        result_str = f'<b>Augmented Dickey-Fuller Test: {title}</b><br><br>'
+        result = adfuller(series.dropna(), autolag='AIC')  # dropna() handles differenced data
+
+        labels = ['ADF test statistic', 'p-value', '# lags used', '# observations']
+        out = pd.Series(result[0:4], index=labels)
+
+        result_str += '<table>'
+        for label, value in out.items():
+            result_str += f'<tr><td><b>{label}</b></td><td>{value:.6f}</td></tr>'
+        
+        result_str += '</table><br>'
+        result_str += '<b>Critical Values:</b><br><table>'
+        for key, val in result[4].items():
+            result_str += f'<tr><td>{key}</td><td>{val:.3f}</td></tr>'
+        result_str += '</table><br>'
+
+        if result[1] <= 0.05:
+            conclusion = "<span style='color: darkblue;'>Strong evidence against the null hypothesis,<br>" \
+                        "Reject the null hypothesis,<br>" \
+                        "Series has no unit root and is stationary.</span>"
+        else:
+            conclusion = "<span style='color: maroon;'>Weak evidence against the null hypothesis,<br>" \
+                        "Fail to reject the null hypothesis,<br>" \
+                        "Series has a unit root and is non-stationary.</span>"
+        
+        result_str += conclusion
+        
+        return result_str
+
+
+
+    def perform_kpss_test(self, column_name):
+        """
+        Perform the KPSS test on the specified column.
+        """
+        try:
+            series = self.data_frame[column_name]
+            return self.kpss_test(series, title=f'KPSS Test for {column_name}')
+        except Exception as e:
+            # Handle the exception, for example by logging or showing an error message
+            print(f"An error occurred: {e}")
+            return f"An error occurred while performing KPSS test: {e}"
+
+    def kpss_test(self, series, title=''):
+        """
+        Perform KPSS test and return formatted results as a string.
+        """
+        result_str = f'<b>Kwiatkowski-Phillips-Schmidt-Shin Test: {title}</b><br><br>'
+        
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter('always')
+            result = kpss(series.dropna(), 'c')  # 'c' for constant, 'ct' for constant with trend
+
+        # Check for the specific KPSS warning
+        for warning in caught_warnings:
+            if issubclass(warning.category, InterpolationWarning):
+                result_str += f"<p><i>{warning.message}</i></p>"
+
+        labels = ['KPSS Statistic', 'p-value', '# lags']
+        out = pd.Series(result[:3], index=labels)
+
+        result_str += '<table>'
+        for label, value in out.items():
+            result_str += f'<tr><td><b>{label}</b></td><td>{value:.6f}</td></tr>'
+        
+        result_str += '</table><br>'
+        result_str += '<b>Critical Values:</b><br><table>'
+        for key, val in result[3].items():
+            result_str += f'<tr><td>{key}</td><td>{val:.3f}</td></tr>'
+        result_str += '</table><br>'
+
+        # Handle p-value interpretation with care due to the warning
+        if 'p-value' in out and out['p-value'] < 0.05:
+            conclusion = "<span style='color: darkblue;'>The series is stationary.</span>"
+        else:
+            conclusion = "<span style='color: maroon;'>The series is not stationary.</span>"
+        result_str += conclusion
+
+        return result_str

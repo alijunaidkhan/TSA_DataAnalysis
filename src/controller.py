@@ -257,15 +257,9 @@ class Controller:
             except ValueError as e:
                 self.view.show_message("Error", str(e))
 
-    def stationarity_test_visual(self):
-        # Placeholder for Visual Stationarity Test functionality
-        # self.view.show_message("Visual Stationarity Test functionality to be implemented.")
-        QMessageBox.information("Visual Stationarity Test functionality to be implemented.")
 
-    def stationarity_test_statistical(self):
-        # Placeholder for Statistical Stationarity Test functionality
-        # self.view.show_message("Statistical Stationarity Test functionality to be implemented.")
-        QMessageBox.information("Quantitative Stationarity Test functionality to be implemented.")
+        
+        
 
 #############################################################################################################################
 
@@ -347,7 +341,24 @@ class Controller:
         except Exception as e:
             QMessageBox.critical(self.view, "Error", str(e))
 
+############################################################################################################
+    """The lines of code below are for ADF and KPSS unit root hypothesis testing"""
+############################################################################################################
 
+    def open_unit_root_test_dialog(self):
+        try:
+            self.view.unit_root_test_dialog.populate_columns(self.model.get_column_names())
+            self.view.unit_root_test_dialog.show()
+        except Exception as e:
+            QMessageBox.critical(self.view, "Error", str(e))
+
+    def perform_adf_test(self, column_name):
+        result = self.model.perform_adf_test(column_name)
+        self.view.unit_root_test_dialog.display_test_result(result)
+
+    def perform_kpss_test(self, column_name):
+        result = self.model.perform_kpss_test(column_name)
+        self.view.unit_root_test_dialog.display_test_result(result)
 
 
   
