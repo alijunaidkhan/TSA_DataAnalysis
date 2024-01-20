@@ -64,12 +64,14 @@ class Controller:
                 self.view.display_data(data)
                 shape_message = f"Data Loaded: {data.shape[0]} rows, {data.shape[1]} columns"
                 self.view.update_status_bar(shape_message)
+                self.view.set_data_loaded(True)
 
                 # Update the column names in the view
                 self.view.lineplotting_dialog.update_combobox_items(self.model.data_frame.columns)
 
             except Exception as e:
                 self.view.show_message("Loading Error", f"Error loading data: {e}")
+                self.view.set_data_loaded(False)
 
     def save_as(self):
         """

@@ -6,12 +6,13 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from PyQt6.QtCore import Qt, QUrl
-from PyQt6.QtGui import QAction, QIcon,QStandardItem, QStandardItemModel, QDesktopServices
+from PyQt6.QtGui import QAction, QIcon,QColor,QPainter,QPixmap,QStandardItem, QStandardItemModel, QDesktopServices
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget, QTabWidget, \
-    QTableWidget, QTableWidgetItem, QHBoxLayout, QLabel, QLineEdit, QGridLayout, QDialog, QGroupBox,\
+    QTableWidget,QMenu, QTableWidgetItem, QHBoxLayout, QLabel, QLineEdit, QGridLayout, QDialog, QGroupBox,\
     QRadioButton, QComboBox, QTextEdit, QMessageBox, QButtonGroup, QDockWidget,QSpinBox, QSpacerItem, QSizePolicy
 os.environ['QT_API'] = 'pyqt6'
 matplotlib.use('QtAgg')
+from PyQt5.QtSvg import QSvgRenderer,QSvgWidget
 
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
@@ -27,12 +28,15 @@ class View(QMainWindow):
         controller (Controller): An instance of the Controller class to handle user interactions.
     """
 
+
     def __init__(self, controller):
         """
         Initializes the View component.
         Args:
             controller (Controller): The controller instance for the view to communicate with.
         """
+        
+
         super().__init__()
                 
         self.controller = controller
@@ -47,12 +51,24 @@ class View(QMainWindow):
         self.unit_root_test_dialog = UnitRootTestDialog(controller=self.controller)
 
         self.init_ui()
+        
+    def set_data_loaded(self, is_loaded):
+        """
+        Enable or disable menu items based on whether data is loaded or not.
+        """
+        save_as_action = self.menuBar().findChild(QAction, "&Save As...")
+        explore_menu = self.menuBar().findChild(QMenu, "&Explore")
 
+        if save_as_action is not None and explore_menu is not None:
+            save_as_action.setEnabled(is_loaded)
+            explore_menu.setEnabled(is_loaded)
     def init_ui(self):
         """
         Initializes the user interface components of the application.
         """
-       
+        self.set_data_loaded(False)
+
+        #self.update_status_bar(self.controller.)
         self.setWindowTitle("TSA")
         icon = QIcon('images/bulb_icon.png')
         self.setWindowIcon(icon) 
@@ -120,59 +136,254 @@ class View(QMainWindow):
     
     def set_light_theme(self):
         # Placeholder implementation
+        header_style = """
+            QHeaderView::section {
+                background-color: #B22222;
+                color: white;
+                font-weight: bold;
+                border: 1px solid #B22222;
+            }
+        """
+        self.table_widget.horizontalHeader().setStyleSheet(header_style)
         self.setStyleSheet("""
-            /* Light Theme Styles */
-            background-color: #FFFFFF;
-            color: #000000;
+            QStatusBar {
+                background-color: #B22222;
+                color: white;
+                border: 1px solid #0053A6;
+                border-radius: 10px;
+                padding: 2px;
+                font-size: 10pt;
+            }
+            QPushButton {
+                background-color: #96b1c2; /* grey background */
+                color: white;              /* White text */
+                border-radius: 7px;       /* Rounded corners */
+                padding: 6px;              /* Padding for text */
+                font-weight: bold;         /* Bold font */
+            }
+            QPushButton:hover {
+                background-color: #1b4972; /* Darker blue on hover */
+            }
+            QComboBox {
+                border: 2px solid #edebe3; /* Blue border */
+                border-radius: 7px;       /* Rounded corners */
+                padding: 3px;              /* Padding inside the combobox */
+                color: #0078D7;            /* Blue text */
+                background-color: white;   /* White background */
+            }
+            QComboBox::drop-down {
+                border: none;              /* No border for the dropdown button */
+              QTableWidget {
+                alternate-background-color: #e8e8e8; /* Beige for alternating rows */
+                color:black;
+            }
+        QHeaderView::section {
+            background-color: #B22222; /* FireBrick red background */
+            color: white;              /* White text color */
+            font-weight: bold;         /* Bold font for the text */
+            border: 1px solid #9B1B1B; /* Darker red border */
+            padding: 3px;              /* Padding inside the header */
+        }
+            QStatusBar {
+                background-color: #B22222;
+                color: white;
+                border: 1px solid #0053A6;
+                border-radius: 10px;
+                padding: 2px;
+                font-size: 10pt;
+            }  
+        QTableWidget {
+                alternate-background-color: #e8e8e8; /* Beige for alternating rows */
+            }
+        QScrollBar:vertical {
+            border: 1px solid #c1c1c1;
+            background: #f1f1f1;
+            width: 10px;
+            margin: 10px 0 10px 0;
+            border-radius: 4px;
+        }
+        QScrollBar:horizontal {
+            border: 1px solid #c1c1c1;
+            background: #f1f1f1;
+            height: 10px;
+            margin: 0 10px 0 10px;
+            border-radius: 4px;
+        }
+        QScrollBar::handle:vertical {
+            background: #a0a0a0;
+            min-height: 30px;
+            border-radius: 4px;
+        }
+        QScrollBar::handle:horizontal {
+            background: #a0a0a0;
+            min-width: 30px;
+            border-radius: 4px;
+        }
+        QScrollBar::add-line, QScrollBar::sub-line {
+            background: none;
+        }
+        QScrollBar::up-arrow, QScrollBar::down-arrow, QScrollBar::left-arrow, QScrollBar::right-arrow {
+            background: none;
+        }
+        QScrollBar::add-page, QScrollBar::sub-page {
+            background: none;
+        }            
+
         """)
 
     def set_dark_theme(self):
-        # Placeholder implementation
-        self.setStyleSheet("""
-            /* Dark Theme Styles */
-            background-color: #1E1E1E;
-            color: #FFFFFF;
-        """)
+        header_style = """
+            QHeaderView::section {
+                background-color: #1A1A1A;
+                color: white;
+                font-weight: bold;
+                border: 1px solid #1A1A1A;
+                padding: 3px;
+            }
+        """
+        self.table_widget.horizontalHeader().setStyleSheet(header_style)
+
+        # Alternating row colors
+        self.table_widget.setAlternatingRowColors(True)
+        dark_stylesheet = """
+            * {
+                background-color: #0D0D0D;
+                color: white;
+                
+            }
+            QTableWidget {
+                background-color: #1A1A1A;
+                color:black;
+            }
+            QToolTip {
+                background-color: #2F2F2F;
+                color: white;
+                border: 1px solid #1A1A1A;
+                border-radius: 2px;
+                padding: 2px;
+            }
+
+            QPushButton {
+                background-color: #1A1A1A;
+                border-radius: 7px;
+                padding: 6px;
+                font-weight: bold;
+
+            }
+            QPushButton:hover {
+                background-color: #121212;
+            }
+            QComboBox {
+                border: 2px solid #FF929292;
+                border-radius: 7px;
+                padding: 3px;
+                background-color: #FF929292;
+            }
+            QComboBox::drop-down {
+                border: none
+
+            }
+
+            QStatusBar {
+                background-color: #1A1A1A;
+                color: white;
+                border: 1px solid #1A1A1A;
+                border-radius: 10px;
+                padding: 2px;
+                font-size: 10pt;
+            }
+            QScrollBar:vertical {
+                border: 1px solid #333333;
+                background: #1A1A1A;
+                width: 10px;
+                margin: 10px 0 10px 0;
+                border-radius: 4px;
+            }
+            QScrollBar:horizontal {
+                border: 1px solid #121212;
+                background: #121212;
+                color: white;
+                height: 10px;
+                margin: 0 10px 0 10px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical {
+                background: #121212;
+                min-height: 30px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:horizontal {
+                background: #121212;
+                min-width: 30px;
+                border-radius: 4px;
+            }
+            QScrollBar::add-line, QScrollBar::sub-line {
+                background: none;
+            }
+            QScrollBar::up-arrow, QScrollBar::down-arrow, QScrollBar::left-arrow, QScrollBar::right-arrow {
+                background: none;
+            }
+            QScrollBar::add-page, QScrollBar::sub-page {
+                background: none;
+            }
+        """
+
+        self.setStyleSheet(dark_stylesheet)
+    def set_data_loaded(self, is_loaded):
+        """
+        Enable or disable menu items based on whether data is loaded or not.
+        """
+        save_as_action = self.menuBar().findChild(QAction, "&Save As...")
+        explore_menu = self.menuBar().findChild(QMenu, "&Explore")
+
+        if save_as_action is not None and explore_menu is not None:
+            save_as_action.setEnabled(is_loaded)
+
+            # Enable or disable all actions inside the Explore menu
+            for action in explore_menu.actions():
+                action.setEnabled(is_loaded)
+   
     def create_menus(self):
         """
         Creates the menu bar and adds menus to it.
         """
         menu_bar = self.menuBar()  # Use the existing menu bar of QMainWindow
+            
+
+
+        # File menu
         file_menu = menu_bar.addMenu("&File")
-      #  change_theme_icon = file_menu.addMenu("Theme")
 
+        # Define Pixmaps for each icon
+        set_directory_pixmap = QPixmap('images/set_directory_icon.svg')
+        load_data_pixmap = QPixmap('images/load_data_icon.svg')
+        save_as_pixmap = QPixmap('images/save_as_icon.svg')
+       # change_theme_pixmap = QPixmap('images/change_theme_icon.svg')
+        exit_pixmap = QPixmap('images/exit_icon.svg')
 
-# Define icons for each action
-        set_directory_icon = QIcon('images/set_directory_icon.svg')
-        load_data_icon = QIcon('images/load_data_icon.svg')
-        save_as_icon = QIcon('images/save_as_icon.svg')
-        change_theme_icon = QIcon('images/change_theme_icon.svg')
-   
-                # Light Theme Action
+        # Actions for the file menu
+        set_directory_action = QAction(QIcon(set_directory_pixmap), "&Set Directory", self, triggered=self.controller.set_directory)
+        load_data_action = QAction(QIcon(load_data_pixmap), "&Load Data", self, triggered=self.controller.load_data)
+        save_as_action = QAction(QIcon(save_as_pixmap), "&Save As...", self, triggered=self.controller.save_as)
+       # change_theme_action = QAction(QIcon(change_theme_pixmap), "&Themes", self, triggered=self.controller.change_theme)
+        exit_action = QAction(QIcon(exit_pixmap), "&Exit", self, triggered=self.close)
 
+        # Set icons for each action using QPixmap
+        set_directory_action.setIcon(QIcon(set_directory_pixmap))
+        load_data_action.setIcon(QIcon(load_data_pixmap))
+        save_as_action.setIcon(QIcon(save_as_pixmap))
+      #  change_theme_action.setIcon(QIcon(change_theme_pixmap))
+        exit_action.setIcon(QIcon(exit_pixmap))
 
-        exit_icon = QIcon('images/exit_icon.svg')
-
-
-# Actions for the file menu
-        set_directory_action = QAction(set_directory_icon, "&Set Directory", self, triggered=self.controller.set_directory)
-        load_data_action = QAction(load_data_icon, "&Load Data", self, triggered=self.controller.load_data)
-        save_as_action = QAction(save_as_icon, "&Save As...", self, triggered=self.controller.save_as)
-        change_theme_action = QAction(change_theme_icon, "&Themes", self, triggered=self.controller.change_theme)
-        exit_action = QAction(exit_icon, "&Exit", self, triggered=self.close)
-
-# Set icons for each action
-        set_directory_action.setIcon(set_directory_icon)
-        load_data_action.setIcon(load_data_icon)
-        save_as_action.setIcon(save_as_icon)
-        change_theme_action.setIcon(change_theme_icon)
-        exit_action.setIcon(exit_icon)
-
-# Add actions to the file menu
+        # Add actions to the file menu
         file_menu.addAction(set_directory_action)
         file_menu.addAction(load_data_action)
         file_menu.addAction(save_as_action)
-        file_menu.addAction(change_theme_action)
+
+       # file_menu.addAction(change_theme_action)
+        change_theme_submenu = file_menu.addMenu(QIcon('images/change_theme_icon.svg'), "&Change Theme")
+
+        change_theme_submenu.icon='change_theme_icon.svg'
         file_menu.addAction(exit_action)
 
 ##########################################################################################################
@@ -180,69 +391,79 @@ class View(QMainWindow):
         # Create 'Explore' menu
 
         explore_menu = self.menuBar().addMenu("&Explore")
-        # Add actions to 'Explore' menu
-        data_info_action = QAction("&Data Info", self)
+  # Light Theme action with icon
+        light_theme_pixmap = QPixmap('images/light_theme_icon.svg')
+        light_theme_icon = QIcon(light_theme_pixmap)
+        light_theme_action = QAction(light_theme_icon, "&Light Theme", self)
+        light_theme_action.triggered.connect(self.set_light_theme)
+        change_theme_submenu.addAction(light_theme_action)
 
-# Add actions to 'Explore' menu
-        data_info_icon = QIcon('images/data_info_icon.svg')
+        # Dark Theme action with icon
+        dark_theme_pixmap = QPixmap('images/dark_theme_icon.svg')
+        dark_theme_icon = QIcon(dark_theme_pixmap)
+        dark_theme_action = QAction(dark_theme_icon, "&Dark Theme", self)
+        dark_theme_action.triggered.connect(self.set_dark_theme)
+        change_theme_submenu.addAction(dark_theme_action)
+        # Data Info action
+        data_info_pixmap = QPixmap('images/data_info_icon.svg')
+        data_info_icon = QIcon(data_info_pixmap)
         data_info_action = QAction(data_info_icon, "&Data Info", self)
         data_info_action.triggered.connect(self.controller.open_data_info)
         explore_menu.addAction(data_info_action)
 
-        # Repeat for other actions...
-        # Set Index
-        set_index_action = QAction("&Set Index", self)
-# Set Index
-        set_index_icon = QIcon('images/set_index_icon.svg')
+        # Set Index action
+        set_index_pixmap = QPixmap('images/set_index_icon.svg')
+        set_index_icon = QIcon(set_index_pixmap)
         set_index_action = QAction(set_index_icon, "&Set Index", self)
         set_index_action.triggered.connect(self.controller.set_index)
         explore_menu.addAction(set_index_action)
 
-        # Set Frequency
-        set_frequency_action = QAction("&Set Frequency", self)
-# Set Frequency
-        set_frequency_icon = QIcon('images/set_frequency_icon.svg')
+        # Set Frequency action
+        set_frequency_pixmap = QPixmap('images/set_frequency_icon.svg')
+        set_frequency_icon = QIcon(set_frequency_pixmap)
         set_frequency_action = QAction(set_frequency_icon, "&Set Frequency", self)
         set_frequency_action.triggered.connect(self.controller.set_frequency)
         explore_menu.addAction(set_frequency_action)
 
-        # Time Series Plots submenu actions for different plot types
-# Time Series Plots submenu actions for different plot types
-        time_series_plots_menu = explore_menu.addMenu("&Time Series Plots")
-        
-        # Line Plot action
-        line_plot_action = QAction("&Line Plot", self)
+        # Time Series Plots submenu
+        #time_series_plots_menu = explore_menu.addMenu("&Time Series Plots")
+        time_series_plots_menu = explore_menu.addMenu(QIcon('images/time_series_plots_icon.svg'), "&Time Series Plots")
 
-# Line Plot action
-        line_plot_icon = QIcon('images/line_plot_icon.svg')
+        # Line Plot action
+        line_plot_pixmap = QPixmap('images/line_plot_icon.svg')
+        line_plot_icon = QIcon(line_plot_pixmap)
         line_plot_action = QAction(line_plot_icon, "&Line Plot", self)
         line_plot_action.triggered.connect(self.controller.open_line_plot_dialog)
         time_series_plots_menu.addAction(line_plot_action)
 
-        #Seasonal Decompose action
-        seasonal_decompose_action = QAction("&Seasonal Decomposition", self)
-# Seasonal Decompose action
-        seasonal_decompose_icon = QIcon('images/seasonal_decompose_icon.svg')
+        # Seasonal Decompose action
+        seasonal_decompose_pixmap = QPixmap('images/seasonal_decompose_icon.svg')
+        seasonal_decompose_icon = QIcon(seasonal_decompose_pixmap)
         seasonal_decompose_action = QAction(seasonal_decompose_icon, "&Seasonal Decomposition", self)
         seasonal_decompose_action.triggered.connect(self.controller.open_seasonal_decompose_dialog)
-        time_series_plots_menu.addAction(seasonal_decompose_action)        
+        time_series_plots_menu.addAction(seasonal_decompose_action)
 
-        #Lag, ACF and PACF action
-        lag_acf_pacf_icon = QIcon('images/acf_icon.svg')
-        lag_acf_pacf_action = QAction(lag_acf_pacf_icon,"&Lag | ACF | PACF", self)
+        # Lag, ACF and PACF action
+        lag_acf_pacf_pixmap = QPixmap('images/acf_icon.svg')
+        lag_acf_pacf_icon = QIcon(lag_acf_pacf_pixmap)
+        lag_acf_pacf_action = QAction(lag_acf_pacf_icon, "&Lag | ACF | PACF", self)
         lag_acf_pacf_action.triggered.connect(self.controller.open_lag_acf_pacf_dialog)
-        time_series_plots_menu.addAction(lag_acf_pacf_action)           
+        time_series_plots_menu.addAction(lag_acf_pacf_action)
 
-#+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
- 
-# Stationarity Test (with sub-actions)
-        stationarity_menu = explore_menu.addMenu("&Stationarity Test")
+        # Stationarity Test menu
+        #stationarity_menu = explore_menu.addMenu("&Stationarity Test")
+        stationarity_menu = explore_menu.addMenu(QIcon('images/stationarity_menu_icon.svg'), "&Stationarity Test")
 
-#unit root hypothesis test: Augmented Dickey-Fuller (ADF) and Kwiatkowski-Phillips-Schmidt-Shin (KPSS)
-        unit_root_test_action_icon = QIcon('images/unit_root.svg')
-        unit_root_test_action = QAction(unit_root_test_action_icon, "&Unit Root Test", self)
-        unit_root_test_action.triggered.connect(self.controller.open_unit_root_test_dialog)  # method in controller.py
+        # Unit Root Test action
+        unit_root_test_pixmap = QPixmap('images/unit_root.svg')
+        unit_root_test_icon = QIcon(unit_root_test_pixmap)
+        unit_root_test_action = QAction(unit_root_test_icon, "&Unit Root Test", self)
+        unit_root_test_action.triggered.connect(self.controller.open_unit_root_test_dialog)
         stationarity_menu.addAction(unit_root_test_action)
+
+        # Connect the load_data_action to enable/disable Explore menu items
+        load_data_action.triggered.connect(lambda: self.set_data_loaded(True))
+        exit_action.triggered.connect(lambda: self.set_data_loaded(False))
 
 
        
@@ -256,6 +477,7 @@ class View(QMainWindow):
         status_bar = self.statusBar()
         status_bar.showMessage("Ready")
         status_bar.setStyleSheet("""
+      
             QStatusBar {
                 background-color: #B22222;
                 color: white;
@@ -328,6 +550,7 @@ class View(QMainWindow):
 ####################################################################################################
         # Custom stylesheet for vertical and horizontal scroll bars
         scrollbar_style = """
+        
         QScrollBar:vertical {
             border: 1px solid #c1c1c1;
             background: #f1f1f1;
@@ -417,21 +640,37 @@ class View(QMainWindow):
 
         refresh_button = QPushButton("Refresh", column_selection_widget)
         refresh_button.setObjectName("refreshButton")
+        refresh_button.setToolTip("Refresh the data and update column names.")
+
         refresh_button.setFixedHeight(30)
 
         column_selection_layout.addWidget(label, 1)
         column_selection_layout.addWidget(self.comboBox, 5)
         column_selection_layout.addWidget(refresh_button, 2)
 
+
         # Create and setup the buttons_widget
         buttons_widget = QWidget(central_widget)
         buttons_layout = QGridLayout(buttons_widget)
         self.buttons = {}
+        button_info = {
+    "Shape": "Calculate the shape of the data.",
+    "Unique": "Calculate unique values in the data.",
+    "Type": "Calculate data types of columns.",
+    "Missing": "Calculate the number of missing values.",
+    "Statistics": "Calculate basic statistics of the data.",
+    "NaNs": "Calculate the number of NaN values in the data."
+}
+
         button_labels = ["Shape", "Unique", "Type", "Missing", "Statistics", "NaNs"]
+
+
+#self.buttons[label].clicked.connect(getattr(self.controller, f"calculate_{label.lower()}"))
         for i, label in enumerate(button_labels):
             button = QPushButton(label, buttons_widget)
             button.setObjectName(f"{label.lower()}Button")
             self.buttons[label] = button
+            self.buttons[label].setToolTip(button_info[label])
             row, col = divmod(i, 2)
             buttons_layout.addWidget(button, row, col)
 
@@ -744,11 +983,18 @@ class SetFrequencyDialog(QDialog):
         # Radio buttons to select frequency type
         self.common_freq_radio = QRadioButton("Common Frequency")
         self.custom_freq_radio = QRadioButton("Custom Frequency")
+        self.help_button = QPushButton()
+        help_icon_path = 'images/help_icon.svg'  # Replace 'path/to/your/help_icon.svg' with the actual path
+       #self.help_button = QPushButton()
+        #help_icon_path = 'path/to/your/help_icon.svg'  # Replace 'path/to/your/help_icon.svg' with the actual path
+        help_icon = QIcon(QPixmap(help_icon_path).scaledToHeight(30))
+        self.help_button.setIcon(help_icon)
+        self.help_button.setToolTip("Help")
+        self.help_button.clicked.connect(self.open_pandas_docs)
+        # Load the SVG file and set its color
+  
 
-        # Group radio buttons to ensure mutual exclusivity
-        self.radio_group = QButtonGroup(self)
-        self.radio_group.addButton(self.common_freq_radio)
-        self.radio_group.addButton(self.custom_freq_radio)
+        #layout.addWidget(self.help_button)
 
         # Combo box for common frequency options
         self.common_freq_combo = QComboBox()
@@ -760,13 +1006,13 @@ class SetFrequencyDialog(QDialog):
         self.custom_freq_lineedit = QLineEdit()
         self.custom_freq_lineedit.setPlaceholderText(
             "Enter custom frequency (e.g., '15T' for 15 minutes)")
-
+       
         # Add radio buttons and combo box to the layout
         layout.addWidget(self.common_freq_radio)
         layout.addWidget(self.common_freq_combo)
         layout.addWidget(self.custom_freq_radio)
         layout.addWidget(self.custom_freq_lineedit)
-
+        
         # Set the default state and connect signals
         self.common_freq_radio.setChecked(True)
         self.common_freq_combo.setEnabled(True)
@@ -777,19 +1023,20 @@ class SetFrequencyDialog(QDialog):
         # Buttons at the bottom
         buttons_layout = QHBoxLayout()
 
-        self.help_button = QPushButton("Help")
-        self.help_button.clicked.connect(self.open_pandas_docs)
+
 
         self.confirm_button = QPushButton("Confirm")
         self.confirm_button.clicked.connect(self.confirm_frequency)
 
         self.cancel_button = QPushButton("Cancel")
         self.cancel_button.clicked.connect(self.reject)
+        
 
         # Add buttons to the layout with equal spacing
-        buttons_layout.addWidget(self.help_button)
+      
         buttons_layout.addWidget(self.confirm_button)
         buttons_layout.addWidget(self.cancel_button)
+        buttons_layout.addWidget(self.help_button)
 
         # Add buttons layout to the main layout
         self.layout().addLayout(buttons_layout)
@@ -987,6 +1234,16 @@ class SeasonalDecomposeDialog(QMainWindow):
         self.period_spin_box.setFixedHeight(30)
         self.period_spin_box.setMinimum(1)
         self.period_spin_box.setMaximum(365)
+        self.help_button = QPushButton()
+        self.help_button.setToolTip("Help")
+
+        help_icon = QPixmap('images/help_icon.svg')  # Replace 'path/to/your/help_icon.png' with the actual path
+        self.help_button.setIcon(QIcon(help_icon))
+        self.help_button.clicked.connect(self.open_pandas_docs)
+        self.help_button.setFixedHeight(30)
+        self.help_button.setMinimumWidth(100)  # Set minimum width for the button
+        # Future implementation: self.help_button.clicked.connect(self.on_help_clicked)
+       
         parameters_layout.addWidget(self.period_label)
         parameters_layout.addWidget(self.period_spin_box,1)
 
@@ -1001,6 +1258,7 @@ class SeasonalDecomposeDialog(QMainWindow):
         parameters_layout.addWidget(self.model_label)
         parameters_layout.addWidget(self.additive_radio,1)
         parameters_layout.addWidget(self.multiplicative_radio,1)
+        parameters_layout.addWidget(self.help_button)
 
         # Add parameters layout to the main layout
         main_layout.addLayout(parameters_layout)
@@ -1009,11 +1267,7 @@ class SeasonalDecomposeDialog(QMainWindow):
         buttons_layout = QHBoxLayout()
         buttons_layout.addStretch(1)  # Add stretch to push buttons to the middle
         
-        self.help_button = QPushButton("Help")
-        self.help_button.setFixedHeight(30)
-        self.help_button.setMinimumWidth(100)  # Set minimum width for the button
-        # Future implementation: self.help_button.clicked.connect(self.on_help_clicked)
-        buttons_layout.addWidget(self.help_button)
+       
 
         # Create a horizontal spacer item that will go between the buttons
         spacer_item = QSpacerItem(200, 30, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum)
@@ -1039,6 +1293,10 @@ class SeasonalDecomposeDialog(QMainWindow):
         # Set the main layout stretch factors to give more space to the canvas
         main_layout.setStretchFactor(self.canvas, 3)
 
+    def open_pandas_docs(self):
+        # Open the pandas documentation in the user's default web browser
+        QDesktopServices.openUrl(
+            QUrl("https://pandas.pydata.org/docs/user_guide/timeseries.html#offset-aliases"))
     
     def populate_series(self, series_list):
         """Populate the combobox with series names."""
@@ -1264,6 +1522,10 @@ class UnitRootTestDialog(QMainWindow):
         super().__init__(parent)
         self.controller = controller
         self.init_ui()
+    def open_pandas_docs(self):
+        # Open the pandas documentation in the user's default web browser
+        QDesktopServices.openUrl(
+            QUrl("https://pandas.pydata.org/docs/user_guide/timeseries.html#offset-aliases"))
 
     def init_ui(self):
         self.setWindowTitle("Unit Root Test")
@@ -1271,32 +1533,32 @@ class UnitRootTestDialog(QMainWindow):
         self.setWindowIcon(icon)
         self.setFixedSize(600, 400)
 
+
         # Main vertical layout
         main_layout = QVBoxLayout()
 
         # Top parameters layout
         top_layout = self.create_parameters_layout()
         main_layout.addLayout(top_layout)
-
+       
         # TextEdit for results
         self.results_text_edit = QTextEdit(self)
         self.results_text_edit.setReadOnly(True)
         main_layout.addWidget(self.results_text_edit)
-
+    
         # Bottom buttons layout
         bottom_layout = QHBoxLayout()
-        help_button = QPushButton("Help")
-        help_button.setFixedHeight(30)
+        
         test_button = QPushButton("Test")
         test_button.setFixedHeight(30)
         test_button.clicked.connect(self.on_test_button_clicked)
         ok_button = QPushButton("OK")
         ok_button.setFixedHeight(30)
         ok_button.clicked.connect(self.close)  # Assuming you want 'OK' to close the dialog
-        bottom_layout.addWidget(help_button)
+       
         bottom_layout.addWidget(test_button)
         bottom_layout.addWidget(ok_button)
-
+        
         # Add bottom_layout to main_layout
         main_layout.addLayout(bottom_layout)
 
@@ -1307,6 +1569,13 @@ class UnitRootTestDialog(QMainWindow):
 
     def create_parameters_layout(self):
         parameters_layout = QHBoxLayout()
+        help_button = QPushButton()
+        help_button.setToolTip("Help")
+
+        help_icon = QPixmap('images/help_icon.svg')  # Replace 'path/to/your/help_icon.png' with the actual path
+        help_button.setIcon(QIcon(help_icon))
+        help_button.clicked.connect(self.open_pandas_docs)
+        help_button.setFixedHeight(30)
 
         # Column selection label
         label_select_column = QLabel("Select Column:")
@@ -1317,7 +1586,7 @@ class UnitRootTestDialog(QMainWindow):
         self.column_combobox.setFixedHeight(30)
         parameters_layout.addWidget(self.column_combobox)
         parameters_layout.setStretchFactor(self.column_combobox, 2)  # Give more stretch to combobox
-
+     
         # Test type selection label
         label_select_test = QLabel("Select Test:")
         parameters_layout.addWidget(label_select_test)
@@ -1328,7 +1597,7 @@ class UnitRootTestDialog(QMainWindow):
         self.test_type_combobox.setFixedHeight(30)
         parameters_layout.addWidget(self.test_type_combobox)
         parameters_layout.setStretchFactor(self.test_type_combobox, 2)  # Give more stretch to combobox
-
+        parameters_layout.addWidget(help_button)
         return parameters_layout
 
 
