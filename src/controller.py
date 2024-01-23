@@ -1,4 +1,5 @@
 # controller.py
+from pathlib import Path
 import pandas as pd
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
 from model import Model
@@ -21,7 +22,35 @@ class Controller:
         """
         self.model = Model()
         self.view = View(self)
+        self.loaded_file_path = None  # Initialize loaded_file_path
+    def save_as(self):
+        try:
+            # Check if data is loaded
+            if self.model.data_frame is None:
+                self.view.show_message("Error", "No data to save.")
+                return
 
+            # Get the loaded file name
+            loaded_file_name = Path(self.loaded_file_path).name if self.loaded_file_path else "Untitled"
+
+            # Open a file dialog to get the save path
+            file_dialog = QFileDialog()
+            selected_file, _ = file_dialog.getSaveFileName(self.view, "Save As", f"TSA_{loaded_file_name}", "CSV Files (*.csv);;All Files (*)")
+
+            # Check if the user canceled the save operation
+            if not selected_file:
+                return
+
+            # Save data to the selected file
+            self.model.data_frame.to_csv(selected_file, index=False)
+
+            # Update the status bar
+            self.view.update_status_bar(f"Data saved to {selected_file}")
+
+        except Exception as e:
+            print(f"Error in save_as: {e}")
+            self.view.show_message("Error", f"Error saving data: {e}")    
+      
     def run(self):
         """
         Starts the application by displaying the view.
@@ -50,7 +79,7 @@ class Controller:
             self.view, "Open File", "", "CSV Files (*.csv);;Excel Files (*.xlsx)")
             
         if file_path:
- 
+            self.loaded_file_path = file_path  # Store the loaded file path
             if file_path.endswith('.csv'):
                 file_type = 'csv'
             elif file_path.endswith('.xlsx'):
@@ -73,13 +102,8 @@ class Controller:
                 self.view.show_message("Loading Error", f"Error loading data: {e}")
                 self.view.set_data_loaded(False)
 
-    def save_as(self):
-        """
-        Handles the logic to save data from the model.
+    from PyQt6.QtWidgets import QFileDialog
 
-        This method is a placeholder and should be implemented to allow the model to save data to a file or other destinations.
-        """
-        pass
 
     def change_theme(self):
         """

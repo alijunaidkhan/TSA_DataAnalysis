@@ -342,6 +342,7 @@ class View(QMainWindow):
             # Enable or disable all actions inside the Explore menu
             for action in explore_menu.actions():
                 action.setEnabled(is_loaded)
+    
    
     def create_menus(self):
         """
@@ -367,6 +368,8 @@ class View(QMainWindow):
         save_as_action = QAction(QIcon(save_as_pixmap), "&Save As...", self, triggered=self.controller.save_as)
        # change_theme_action = QAction(QIcon(change_theme_pixmap), "&Themes", self, triggered=self.controller.change_theme)
         exit_action = QAction(QIcon(exit_pixmap), "&Exit", self, triggered=self.close)
+# Inside the View class
+        save_as_action.setShortcut("Ctrl+S")  # Set a keyboard shortcut if desired
 
         # Set icons for each action using QPixmap
         set_directory_action.setIcon(QIcon(set_directory_pixmap))
