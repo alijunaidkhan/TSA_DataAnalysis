@@ -9,10 +9,9 @@ from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QAction, QIcon,QColor,QPainter,QPixmap,QStandardItem, QStandardItemModel, QDesktopServices
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget, QTabWidget, \
     QTableWidget,QMenu, QTableWidgetItem, QHBoxLayout, QLabel, QLineEdit, QGridLayout, QDialog, QGroupBox,\
-    QRadioButton, QComboBox, QTextEdit, QMessageBox, QButtonGroup, QDockWidget,QSpinBox, QSpacerItem, QSizePolicy
+    QRadioButton, QComboBox, QTextEdit,QAbstractItemView, QMessageBox, QButtonGroup, QDockWidget,QSpinBox, QSpacerItem, QSizePolicy
 os.environ['QT_API'] = 'pyqt6'
 matplotlib.use('QtAgg')
-from PyQt5.QtSvg import QSvgRenderer,QSvgWidget
 
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
@@ -30,12 +29,15 @@ class View(QMainWindow):
 
 
     def __init__(self, controller):
+        
+        self.data_changed = False
         """
         Initializes the View component.
         Args:
             controller (Controller): The controller instance for the view to communicate with.
         """
         
+       
 
         super().__init__()
                 
@@ -49,9 +51,38 @@ class View(QMainWindow):
         self.lag_acf_pacf_dialog = LagAcfPacfDialog(controller=self.controller)
         # Inside the View class
         self.unit_root_test_dialog = UnitRootTestDialog(controller=self.controller)
+        self.closeEvent = self.close_event
 
         self.init_ui()
-        
+
+
+    def on_cell_changed(self, row, column):
+        # Set the flag when a cell is changed
+      self.data_changed = True
+    def close_event(self, event):
+        if self.data_changed:
+            # Ask the user if they want to save changes
+            reply = QMessageBox.question(self, 'Save Changes?', 'Do you want to save changes?',
+                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel)
+
+            if reply == QMessageBox.StandardButton.Yes:
+                # Save changes
+                self.controller.save_as()
+                event.accept()
+            elif reply == QMessageBox.StandardButton.No:
+                # Discard changes
+                event.accept()
+            elif reply == QMessageBox.StandardButton.Cancel:
+             # Cancel close event
+                event.ignore()
+            else:
+                # Cancel close event
+                event.ignore()
+        else:
+            # No changes, close without asking
+            event.accept()
+
+    # ... (your existing methods)
     def set_data_loaded(self, is_loaded):
         """
         Enable or disable menu items based on whether data is loaded or not.
@@ -104,10 +135,12 @@ class View(QMainWindow):
 
 
         self.table_widget.setStyleSheet(style_sheet)
+       
+
         self.central_layout.addWidget(self.table_widget)
 
         self.setCentralWidget(self.central_widget)
-
+        
         self.create_docked_widget()
         # Set global stylesheet for buttons and comboboxes
         self.setStyleSheet("""
@@ -132,6 +165,8 @@ class View(QMainWindow):
                 border: none;              /* No border for the dropdown button */
 
         """)
+        
+        self.table_widget.cellChanged.connect(self.on_cell_changed)
 
     
     def set_light_theme(self):
@@ -242,6 +277,7 @@ class View(QMainWindow):
             }
         """
         self.table_widget.horizontalHeader().setStyleSheet(header_style)
+
 
         # Alternating row colors
         self.table_widget.setAlternatingRowColors(True)
@@ -367,7 +403,7 @@ class View(QMainWindow):
         load_data_action = QAction(QIcon(load_data_pixmap), "&Load Data", self, triggered=self.controller.load_data)
         save_as_action = QAction(QIcon(save_as_pixmap), "&Save As...", self, triggered=self.controller.save_as)
        # change_theme_action = QAction(QIcon(change_theme_pixmap), "&Themes", self, triggered=self.controller.change_theme)
-        exit_action = QAction(QIcon(exit_pixmap), "&Exit", self, triggered=self.close)
+        exit_action = QAction(QIcon(exit_pixmap), "&Exit", self, triggered=self.close_event)
 # Inside the View class
         save_as_action.setShortcut("Ctrl+S")  # Set a keyboard shortcut if desired
 
@@ -504,6 +540,7 @@ class View(QMainWindow):
         # QMessageBox.information(self, "Information", message)
         QMessageBox.information(self, title, message)
 
+
     def display_data(self, data_frame):
         """
         Displays the given DataFrame in a QTableWidget, replacing any existing data.
@@ -521,6 +558,9 @@ class View(QMainWindow):
         self.table_widget.setRowCount(data_frame.shape[0])
         self.table_widget.setColumnCount(data_frame.shape[1])
         self.table_widget.setHorizontalHeaderLabels(data_frame.columns)
+
+        # Allow editing of items in the table
+        #self.table_widget.setEditTriggers(QAbstractItemView.AllEditTriggers)
 
         # Styling the header
         header_style = """
@@ -545,52 +585,13 @@ class View(QMainWindow):
         # Populate the table with data
         for row in range(data_frame.shape[0]):
             for col in range(data_frame.shape[1]):
-                self.table_widget.setItem(
-                    row, col, QTableWidgetItem(str(data_frame.iloc[row, col])))
+                item = QTableWidgetItem(str(data_frame.iloc[row, col]))
+                self.table_widget.setItem(row, col, item)
 
         # Hide the initial message label
         self.initial_message_label.hide()
-####################################################################################################
-        # Custom stylesheet for vertical and horizontal scroll bars
-        scrollbar_style = """
-        
-        QScrollBar:vertical {
-            border: 1px solid #c1c1c1;
-            background: #f1f1f1;
-            width: 10px;
-            margin: 10px 0 10px 0;
-            border-radius: 4px;
-        }
-        QScrollBar:horizontal {
-            border: 1px solid #c1c1c1;
-            background: #f1f1f1;
-            height: 10px;
-            margin: 0 10px 0 10px;
-            border-radius: 4px;
-        }
-        QScrollBar::handle:vertical {
-            background: #a0a0a0;
-            min-height: 30px;
-            border-radius: 4px;
-        }
-        QScrollBar::handle:horizontal {
-            background: #a0a0a0;
-            min-width: 30px;
-            border-radius: 4px;
-        }
-        QScrollBar::add-line, QScrollBar::sub-line {
-            background: none;
-        }
-        QScrollBar::up-arrow, QScrollBar::down-arrow, QScrollBar::left-arrow, QScrollBar::right-arrow {
-            background: none;
-        }
-        QScrollBar::add-page, QScrollBar::sub-page {
-            background: none;
-        }
-        """
+        #table_widget.itemChanged.connect(lambda item: cell_changed(item.row(), item.column()))
 
-        # Apply the scrollbar style to the table widget
-        self.table_widget.setStyleSheet(self.table_widget.styleSheet() + scrollbar_style)
 
     def open_data_info_dialog(self, data_frame_info):
         '''Opens the Data Information dialog window to display DataFrame details.
@@ -892,7 +893,7 @@ class DataInfoDialog(QDialog):
         self.column_combo.clear()
         for column in data_info['columns']:
             self.column_combo.addItem(column)  # Add column name as both text and data
-
+      
 
 class CheckableComboBox(QComboBox):
     def __init__(self):
@@ -1456,6 +1457,8 @@ class LagAcfPacfDialog(QMainWindow):
     def update_status_bar(self, message):
         """Updates the status bar with a message."""
         self.statusBar().showMessage(message)
+
+
 
 # ##################################################################################################
 # """The code below is for unit root test: ADF and KPSS"""

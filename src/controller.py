@@ -1,4 +1,5 @@
 # controller.py
+import os
 from pathlib import Path
 import pandas as pd
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
@@ -23,10 +24,14 @@ class Controller:
         self.model = Model()
         self.view = View(self)
         self.loaded_file_path = None  # Initialize loaded_file_path
+
+
     def save_as(self):
+        icon_path = os.path.abspath('images/save_as_icon.svg')
+        self.view.setWindowIcon(QIcon(icon_path))
         try:
             # Check if data is loaded
-            if self.model.data_frame is None:
+            if self.view.table_widget.rowCount() == 0 or self.view.table_widget.columnCount() == 0:
                 self.view.show_message("Error", "No data to save.")
                 return
 
@@ -42,15 +47,29 @@ class Controller:
                 return
 
             # Save data to the selected file
-            self.model.data_frame.to_csv(selected_file, index=False)
+            with open(selected_file, 'w', newline='') as csv_file:
+                for row in range(self.view.table_widget.rowCount()):
+                    row_data = []
+                    for column in range(self.view.table_widget.columnCount()):
+                        item = self.view.table_widget.item(row, column)
+                        if item is not None:
+                            row_data.append(item.text())
+                        else:
+                            row_data.append('')
+                    csv_file.write(','.join(row_data) + '\n')
 
             # Update the status bar
-            self.view.update_status_bar(f"Data saved to {selected_file}")
+            self.view.update_status_bar(f"Data saved to {selected_file} successfully.")
+            QMessageBox.information(self.view, "Success", f"Data saved to {selected_file}")
+
 
         except Exception as e:
             print(f"Error in save_as: {e}")
-            self.view.show_message("Error", f"Error saving data: {e}")    
-      
+            self.view.show_message("Error", f"Error saving data: {e}")
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.view.setWindowIcon(QIcon(icon_path))
+
+
     def run(self):
         """
         Starts the application by displaying the view.
@@ -73,11 +92,15 @@ class Controller:
         Opens a file dialog for the user to select a file and loads the data.
         """
         file_dialog = QFileDialog(self.view)
+        icon_path = os.path.abspath('images/load_data_icon.svg')
+        self.view.setWindowIcon(QIcon(icon_path))
+
 
         file_path, _ = file_dialog.getOpenFileName(
             #self.view, "Open File", "", "Excel Files (*.xlsx);;CSV Files (*.csv)")
             self.view, "Open File", "", "CSV Files (*.csv);;Excel Files (*.xlsx)")
-            
+       
+
         if file_path:
             self.loaded_file_path = file_path  # Store the loaded file path
             if file_path.endswith('.csv'):
@@ -101,9 +124,8 @@ class Controller:
             except Exception as e:
                 self.view.show_message("Loading Error", f"Error loading data: {e}")
                 self.view.set_data_loaded(False)
-
-    from PyQt6.QtWidgets import QFileDialog
-
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.view.setWindowIcon(QIcon(icon_path))
 
     def change_theme(self):
         """
@@ -123,15 +145,14 @@ class Controller:
             self.view.comboBox.clear()
             self.view.comboBox.addItems(columns)
 
-    def calculate_shape(self):
+    def calculate_nans(self):
         """
-        Calculates the shape of the selected column and displays it.
+        Calculates the number of NaN values in the selected column and displays it.
         """
         selected_column = self.view.comboBox.currentText()
         if selected_column:
-            shape = self.model.data_frame[selected_column].shape
-            self.view.output_display.setText(f"Shape: {shape}")
-
+            nan_count = self.model.data_frame[selected_column].isna().sum()
+            self.view.output_display.setText(f"Number of NaNs: {nan_count}")
     def calculate_dtype(self):
         """
         Calculates the data type of the selected column and displays it.
@@ -180,14 +201,17 @@ class Controller:
             missing_count = self.model.data_frame[selected_column].isnull().sum()
             self.view.output_display.setText(f"Number of Missing Values: {missing_count}")
 
-    def calculate_nans(self):
+
+    def calculate_shape(self):
         """
-        Calculates the number of NaN values in the selected column and displays it.
+        Calculates the shape of the selected column and displays it.
         """
         selected_column = self.view.comboBox.currentText()
         if selected_column:
-            nan_count = self.model.data_frame[selected_column].isna().sum()
-            self.view.output_display.setText(f"Number of NaNs: {nan_count}")
+            shape = self.model.data_frame[selected_column].shape
+            self.view.output_display.setText(f"Shape: {shape}")
+
+
 
 ##########################################################################################################
 ############################### Explore menu #############################################################
