@@ -1,8 +1,10 @@
 # controller.py
 import os
 from pathlib import Path
+import numpy as np
 import pandas as pd
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
+from tabulate import tabulate
 from model import Model
 from view import View, DataInfoDialog, SetIndexDialog, SetFrequencyDialog
 from PyQt6.QtGui import QIcon
@@ -144,73 +146,236 @@ class Controller:
             columns = self.model.data_frame.columns
             self.view.comboBox.clear()
             self.view.comboBox.addItems(columns)
-
     def calculate_nans(self):
-        """
-        Calculates the number of NaN values in the selected column and displays it.
-        """
+
+      try:
         selected_column = self.view.comboBox.currentText()
-        if selected_column:
-            nan_count = self.model.data_frame[selected_column].isna().sum()
-            self.view.output_display.setText(f"Number of NaNs: {nan_count}")
+
+        if selected_column and hasattr(self.view, 'table_widget'):
+        # Find the logical index of the column by its name
+           logical_index = -1
+           for i in range(self.view.table_widget.columnCount()):
+               if self.view.table_widget.horizontalHeaderItem(i).text() == selected_column:
+                logical_index = i
+                break
+
+        if logical_index != -1:
+            nan_count = 0
+            for row in range(self.view.table_widget.rowCount()):
+                item = self.view.table_widget.item(row, logical_index)
+                if item is not None and item.text() == "" or item.text()=="NAN" or item.text()=="nan" or item.text()=="Nan":
+                    nan_count += 1
+
+            self.view.output_display.setText(                    "====================\n"
+                    "Number of NaNs\n"
+                    "====================\n"f"{nan_count}")
+        else:
+            self.view.output_display.setText(f"Column {selected_column} not found in the table.")
+
+
+      except Exception as e:
+        # Handle the exception - print an error message or log it
+        
+        self.view.output_display.setText(f"An exception occurred: {e}")
+
+
+
     def calculate_dtype(self):
-        """
-        Calculates the data type of the selected column and displays it.
-        """
+  
+      try:
         selected_column = self.view.comboBox.currentText()
-        if selected_column:
-            dtype = self.model.data_frame[selected_column].dtype
-            self.view.output_display.setText(f"Data Type: {dtype}")
+
+        if selected_column and hasattr(self.view, 'table_widget'):
+            # Find the logical index of the column by its name
+            logical_index = -1
+            for i in range(self.view.table_widget.columnCount()):
+                if self.view.table_widget.horizontalHeaderItem(i).text() == selected_column:
+                    logical_index = i
+                    break
+
+            if logical_index != -1:
+                # Get the data from the selected column in the QTableWidget
+                column_data = [self.view.table_widget.item(row, logical_index).text() 
+                               for row in range(self.view.table_widget.rowCount())]
+
+                # Attempt to convert values to different types and infer the most suitable type
+                inferred_dtype = None
+                for dtype in [int, float, str]:
+                    try:
+                        converted_data = [dtype(value) for value in column_data if value.strip()]
+                        if all(isinstance(value, dtype) for value in converted_data):
+                            inferred_dtype = dtype
+                            break
+                    except ValueError:
+                        pass
+
+                self.view.output_display.setText(    "====================\n"
+                    "Data Type\n"
+                    "====================\n"+f" {inferred_dtype.__name__}")
+            else:
+                self.view.output_display.setText(f"Column {selected_column} not found in the table.")
+        else:
+            self.view.output_display.setText("Invalid selection or table not available.")
+
+      except Exception as e:
+        # Handle the exception - print an error message or log it
+        self.view.output_display.setText(f"An exception occurred: {e}")
 
     def calculate_statistics(self):
-        """
-        Calculates descriptive statistics of the selected column and displays them.
-        """
+  
+      try:
         selected_column = self.view.comboBox.currentText()
-        if selected_column:
-            statistics = self.model.data_frame[selected_column].describe()
-            formatted_stats = statistics.to_string()  # Convert the statistics to a string for display
 
-            # Add header with separator lines
-            separator = "=" * 25
-            display_text = f"{separator}\nDescriptive Statistics\n{separator}\n{formatted_stats}"
+        if selected_column and hasattr(self.view, 'table_widget'):
+            # Find the logical index of the column by its name
+            logical_index = -1
+            for i in range(self.view.table_widget.columnCount()):
+                if self.view.table_widget.horizontalHeaderItem(i).text() == selected_column:
+                    logical_index = i
+                    break
 
-            self.view.output_display.setText(display_text)
+            if logical_index != -1:
+                # Get the data from the selected column in the QTableWidget
+                column_data = [self.view.table_widget.item(row, logical_index).text() 
+                               for row in range(self.view.table_widget.rowCount())]
+
+                # Convert the data to numeric values
+                numeric_data = [float(value) if value.replace(".", "").isdigit() else None for value in column_data]
+
+                # Remove None values before calculating statistics
+                numeric_data = [value for value in numeric_data if value is not None]
+
+                if numeric_data:
+                    statistics = {
+                        "Count": len(numeric_data),
+                        "Mean": np.mean(numeric_data),
+                        "Std Dev": np.std(numeric_data),
+                        "Min": np.min(numeric_data),
+                        "25th Percentile": np.percentile(numeric_data, 25),
+                        "Median": np.percentile(numeric_data, 50),
+                        "75th Percentile": np.percentile(numeric_data, 75),
+                        "Max": np.max(numeric_data),
+                    }
+
+                    # Format the statistics for display
+                    formatted_stats = "\n".join([f"{label}: {value:.2f}" for label, value in statistics.items()])
+
+                    # Add header with separator lines
+                    separator = "=" * 30
+                    display_text = (
+                        f"{separator}\n     Descriptive Statistics\n{separator}\n{formatted_stats}\n{separator}"
+                    )
+
+                    self.view.output_display.setText(display_text)
+                else:
+                    self.view.output_display.setText("No numeric data to calculate statistics.")
+            else:
+                self.view.output_display.setText(f"Column '{selected_column}' not found in the table.")
+        else:
+            self.view.output_display.setText("Invalid selection or table not available.")
+
+      except Exception as e:
+        # Handle the exception - print an error message or log it
+        self.view.output_display.setText(f"An exception occurred: {e}")
 
     def calculate_unique(self):
-        """
-        Calculates the number of unique values in the selected column and displays it with formatting.
-        """
+   
+      try:
         selected_column = self.view.comboBox.currentText()
-        if selected_column:
-            unique_count = self.model.data_frame[selected_column].nunique()
-            formatted_output = (
-                "====================\n"
-                "Unique Values Count\n"
-                "====================\n"
-                f"{unique_count}"
-            )
-            self.view.output_display.setText(formatted_output)
+
+        if selected_column and hasattr(self.view, 'table_widget'):
+            # Find the logical index of the column by its name
+            logical_index = -1
+            for i in range(self.view.table_widget.columnCount()):
+                if self.view.table_widget.horizontalHeaderItem(i).text() == selected_column:
+                    logical_index = i
+                    break
+
+            if logical_index != -1:
+                # Get the data from the selected column in the QTableWidget
+                column_data = [self.view.table_widget.item(row, logical_index).text() 
+                               for row in range(self.view.table_widget.rowCount())]
+
+                # Count unique values
+                unique_values = set(column_data)
+                unique_count = len(unique_values)
+
+                formatted_output = (
+                    "====================\n"
+                    "Unique Values Count\n"
+                    "====================\n"
+                    f"{unique_count}"
+                )
+
+                self.view.output_display.setText(formatted_output)
+            else:
+                self.view.output_display.setText(f"Column {selected_column} not found in the table.")
+        else:
+            self.view.output_display.setText("Invalid selection or table not available.")
+
+      except Exception as e:
+        # Handle the exception - print an error message or log it
+        self.view.output_display.setText(f"An exception occurred: {e}")
 
     def calculate_missing(self):
-        """
-        Calculates the number of missing (null) values in the selected column and displays it.
-        """
+      try:
         selected_column = self.view.comboBox.currentText()
-        if selected_column:
-            missing_count = self.model.data_frame[selected_column].isnull().sum()
-            self.view.output_display.setText(f"Number of Missing Values: {missing_count}")
 
+        if selected_column and hasattr(self.view, 'table_widget'):
+            # Find the logical index of the column by its name
+            logical_index = -1
+            for i in range(self.view.table_widget.columnCount()):
+                if self.view.table_widget.horizontalHeaderItem(i).text() == selected_column:
+                    logical_index = i
+                    break
 
+            if logical_index != -1:
+                missing_count = 0
+                for row in range(self.view.table_widget.rowCount()):
+                    item = self.view.table_widget.item(row, logical_index)
+                    if item is None or item.text().strip() == "" or item.text()=="nan":
+                        missing_count += 1
+
+                self.view.output_display.setText(    "====================\n"
+                    "Number of Missing Values\n"
+                    "====================\n"f"{missing_count}")
+            else:
+                self.view.output_display.setText(f"Column {selected_column} not found in the table.")
+        else:
+            self.view.output_display.setText("Invalid selection or table not available.")
+
+      except Exception as e:
+        # Handle the exception - print an error message or log it
+        self.view.output_display.setText(f"An exception occurred: {e}")
     def calculate_shape(self):
-        """
-        Calculates the shape of the selected column and displays it.
-        """
+  
+      try:
         selected_column = self.view.comboBox.currentText()
-        if selected_column:
-            shape = self.model.data_frame[selected_column].shape
-            self.view.output_display.setText(f"Shape: {shape}")
 
+        if selected_column and hasattr(self.view, 'table_widget'):
+            # Find the logical index of the column by its name
+            logical_index = -1
+            for i in range(self.view.table_widget.columnCount()):
+                if self.view.table_widget.horizontalHeaderItem(i).text() == selected_column:
+                    logical_index = i
+                    break
+
+            if logical_index != -1:
+               # column_count = self.view.table_widget.columnCount()
+                row_count = self.view.table_widget.rowCount()  
+
+                shape_text = f"{row_count} Rows"
+                self.view.output_display.setText("====================\n"
+                    f"Shape of column:\n{selected_column}\n"
+                    "====================\n"+shape_text)
+            else:
+                self.view.output_display.setText(f"Column {selected_column} not found in the table.")
+        else:
+            self.view.output_display.setText("Invalid selection or table not available.")
+
+      except Exception as e:
+        # Handle the exception - print an error message or log it
+        self.view.output_display.setText(f"An exception occurred: {e}")
 
 
 ##########################################################################################################

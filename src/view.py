@@ -300,7 +300,7 @@ class View(QMainWindow):
             }
 
             QPushButton {
-                background-color: #1A1A1A;
+                background-color: #FF7272AB;
                 border-radius: 7px;
                 padding: 6px;
                 font-weight: bold;
@@ -612,6 +612,9 @@ class View(QMainWindow):
         self.comboBox.clear()
         self.comboBox.addItem(column_name)
     
+
+
+     
 
 ##################################################################################################################
 
