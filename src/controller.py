@@ -381,18 +381,64 @@ class Controller:
 ##########################################################################################################
 ############################### Explore menu #############################################################
     def open_data_info(self):
-        """
-        Handles the 'Data Info' action. Opens the DataInfoDialog with the current DataFrame info.
-        """
-        if self.model.data_frame is not None:
+
+      try:
+        if hasattr(self.view, 'table_widget'):
+            columns = []
+            data_types = []
+            missing_values = []
+            
+            # Retrieve column names from the table widget
+            for col in range(self.view.table_widget.columnCount()):
+                columns.append(self.view.table_widget.horizontalHeaderItem(col).text())
+            
+            # Retrieve data types from the table widget
+            for col in range(self.view.table_widget.columnCount()):
+                column_data = [self.view.table_widget.item(row, col) for row in range(self.view.table_widget.rowCount())]
+                
+                # Check data types
+                is_float = all(self._is_float(item.text()) for item in column_data if item and item.text())
+                is_int = all(self._is_int(item.text()) for item in column_data if item and item.text())
+                data_type = 'float' if is_float else ('int' if is_int else 'str')
+                data_types.append(data_type)
+            
+            # Retrieve missing values count from the table widget
+            for col in range(self.view.table_widget.columnCount()):
+                missing_count = sum(1 for row in range(self.view.table_widget.rowCount()) 
+                                    if not self.view.table_widget.item(row, col) or 
+                                    self.view.table_widget.item(row, col).text() in ('', 'nan', 'NaN', 'NAN'))
+                missing_values.append(missing_count)
+            
             data_info = {
-                'columns': self.model.data_frame.columns.tolist(),
-                'data_types': [str(dtype) for dtype in self.model.data_frame.dtypes],
-                'missing_values': self.model.data_frame.isnull().sum().tolist()
+                'columns': columns,
+                'data_types': data_types,
+                'missing_values': missing_values
             }
+            
+            # Open the DataInfoDialog and populate it with data_info
             dialog = DataInfoDialog(self)  # Pass the controller instance
             dialog.populate_data_info(data_info)
             dialog.exec()
+        else:
+            QMessageBox.warning(self, "Warning", "Table widget not available.")
+      except Exception as e:
+        QMessageBox.warning(self, "Error", f"An error occurred: {str(e)}")
+
+    def _is_float(self, s):
+      try:
+        float(s)
+        return True
+      except ValueError:
+        return False
+
+    def _is_int(self, s):
+      try:
+        int(s)
+        return True
+      except ValueError:
+        return False
+
+
 
     def convert_columns_data(self, column_names, new_dtype):
         # Initialize a list with default values ('False' indicating no conversion initially)
