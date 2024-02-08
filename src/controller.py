@@ -8,6 +8,8 @@ from tabulate import tabulate
 from model import Model
 from view import View, DataInfoDialog, SetIndexDialog, SetFrequencyDialog
 from PyQt6.QtGui import QIcon
+
+
 class Controller:
     """
     The Controller component in the MVC architecture, responsible for handling user interactions,
@@ -136,16 +138,47 @@ class Controller:
         This method is a placeholder and should be implemented to modify the view's appearance according to the selected theme.
         """
         pass
+    def get_dataframe(self):
+        """
+        Returns the current DataFrame loaded in the model.
 
+        This method provides access to the DataFrame for operations that require it,
+        such as plotting, data analysis, or further manipulation in the view or other components.
+
+        Returns:
+            pandas.DataFrame: The current DataFrame loaded in the model.
+        """
+        return self.model.data_frame
+    def handle_subset_button(self):
+     thresholds = {}
+     for column, (min_input, max_input) in self.view.thresholds_inputs.items():
+        try:
+            min_val = float(min_input.text())
+            max_val = float(max_input.text())
+            thresholds[column] = (min_val, max_val)
+        except ValueError:
+            # Handle invalid input
+            continue
+     subsets = self.split_into_subsets(self.model.data_frame, thresholds)
+    # Now, subsets contain the indices of rows that meet the criteria.
+    # You can further process these subsets as needed.
 ######################################################## trying Functionalities for docked widget#####################################################
     def update_column_names(self):
-        """
-        Updates the column names in the combo box based on the loaded DataFrame.
-        """
-        if self.model.data_frame is not None:
-            columns = self.model.data_frame.columns
-            self.view.comboBox.clear()
-            self.view.comboBox.addItems(columns)
+  
+      if self.model.data_frame is not None:
+        columns = self.model.data_frame.columns
+        
+        # Update comboBox as usual
+        self.view.comboBox.clear()
+        self.view.comboBox.addItems(columns)
+        
+        # Clear comboBox2 and add items with checkboxes
+        self.view.comboBox2.clear()
+        for i in range(self.view.table_widget.columnCount()):
+            column_name = self.view.table_widget.horizontalHeaderItem(i).text()
+            is_numeric = self.view.is_column_numeric(column_name)
+            self.view.comboBox2.addItem(column_name, is_numeric)
+
     def calculate_nans(self):
 
       try:

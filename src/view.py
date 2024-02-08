@@ -1,5 +1,5 @@
 # view.py
-from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget,QCheckBox
 import os
 import matplotlib
 from matplotlib.figure import Figure
@@ -9,9 +9,15 @@ from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QAction, QIcon,QColor,QPainter,QPixmap,QStandardItem, QStandardItemModel, QDesktopServices
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget, QTabWidget, \
     QTableWidget,QMenu, QTableWidgetItem, QHBoxLayout, QLabel, QLineEdit, QGridLayout, QDialog, QGroupBox,\
-    QRadioButton, QComboBox, QTextEdit,QAbstractItemView, QMessageBox, QButtonGroup, QDockWidget,QSpinBox, QSpacerItem, QSizePolicy
+    QRadioButton, QComboBox,QDialogButtonBox, QFormLayout,QTextEdit,QAbstractItemView, QMessageBox, QButtonGroup, QDockWidget,QSpinBox, QSpacerItem, QSizePolicy
+import pandas as pd
+import zipfile
+import os
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QFormLayout, QLabel, QLineEdit, QDialogButtonBox, QMessageBox, QApplication
+
 os.environ['QT_API'] = 'pyqt6'
 matplotlib.use('QtAgg')
+from PyQt5.QtCore import pyqtSignal
 
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
@@ -37,11 +43,16 @@ class View(QMainWindow):
             controller (Controller): The controller instance for the view to communicate with.
         """
         
-       
+
+
 
         super().__init__()
-                
+        self.thresholds_layout = QVBoxLayout()  # Initialize the layout
+        self.comboBox2 = CheckableComboBox()
         self.controller = controller
+        # Assuming this is done in the part of your code where UI components are initialized
+
+
         # Initialize the plotting dialog
     
         self.lineplotting_dialog = PlottingDialog(controller=self.controller)
@@ -365,6 +376,43 @@ class View(QMainWindow):
         """
 
         self.setStyleSheet(dark_stylesheet)
+# In your main window or wherever the subset button is defined
+    def openSubsetDialog(self):
+     checked_columns = self.comboBox2.get_checked_items()
+     column_ranges = {}
+     for column in checked_columns:
+        column_ranges[column] = self.calculate_min_max_for_column(column)
+    # Replace self.table_widget with the actual DataFrame. For example:
+     dataframe = self.controller.get_dataframe()  # Assuming get_dataframe() is a method that returns the DataFrame
+     dialog = SubsetDialog(column_ranges, dataframe, self)
+     if dialog.exec() == QDialog.DialogCode.Accepted:
+        values = dialog.getValues()
+        # Handle the values as needed
+
+        print(values)  # Example usage, replace with your logic as needed
+
+    def calculate_min_max_for_column(self, column):
+     column_index = self.table_widget.columnCount()
+     for i in range(self.table_widget.columnCount()):
+        if self.table_widget.horizontalHeaderItem(i).text() == column:
+            column_index = i
+            break
+
+     values = []
+     for row in range(self.table_widget.rowCount()):
+        item = self.table_widget.item(row, column_index)
+        if item:
+            try:
+                value = float(item.text())  # Use float to accommodate decimal values
+                values.append(value)
+            except ValueError:
+                continue  # Skip non-numeric values
+
+     if values:
+        return min(values), max(values)
+     return 0, 0  # Return default min and max if no numeric values found
+
+
     def set_data_loaded(self, is_loaded):
         """
         Enable or disable menu items based on whether data is loaded or not.
@@ -604,19 +652,52 @@ class View(QMainWindow):
     def update_plotting_dialog_columns(self, columns):
         if self.plotting_dialog is not None:
             self.plotting_dialog.update_combobox_items(columns)
-    def update_column_combobox(self, logical_index):
-        """
-        Updates the combobox with the selected column name.
-        """
-        column_name = self.table_widget.horizontalHeaderItem(logical_index).text()
-        self.comboBox.clear()
-        self.comboBox.addItem(column_name)
-    
-
+  
 
      
+    def update_column_combobox(self, logical_index):
+    
+     column_name = self.table_widget.horizontalHeaderItem(logical_index).text()
+     self.comboBox.clear()
+     self.comboBox.addItem(column_name)
 
+     # Clear previous items from comboBox2
+    
 ##################################################################################################################
+
+    def is_column_numeric(self, column_name):
+  
+     try:
+        if column_name and hasattr(self, 'table_widget'):
+            logical_index = -1
+            for i in range(self.table_widget.columnCount()):
+                if self.table_widget.horizontalHeaderItem(i).text() == column_name:
+                    logical_index = i
+                    break
+
+            if logical_index != -1:
+                column_data = [self.table_widget.item(row, logical_index).text()
+                               for row in range(self.table_widget.rowCount()) if self.table_widget.item(row, logical_index)]
+
+                for dtype in [int, float]:
+                    try:
+                        [dtype(value) for value in column_data if value.strip()]
+                        return True  # Column is numeric
+                    except ValueError:
+                        continue
+
+                return False  # Column is not numeric
+     except Exception as e:
+        print(f"An exception occurred: {e}")  # Or handle the exception as needed
+        return False
+    def onItemCheckStateChanged(self, item_text, is_checked):
+    # Handle UI update here
+     if is_checked:
+        print(f"Show input fields for {item_text}")
+        # Logic to show min/max input fields for item_text
+     else:
+        print(f"Hide input fields for {item_text}")
+        # Logic to hide min/max input fields for item_text
 
     def create_docked_widget(self):
         """
@@ -631,9 +712,12 @@ class View(QMainWindow):
         central_widget.setStyleSheet("QWidget#centralWidget { background-color: #B22222; }")
         central_layout = QVBoxLayout(central_widget)
 
-        # Create and setup the column_selection_widget
+      # Create and setup the column_selection_widget
         column_selection_widget = QWidget(central_widget)
-        column_selection_layout = QHBoxLayout(column_selection_widget)
+        column_selection_layout = QVBoxLayout(column_selection_widget)
+
+# First row layout for label, combobox, and refresh button
+        first_row_layout = QHBoxLayout()
         label = QLabel("Header", column_selection_widget)
         label.setStyleSheet("color: white; font-weight: bold;")
         label.setFixedHeight(30)
@@ -642,19 +726,41 @@ class View(QMainWindow):
         self.comboBox.setObjectName("columnComboBox")
         self.comboBox.setFixedHeight(30)
         self.table_widget.horizontalHeader().sectionClicked.connect(self.update_column_combobox)
-        #self.table_widget.itemClicked.connect(self.update_column_combobox)
-
 
         refresh_button = QPushButton("Refresh", column_selection_widget)
         refresh_button.setObjectName("refreshButton")
         refresh_button.setToolTip("Refresh the data and update column names.")
-
         refresh_button.setFixedHeight(30)
+        subset_button = QPushButton("Subset", column_selection_widget)
+        subset_button.setObjectName("subsetButton")
+        subset_button.setToolTip("Calculate subsets based on selected columns and thresholds.")
+        subset_button.setFixedHeight(30)
+        first_row_layout.addWidget(label, 1)
+        first_row_layout.addWidget(self.comboBox, 5)
+        first_row_layout.addWidget(refresh_button, 2)
 
-        column_selection_layout.addWidget(label, 1)
-        column_selection_layout.addWidget(self.comboBox, 5)
-        column_selection_layout.addWidget(refresh_button, 2)
+# Second row layout for the second ComboBox and its label
+        second_row_layout = QHBoxLayout()
+        label2 = QLabel("Subsets", column_selection_widget)
+        label2.setStyleSheet("color: white; font-weight: bold;")
+        label2.setFixedHeight(30)
+        self.comboBox2 = CheckableComboBox()
+        
+        self.comboBox2.setObjectName("columnComboBox2")
+        self.comboBox2.setFixedHeight(30)
+        self.table_widget.horizontalHeader().sectionClicked.connect(self.update_column_combobox)
 
+        second_row_layout.addWidget(label2,1)
+        second_row_layout.addWidget(self.comboBox2,5)
+        second_row_layout.addWidget(subset_button, 2)
+
+# Add first and second row layouts to the column_selection_layout
+        column_selection_layout.addLayout(first_row_layout)
+        column_selection_layout.addLayout(second_row_layout)
+       # Add checkboxes and input fields for thresholds
+       # Iterate over the columns of comboBox2 and add checkboxes and input fields for numerical columns
+       # Add checkboxes and input fields for each numerical column in comboBox2
+       
 
         # Create and setup the buttons_widget
         buttons_widget = QWidget(central_widget)
@@ -701,6 +807,8 @@ class View(QMainWindow):
 
 ######################################################## trying Functionalities for docked widget#####################################################
         refresh_button.clicked.connect(self.controller.update_column_names)
+        subset_button.clicked.connect(self.openSubsetDialog)
+
         self.buttons["Shape"].clicked.connect(self.controller.calculate_shape)
         # Connect the "Type" button
         self.buttons["Type"].clicked.connect(self.controller.calculate_dtype)
@@ -712,14 +820,14 @@ class View(QMainWindow):
         self.buttons["Missing"].clicked.connect(self.controller.calculate_missing)
         # Connect the"NaNs" buttons
         self.buttons["NaNs"].clicked.connect(self.controller.calculate_nans)
-
-
+# Function to update column widgets based on selected column
+   
 ###########################################################################################################################################
 """ The lines below are specifically creating the UI elemnents for the Explore Menu: starting with DataInfo dialog, Setindex dialog """
 ###########################################################################################################################################
 
 # No.1 DataInfo dialog
-
+    
 
 class DataInfoDialog(QDialog):
     def __init__(self, controller):
@@ -904,36 +1012,48 @@ class CheckableComboBox(QComboBox):
         self.view().pressed.connect(self.handleItemPressed)
         self.setModel(QStandardItemModel(self))
 
+    def addItem(self, text, is_numeric):
+        """
+        Adds an item to the combo box. If is_numeric is True, the item will be user-checkable and checked by default.
+        
+        :param text: The text of the item to add
+        :param is_numeric: Boolean indicating whether the item is numeric
+        """
+        print(f"Adding item: {text}, Numeric: {is_numeric}")  # Debug print
+        item = QStandardItem(text)
+        if is_numeric:
+            item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
+            # Set numeric items to be checked by default
+            item.setData(Qt.CheckState.Checked, Qt.ItemDataRole.CheckStateRole)
+        else:
+            # Non-numeric columns are not user-checkable but are still enabled.
+            item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            item.setData(Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole)  # Ensure consistent data role
+        self.model().appendRow(item)
+
     def handleItemPressed(self, index):
         item = self.model().itemFromIndex(index)
-        if item.checkState() == Qt.CheckState.Checked:
-            item.setCheckState(Qt.CheckState.Unchecked)
-        else:
-            item.setCheckState(Qt.CheckState.Checked)
-
-    def addItem(self, text):
-        item = QStandardItem(text)
-        item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
-        item.setData(Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole)
-        self.model().appendRow(item)
+        # Ensure action only for items that are user-checkable (numeric columns)
+        if item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
+            newState = Qt.CheckState.Unchecked if item.checkState() == Qt.CheckState.Checked else Qt.CheckState.Checked
+            item.setCheckState(newState)
+            print(f"Item pressed: {item.text()}, new state: {newState}")  # Debug print
 
     def checkedItems(self):
         checked_items = []
         for i in range(self.model().rowCount()):
-            if self.model().item(i).checkState() == Qt.CheckState.Checked:
-                checked_items.append(self.model().item(i).text())
+            item = self.model().item(i)
+            if item.flags() & Qt.ItemFlag.ItemIsUserCheckable and item.checkState() == Qt.CheckState.Checked:
+                checked_items.append(item.text())
         return checked_items
 
     def get_checked_items(self):
         checked_items = []
         for index in range(self.model().rowCount()):
             item = self.model().item(index)
-            if item.checkState() == Qt.CheckState.Checked:
+            if item.flags() & Qt.ItemFlag.ItemIsUserCheckable and item.checkState() == Qt.CheckState.Checked:
                 checked_items.append(item.text())
         return checked_items
-
-# No.2 Index dialog
-
 
 class SetIndexDialog(QDialog):
     def __init__(self, columns, parent=None):
@@ -954,7 +1074,7 @@ class SetIndexDialog(QDialog):
         label = QLabel("Select a column to set as index")
 
         # Buttons
-        ok_button = QPushButton("OK")
+        ok_button = QPushButton("Ok")
         ok_button.clicked.connect(self.accept)
         cancel_button = QPushButton("Cancel")
         cancel_button.clicked.connect(self.reject)
@@ -1628,3 +1748,92 @@ class UnitRootTestDialog(QMainWindow):
 
     def update_status_bar(self, message):
         self.statusBar().showMessage(message)
+
+
+
+class SubsetDialog(QDialog):
+    def __init__(self, column_ranges, dataframe, parent=None):
+        super().__init__(parent)
+        self.column_ranges = column_ranges  # Dictionary with column names as keys and (min, max) tuples as values
+        self.setWindowTitle("Subsets - Define Column Ranges")
+        icon = QIcon('images/subset_icon.svg')
+        self.setWindowIcon(icon)
+        self.setGeometry(100, 100, 400, 300)
+        self.dataframe = dataframe  # The pandas DataFrame
+        self.initUI()
+        
+    def initUI(self):
+        self.layout = QVBoxLayout(self)
+        self.formLayout = QFormLayout()
+        self.inputs = {}
+
+        for column, (min_val, max_val) in self.column_ranges.items():
+            min_input = QLineEdit(str(min_val))
+            max_input = QLineEdit(str(max_val))
+            self.inputs[column] = (min_input, max_input)
+            self.formLayout.addRow(QLabel(f"{column} (Min)"), min_input)
+            self.formLayout.addRow(QLabel(f"{column} (Max)"), max_input)
+
+        self.layout.addLayout(self.formLayout)
+        self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        ok_button = self.buttons.button(QDialogButtonBox.StandardButton.Ok)
+        ok_button.setText("Generate Subsets") 
+        self.buttons.accepted.connect(self.on_accept)
+        self.buttons.rejected.connect(self.reject)
+        self.layout.addWidget(self.buttons)
+        self.setLayout(self.layout)
+        
+    def getValues(self):
+        values = {}
+        for column, (min_input, max_input) in self.inputs.items():
+            min_val = min_input.text()
+            max_val = max_input.text()
+            values[column] = (float(min_val), float(max_val))
+        return values
+   
+    def on_accept(self):
+        try:
+            thresholds = self.getValues()
+            subsets = self.split_into_subsets(thresholds)
+            if subsets:
+                self.show_result_message(len(subsets), [len(subset) for subset in subsets])
+                self.save_subsets(subsets)
+                self.accept()
+            else:
+                QMessageBox.information(self, "No Subsets", "No subsets were created based on the given thresholds.")
+        except ValueError:
+            QMessageBox.warning(self, "Error", "Invalid input: Please ensure all threshold values are numeric.")
+
+    def split_into_subsets(self, thresholds):
+        df = self.dataframe.copy()  # Work on a copy to avoid modifying the original DataFrame
+        subsets = []
+        continuous_subset = []
+        for i in range(len(df)):
+            if all(thresholds[col][0] <= df.iloc[i][col] <= thresholds[col][1] for col in thresholds):
+                continuous_subset.append(i)
+            else:
+                if continuous_subset:
+                    subsets.append(continuous_subset)
+                    continuous_subset = []
+        if continuous_subset:
+            subsets.append(continuous_subset)
+        return subsets
+
+    def show_result_message(self, num_subsets, subset_lengths):
+        message = f"Number of subsets created: {num_subsets}\n"
+        message += "Number of rows in each subset: " + ", ".join(map(str, subset_lengths)) + "\n"
+        if subset_lengths:
+            best_subset = subset_lengths.index(max(subset_lengths)) + 1
+            message += f"Recommendation:{best_subset} Subset is recommended for analysis."
+        QMessageBox.information(self, "Subset Information", message)
+
+    def save_subsets(self, subsets):
+        zip_filename = "subsets.zip"
+        with zipfile.ZipFile(zip_filename, 'w') as zipf:
+            for i, subset_indices in enumerate(subsets):
+                subset_df = self.dataframe.iloc[subset_indices]
+                subset_filename = f"subset_{i+1}.csv"
+                subset_df.to_csv(subset_filename, index=False)
+                zipf.write(subset_filename)
+                os.remove(subset_filename)
+        QMessageBox.information(self, "Success", f"Subsets saved to {zip_filename}")
