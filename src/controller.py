@@ -84,12 +84,16 @@ class Controller:
         """
         Opens a dialog for the user to select a directory and updates the model's working directory.
         """
+        icon_path = os.path.abspath('images/set_directory_icon.svg')
+        self.view.setWindowIcon(QIcon(icon_path))
         
         directory = QFileDialog.getExistingDirectory(self.view, "Select Directory")
         if directory:  # check if a directory was selected
-            icon = QIcon('images/set_directory_icon.png')
-            self.view.setWindowIcon(icon)
+
             self.model.set_working_directory(directory)
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.view.setWindowIcon(QIcon(icon_path))
+        
 
     def load_data(self):
         """
@@ -130,6 +134,20 @@ class Controller:
                 self.view.set_data_loaded(False)
         icon_path = os.path.abspath('images/bulb_icon.png')
         self.view.setWindowIcon(QIcon(icon_path))
+         
+        if self.model.data_frame is not None:
+         columns = self.model.data_frame.columns
+        
+        # Update comboBox as usual
+         self.view.comboBox.clear()
+         self.view.comboBox.addItems(columns)
+        
+        # Clear comboBox2 and add items with checkboxes
+         self.view.comboBox2.clear()
+         for i in range(self.view.table_widget.columnCount()):
+            column_name = self.view.table_widget.horizontalHeaderItem(i).text()
+            is_numeric = self.view.is_column_numeric(column_name)
+            self.view.comboBox2.addItem(column_name, is_numeric)
 
     def change_theme(self):
         """
@@ -416,6 +434,15 @@ class Controller:
     def open_data_info(self):
 
       try:
+  
+        if self.model.data_frame is None:
+            icon_path = os.path.abspath('images/data_info_icon.svg')
+            self.view.setWindowIcon(QIcon(icon_path))
+            QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+            icon_path = os.path.abspath('images/bulb_icon.png')
+            self.view.setWindowIcon(QIcon(icon_path))
+            return
+       
         if hasattr(self.view, 'table_widget'):
             columns = []
             data_types = []
@@ -453,9 +480,10 @@ class Controller:
             dialog.populate_data_info(data_info)
             dialog.exec()
         else:
-            QMessageBox.warning(self, "Warning", "Table widget not available.")
+            QMessageBox.warning(self.view, "Warning", "Table widget not available.")
       except Exception as e:
-        QMessageBox.warning(self, "Error", f"An error occurred: {str(e)}")
+        QMessageBox.warning(self.view, "Error", f"An error occurred: {str(e)}")
+        print("Error", f"An error occurred: {str(e)}")
 
     def _is_float(self, s):
       try:
@@ -517,7 +545,11 @@ class Controller:
         """
         Opens a dialog for the user to select a column to set as the index of the DataFrame.
         """
+
+        icon_path = os.path.abspath('images/set_index_icon.svg')
+        self.view.setWindowIcon(QIcon(icon_path))
         if self.model.data_frame is not None:
+            
             # Create and show the SetIndexDialog
             dialog = SetIndexDialog(self.model.data_frame.columns.tolist(), self.view)
             if dialog.exec():
@@ -536,8 +568,10 @@ class Controller:
                         self.view.show_message("Error", str(e))
         else:
             # Display an error message if no data is loaded
-            self.view.show_message("Error", "No data loaded.")
+         QMessageBox.warning(self.view, "Warning", "No data loaded.")
 
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.view.setWindowIcon(QIcon(icon_path))
     def set_frequency(self):
         """
         Shows the set frequency dialog and updates the frequency of the DataFrame index.
@@ -629,11 +663,12 @@ class Controller:
         try:
             # Pass the series data directly to the view's plotting methods
             series_data = self.model.data_frame[series_name]
-            self.view.lag_acf_pacf_dialog.plot_lag(series_data)
+            self.view.lag_acf_pacf_dialog.plot_lag(series_data, number_of_lags)
             self.view.lag_acf_pacf_dialog.plot_acf(series_data, number_of_lags)
             self.view.lag_acf_pacf_dialog.plot_pacf(series_data, number_of_lags)
         except Exception as e:
             QMessageBox.critical(self.view, "Error", str(e))
+
 
 ############################################################################################################
     """The lines of code below are for ADF and KPSS unit root hypothesis testing"""

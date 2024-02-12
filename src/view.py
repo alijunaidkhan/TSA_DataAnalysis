@@ -1,4 +1,128 @@
-# view.py
+# view.
+dark_stylesheet = """
+* {
+    background-color: #121212;
+    color: #E0E0E0;
+    border: 1px solid #333;
+    font-family: 'Segoe UI', Arial, sans-serif; /* Use a more readable and elegant font */
+    font-size: 9pt; /* Adjust size for better readability */
+}
+
+QPushButton {
+    background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #505050, stop:1 #383838);
+    color: #FFFFFF;
+    border-radius: 5px;
+    padding: 5px;
+    border: 1px solid #555;
+}
+
+QPushButton:hover {
+    background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #636363, stop:1 #4c4c4c);
+}
+
+QPushButton:pressed {
+    background-color: #333333;
+}
+
+QComboBox {
+    background-color: #333333;
+    color: #FFFFFF;
+    border-radius: 4px;
+    padding: 3px;
+    border: 1px solid #444444;
+}
+
+QComboBox::drop-down {
+    background-color: #444444;
+}
+
+QComboBox::down-arrow {
+    image: url('images/dropdown_arrow_icon.svg');
+}
+
+QTableWidget {
+    gridline-color: #444;
+    border: none;
+    selection-background-color: #2a2a2a; /* Highlight color for selected items */
+}
+
+QTableWidget::item {
+    padding-left: 4px;
+    padding-right: 4px;
+    gridline-color: #444;
+}
+
+QHeaderView::section {
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #505050, stop:1 #383838);
+    color: #FFFFFF;
+    padding: 4px;
+    border: 1px solid #444444;
+    font-weight: bold; /* Make headers bold */
+}
+
+QScrollBar:vertical, QScrollBar:horizontal {
+    border: 1px solid #2c2c2c;
+    background-color: #2c2c2c;
+    width: 15px;
+    margin: 15px 3px 15px 3px;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+    background-color: #5b5b5b;
+    min-height: 30px;
+    border-radius: 4px;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::add-line:horizontal {
+    background: none;
+}
+
+QScrollBar::sub-line:vertical, QScrollBar::sub-line:horizontal {
+    background: none;
+}
+
+QStatusBar {
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #505050, stop:1 #383838);
+    color: #FFFFFF;
+    border-top: 1px solid #444;
+}
+QTableWidget {
+    background-color: #181818;  /* Darker background for the table */
+    color: #000000;             /* Lighter text for better readability */
+    gridline-color: #333;       /* Darker gridlines for a subtle look */
+    border: none;               /* Remove border for a flat design */
+    selection-background-color: #2a2a2a; /* Darker highlight color for selected items */
+    selection-color: #FFFFFF;   /* White text color for selection for contrast */
+}
+
+QTableWidget::item {
+    padding: 6px;  /* More padding for a modern look */
+    border-color: transparent; /* Avoid cell borders for a cleaner look */
+}
+
+QHeaderView::section {
+    background-color: #202020;  /* Even darker background for headers */
+    color: #E0E0E0;             /* Light text color for headers */
+    padding: 6px;               /* More padding for headers */
+    border: 1px solid #333;     /* Darker borders for a subtle separation */
+    font-weight: bold;          /* Bold font for headers */
+    font-size: 10pt;            /* Slightly larger font size for headers */
+}
+
+QScrollBar:vertical, QScrollBar:horizontal {
+    border: 1px solid #2c2c2c;  /* Matching scrollbar border color */
+    background-color: #2c2c2c;  /* Scrollbar background */
+    width: 12px;                /* Slimmer scrollbars for a modern look */
+    border-radius: 6px;         /* Rounded corners for scrollbars */
+}
+
+QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+    background-color: #555;     /* Darker scrollbar handle */
+    min-height: 20px;           /* Minimum size for visibility */
+    border-radius: 6px;         /* Rounded scrollbar handle */
+}
+"""
 from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget,QCheckBox
 import os
 import matplotlib
@@ -112,6 +236,7 @@ class View(QMainWindow):
 
         #self.update_status_bar(self.controller.)
         self.setWindowTitle("TSA")
+        
         icon = QIcon('images/bulb_icon.png')
         self.setWindowIcon(icon) 
         self.setGeometry(100, 100, 800, 600)
@@ -292,104 +417,44 @@ class View(QMainWindow):
 
         # Alternating row colors
         self.table_widget.setAlternatingRowColors(True)
-        dark_stylesheet = """
-            * {
-                background-color: #0D0D0D;
-                color: white;
-                
-            }
-            QTableWidget {
-                background-color: #1A1A1A;
-                color:black;
-            }
-            QToolTip {
-                background-color: #2F2F2F;
-                color: white;
-                border: 1px solid #1A1A1A;
-                border-radius: 2px;
-                padding: 2px;
-            }
-
-            QPushButton {
-                background-color: #FF7272AB;
-                border-radius: 7px;
-                padding: 6px;
-                font-weight: bold;
-
-            }
-            QPushButton:hover {
-                background-color: #121212;
-            }
-            QComboBox {
-                border: 2px solid #FF929292;
-                border-radius: 7px;
-                padding: 3px;
-                background-color: #FF929292;
-            }
-            QComboBox::drop-down {
-                border: none
-
-            }
-
-            QStatusBar {
-                background-color: #1A1A1A;
-                color: white;
-                border: 1px solid #1A1A1A;
-                border-radius: 10px;
-                padding: 2px;
-                font-size: 10pt;
-            }
-            QScrollBar:vertical {
-                border: 1px solid #333333;
-                background: #1A1A1A;
-                width: 10px;
-                margin: 10px 0 10px 0;
-                border-radius: 4px;
-            }
-            QScrollBar:horizontal {
-                border: 1px solid #121212;
-                background: #121212;
-                color: white;
-                height: 10px;
-                margin: 0 10px 0 10px;
-                border-radius: 4px;
-            }
-            QScrollBar::handle:vertical {
-                background: #121212;
-                min-height: 30px;
-                border-radius: 4px;
-            }
-            QScrollBar::handle:horizontal {
-                background: #121212;
-                min-width: 30px;
-                border-radius: 4px;
-            }
-            QScrollBar::add-line, QScrollBar::sub-line {
-                background: none;
-            }
-            QScrollBar::up-arrow, QScrollBar::down-arrow, QScrollBar::left-arrow, QScrollBar::right-arrow {
-                background: none;
-            }
-            QScrollBar::add-page, QScrollBar::sub-page {
-                background: none;
-            }
-        """
 
         self.setStyleSheet(dark_stylesheet)
 # In your main window or wherever the subset button is defined
     def openSubsetDialog(self):
-     checked_columns = self.comboBox2.get_checked_items()
-     column_ranges = {}
-     for column in checked_columns:
-        column_ranges[column] = self.calculate_min_max_for_column(column)
-    # Replace self.table_widget with the actual DataFrame. For example:
-     dataframe = self.controller.get_dataframe()  # Assuming get_dataframe() is a method that returns the DataFrame
-     dialog = SubsetDialog(column_ranges, dataframe, self)
-     if dialog.exec() == QDialog.DialogCode.Accepted:
-        values = dialog.getValues()
-        # Handle the values as needed
+    # Check if data is loaded in the model
+     if not self.comboBox2.get_checked_items():
+        # Display a warning message if no columns are selected
+        icon_path = os.path.abspath('images/subset_icon.svg')
+        self.setWindowIcon(QIcon(icon_path))
+        QMessageBox.warning(self, "No Columns Selected", "Please select at least one column before proceeding.")
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.setWindowIcon(QIcon(icon_path))
+        return
+     if self.controller.model.data_frame is None:
+        # Display a warning message if no data is loaded
+        icon_path = os.path.abspath('images/subset_icon.svg')
+        self.setWindowIcon(QIcon(icon_path))
+        QMessageBox.warning(self, "Data Not Loaded", "Please load data first before accessing this feature.")
+        # Optionally, set a specific icon to indicate the need for action or an error state
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.setWindowIcon(QIcon(icon_path))
+        return
+     else:
+        # Reset the window icon to the default or relevant icon when data is loaded
+ 
+        
+        # Proceed with operations if data is loaded
+        checked_columns = self.comboBox2.get_checked_items()
+        column_ranges = {}
+        for column in checked_columns:
+            column_ranges[column] = self.calculate_min_max_for_column(column)
+        dataframe = self.controller.get_dataframe()  # Get the DataFrame from the controller
+        dialog = SubsetDialog(column_ranges, dataframe, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            values = dialog.getValues()
+            # Handle the values as needed
+            print(values)  # Example usage
 
-        print(values)  # Example usage, replace with your logic as needed
 
     def calculate_min_max_for_column(self, column):
      column_index = self.table_widget.columnCount()
@@ -553,7 +618,17 @@ class View(QMainWindow):
         exit_action.triggered.connect(lambda: self.set_data_loaded(False))
 
 
-       
+    #  Create Preprocess menu
+        preprocess_menu = menu_bar.addMenu("&Preprocess")
+    
+    # Create Subset action with an icon and add it to the Preprocess menu
+        subset_icon = QIcon('images/subset_icon.svg')  # Ensure the icon path is correct
+        subset_action = QAction(subset_icon, "&Subset", self)
+        subset_action.triggered.connect(self.openSubsetDialog)  # Connect the action to the method
+        preprocess_menu.addAction(subset_action)
+
+    # Subset action with an icon
+
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -749,11 +824,17 @@ class View(QMainWindow):
         self.comboBox2.setObjectName("columnComboBox2")
         self.comboBox2.setFixedHeight(30)
         self.table_widget.horizontalHeader().sectionClicked.connect(self.update_column_combobox)
+    # Your existing setup...
+        unselect_button = QPushButton("Unselect", column_selection_widget)
+        unselect_button.setObjectName("unselectButton")
+        unselect_button.setToolTip("Unselect all columns.")
+        unselect_button.setFixedHeight(30)
+        unselect_button.clicked.connect(self.comboBox2.unselect_all)
 
         second_row_layout.addWidget(label2,1)
         second_row_layout.addWidget(self.comboBox2,5)
         second_row_layout.addWidget(subset_button, 2)
-
+        second_row_layout.addWidget(unselect_button, 2)
 # Add first and second row layouts to the column_selection_layout
         column_selection_layout.addLayout(first_row_layout)
         column_selection_layout.addLayout(second_row_layout)
@@ -1003,7 +1084,7 @@ class DataInfoDialog(QDialog):
        # New code to populate the checkable combobox
         self.column_combo.clear()
         for column in data_info['columns']:
-            self.column_combo.addItem(column)  # Add column name as both text and data
+            self.column_combo.addItem(column,True)  # Add column name as both text and data
       
 
 class CheckableComboBox(QComboBox):
@@ -1030,6 +1111,13 @@ class CheckableComboBox(QComboBox):
             item.setFlags(Qt.ItemFlag.ItemIsEnabled)
             item.setData(Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole)  # Ensure consistent data role
         self.model().appendRow(item)
+
+
+    def unselect_all(self):
+        for index in range(self.model().rowCount()):
+            item = self.model().item(index)
+            if item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
+                item.setCheckState(Qt.CheckState.Unchecked)
 
     def handleItemPressed(self, index):
         item = self.model().itemFromIndex(index)
@@ -1547,12 +1635,19 @@ class LagAcfPacfDialog(QMainWindow):
         self.controller.perform_lag_acf_pacf_analysis(series_name, number_of_lags)
 
     # Plotting methods are called by the controller
-    def plot_lag(self, series):
-        self.lag_axes.clear()
-        lag_plot(series, ax=self.lag_axes)
-        self.lag_axes.set_title('Lag Plot')
-        self.canvas.draw_idle()
+ 
+    def plot_lag(self, series, lag=1):
+        """
+        Plots a lag plot of the specified series with the given lag.
 
+        Args:
+            series (pd.Series): The series to plot.
+            lag (int): The lag interval. Defaults to 1 if not specified.
+        """
+        self.lag_axes.clear()
+        lag_plot(series, lag=lag, ax=self.lag_axes)  # Pass the user-defined lag here
+        self.lag_axes.set_title(f'Lag Plot (Lag = {lag})')
+        self.canvas.draw_idle()
     def plot_acf(self, series, lags):
         self.acf_axes.clear()
         plot_acf(series, lags=lags, ax=self.acf_axes)
@@ -1824,9 +1919,10 @@ class SubsetDialog(QDialog):
         message += "Number of rows in each subset: " + ", ".join(map(str, subset_lengths)) + "\n"
         if subset_lengths:
             best_subset = subset_lengths.index(max(subset_lengths)) + 1
-            message += f"Recommendation:{best_subset} Subset is recommended for analysis."
+            message += f"Recommendation: {best_subset} Subset is recommended for analysis."
         QMessageBox.information(self, "Subset Information", message)
 
+   
     def save_subsets(self, subsets):
         zip_filename = "subsets.zip"
         with zipfile.ZipFile(zip_filename, 'w') as zipf:
@@ -1836,4 +1932,6 @@ class SubsetDialog(QDialog):
                 subset_df.to_csv(subset_filename, index=False)
                 zipf.write(subset_filename)
                 os.remove(subset_filename)
-        QMessageBox.information(self, "Success", f"Subsets saved to {zip_filename}")
+        # Update the message to include the full path where the file is saved
+        save_path = os.path.abspath(zip_filename)
+        QMessageBox.information(self, "Success", f"Subsets saved to {save_path}")
