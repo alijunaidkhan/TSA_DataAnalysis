@@ -130,7 +130,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from PyQt6.QtCore import Qt, QUrl
-from PyQt6.QtGui import QAction, QIcon,QColor,QPainter,QPixmap,QStandardItem, QStandardItemModel, QDesktopServices
+from PyQt6.QtGui import QAction, QIcon,QFont,QColor,QPixmap,QStandardItem, QStandardItemModel, QDesktopServices
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget, QTabWidget, \
     QTableWidget,QMenu, QTableWidgetItem, QHBoxLayout, QLabel, QLineEdit, QGridLayout, QDialog, QGroupBox,\
     QRadioButton, QComboBox,QDialogButtonBox, QFormLayout,QTextEdit,QAbstractItemView, QMessageBox, QButtonGroup, QDockWidget,QSpinBox, QSpacerItem, QSizePolicy
@@ -190,6 +190,18 @@ class View(QMainWindow):
 
         self.init_ui()
 
+    def style_index_column(self,table_widget, index_column=0):
+
+     for row in range(self.table_widget.rowCount()):
+        item = self.table_widget.item(row, index_column)
+        if not item:  # Create the item if it doesn't exist
+            item = QTableWidgetItem()
+            self.table_widget.setItem(row, index_column, item)
+
+        # Example styling
+        item.setBackground(QColor('#FFD700'))  # Gold background
+        item.setTextColor(QColor('#000000'))  # Black text
+        item.setFont(QFont('Arial', 10, QFont.Weight.Bold))
 
     def on_cell_changed(self, row, column):
         # Set the flag when a cell is changed
@@ -262,6 +274,8 @@ class View(QMainWindow):
         # Create an initially empty QTableWidget
         self.table_widget = QTableWidget()
         self.table_widget.setStyleSheet("background-color: grey;")  # 333333
+        self.style_index_column(self.table_widget, index_column=0)  # Style the first column
+
         image_path = 'images/bulb.png'
         style_sheet = (
          f"border-image: url({image_path}) 0 0 0 0 stretch stretch;"
@@ -662,7 +676,9 @@ class View(QMainWindow):
         """
         # QMessageBox.information(self, "Information", message)
         QMessageBox.information(self, title, message)
+# Assume `self.table_widget` is your QTableWidget and `self.model.data_frame` is your pandas DataFrame
 
+    
 
     def display_data(self, data_frame):
         """
@@ -670,6 +686,7 @@ class View(QMainWindow):
         Args:
             data_frame (pd.DataFrame): The data to display.
         """
+        
         # Check if the table widget already exists
         if not hasattr(self, 'table_widget'):
             self.table_widget = QTableWidget()
@@ -714,6 +731,7 @@ class View(QMainWindow):
         # Hide the initial message label
         self.initial_message_label.hide()
         #table_widget.itemChanged.connect(lambda item: cell_changed(item.row(), item.column()))
+        self.controller.setup_signals()
 
 
     def open_data_info_dialog(self, data_frame_info):
@@ -1010,6 +1028,8 @@ class DataInfoDialog(QDialog):
         new_dtype = self.datatype_combo.currentText()
         if new_dtype != 'Choose Data Type...' and selected_columns:
             self.controller.convert_columns_data(selected_columns, new_dtype)
+            self.refresh_data_info_tab()  # Refresh data info tab after conversion
+
         else:
             QMessageBox.warning(self, "Warning", "Please select columns and a data type.")
 
@@ -1085,13 +1105,23 @@ class DataInfoDialog(QDialog):
         self.column_combo.clear()
         for column in data_info['columns']:
             self.column_combo.addItem(column,True)  # Add column name as both text and data
-      
+        self.column_combo.check_first_item_only()
+
 
 class CheckableComboBox(QComboBox):
     def __init__(self):
         super().__init__()
         self.view().pressed.connect(self.handleItemPressed)
         self.setModel(QStandardItemModel(self))
+
+    def check_first_item_only(self):
+        """Ensure only the first item is checked by default."""
+        for index in range(self.model().rowCount()):
+            item = self.model().item(index)
+            if index == 0:
+                item.setCheckState(Qt.CheckState.Checked)  # Check the first item
+            else:
+                item.setCheckState(Qt.CheckState.Unchecked)  # Uncheck all other items
 
     def addItem(self, text, is_numeric):
         """
@@ -1195,6 +1225,10 @@ class SetFrequencyDialog(QDialog):
         self.setMinimumSize(500, 250)  # Adjust the size as needed
         layout = QVBoxLayout(self)
 
+        self.check_freq_button = QPushButton("Check Current Frequency")
+        self.check_freq_button.clicked.connect(self.on_check_frequency)
+        layout.addWidget(self.check_freq_button)
+
         # Radio buttons to select frequency type
         self.common_freq_radio = QRadioButton("Common Frequency")
         self.custom_freq_radio = QRadioButton("Custom Frequency")
@@ -1207,7 +1241,12 @@ class SetFrequencyDialog(QDialog):
         self.help_button.setToolTip("Help")
         self.help_button.clicked.connect(self.open_pandas_docs)
         # Load the SVG file and set its color
-  
+          # ComboBox for aggregation methods
+        self.aggregation_combo = QComboBox()
+        aggregation_methods = ['mean', 'sum', 'std', 'mode', 'max', 'min', 'count']
+        self.aggregation_combo.addItems(aggregation_methods)
+        self.aggregation_combo.insertItem(0, "Select Aggregation Method", None)
+        self.aggregation_combo.setCurrentIndex(0)
 
         #layout.addWidget(self.help_button)
 
@@ -1227,7 +1266,8 @@ class SetFrequencyDialog(QDialog):
         layout.addWidget(self.common_freq_combo)
         layout.addWidget(self.custom_freq_radio)
         layout.addWidget(self.custom_freq_lineedit)
-        
+        layout.addWidget(QLabel("Aggregation Method:"))
+        layout.addWidget(self.aggregation_combo)
         # Set the default state and connect signals
         self.common_freq_radio.setChecked(True)
         self.common_freq_combo.setEnabled(True)
@@ -1277,7 +1317,18 @@ class SetFrequencyDialog(QDialog):
         
         QMessageBox.information(self, "Frequency Set", f"Frequency set to: {frequency}")
         self.accept()
+    def get_aggregation(self):
+        """
+        Retrieves the aggregation method set in the dialog.
 
+        Returns:
+            callable: The aggregation function.
+        """
+        aggregation = self.aggregation_combo.currentText()
+        if aggregation == 'mode':
+            # For 'mode', you need a custom function because pandas' mode method returns a DataFrame
+            return lambda x: x.mode().iloc[0] if not x.empty else None
+        return aggregation
     def get_frequency(self):
         """
         Retrieves the frequency set in the dialog.
@@ -1289,7 +1340,9 @@ class SetFrequencyDialog(QDialog):
             return self.common_freq_combo.currentText()
         else:
             return self.custom_freq_lineedit.text()
-
+    def on_check_frequency(self):
+        # This method will be called when the 'Check Current Frequency' button is clicked
+        self.parent().controller.check_frequency()  # 
 #####################################################################################################################################
 
 
@@ -1935,3 +1988,5 @@ class SubsetDialog(QDialog):
         # Update the message to include the full path where the file is saved
         save_path = os.path.abspath(zip_filename)
         QMessageBox.information(self, "Success", f"Subsets saved to {save_path}")
+
+

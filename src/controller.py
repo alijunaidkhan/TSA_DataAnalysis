@@ -8,7 +8,8 @@ from tabulate import tabulate
 from model import Model
 from view import View, DataInfoDialog, SetIndexDialog, SetFrequencyDialog
 from PyQt6.QtGui import QIcon
-
+from PyQt6.QtWidgets import QMessageBox, QTableWidgetItem
+from PyQt6.QtCore import QDateTime
 
 class Controller:
     """
@@ -94,60 +95,62 @@ class Controller:
         icon_path = os.path.abspath('images/bulb_icon.png')
         self.view.setWindowIcon(QIcon(icon_path))
         
-
     def load_data(self):
-        """
-        Opens a file dialog for the user to select a file and loads the data.
-        """
-        file_dialog = QFileDialog(self.view)
-        icon_path = os.path.abspath('images/load_data_icon.svg')
-        self.view.setWindowIcon(QIcon(icon_path))
+     file_dialog = QFileDialog(self.view)
+     icon_path = os.path.abspath('images/load_data_icon.svg')
+     self.view.setWindowIcon(QIcon(icon_path))
 
+     file_path, _ = file_dialog.getOpenFileName(
+        self.view, "Open File", "", "CSV Files (*.csv);;Excel Files (*.xlsx)")
+   
+     if file_path:
+        self.loaded_file_path = file_path  # Store the loaded file path
+        if file_path.endswith('.csv'):
+            file_type = 'csv'
+        elif file_path.endswith('.xlsx'):
+            file_type = 'excel'
+        else:
+            self.view.show_message("Unsupported file format")
+            return
 
-        file_path, _ = file_dialog.getOpenFileName(
-            #self.view, "Open File", "", "Excel Files (*.xlsx);;CSV Files (*.csv)")
-            self.view, "Open File", "", "CSV Files (*.csv);;Excel Files (*.xlsx)")
-       
+        try:
+            data = self.model.load_data(file_path, file_type)
+            # Convert a specific column to datetime, for example 'Time'
+            if 'Time' in data.columns:  # Check if 'Time' column exists
+                data['Time'] = pd.to_datetime(data['Time'])
+                data.set_index('Time', inplace=True,drop=False)
+            #data = data.asfreq('T')
+ # Reset index if you need 'Time' as a column again
+  # Set 'Time' column as index
 
-        if file_path:
-            self.loaded_file_path = file_path  # Store the loaded file path
-            if file_path.endswith('.csv'):
-                file_type = 'csv'
-            elif file_path.endswith('.xlsx'):
-                file_type = 'excel'
-            else:
-                self.view.show_message("Unsupported file format")
-                return
+            self.view.display_data(data)
+            shape_message = f"Data Loaded: {data.shape[0]} rows, {data.shape[1]} columns"
+            self.view.update_status_bar(shape_message)
+            self.view.set_data_loaded(True)
 
-            try:
-                data = self.model.load_data(file_path, file_type)
-                self.view.display_data(data)
-                shape_message = f"Data Loaded: {data.shape[0]} rows, {data.shape[1]} columns"
-                self.view.update_status_bar(shape_message)
-                self.view.set_data_loaded(True)
+            # Update the column names in the view
+            self.view.lineplotting_dialog.update_combobox_items(data.columns)
 
-                # Update the column names in the view
-                self.view.lineplotting_dialog.update_combobox_items(self.model.data_frame.columns)
-
-            except Exception as e:
-                self.view.show_message("Loading Error", f"Error loading data: {e}")
-                self.view.set_data_loaded(False)
+        except Exception as e:
+            self.view.show_message("Loading Error", f"Error loading data: {e}")
+            self.view.set_data_loaded(False)
         icon_path = os.path.abspath('images/bulb_icon.png')
         self.view.setWindowIcon(QIcon(icon_path))
-         
+     
         if self.model.data_frame is not None:
          columns = self.model.data_frame.columns
-        
-        # Update comboBox as usual
-         self.view.comboBox.clear()
-         self.view.comboBox.addItems(columns)
-        
-        # Clear comboBox2 and add items with checkboxes
-         self.view.comboBox2.clear()
-         for i in range(self.view.table_widget.columnCount()):
-            column_name = self.view.table_widget.horizontalHeaderItem(i).text()
-            is_numeric = self.view.is_column_numeric(column_name)
-            self.view.comboBox2.addItem(column_name, is_numeric)
+   
+    # Update comboBox as usual
+        self.view.comboBox.clear()
+        self.view.comboBox.addItems(columns)
+   
+    # Clear comboBox2 and add items with checkboxes
+     self.view.comboBox2.clear()
+     for i in range(self.view.table_widget.columnCount()):
+       column_name = self.view.table_widget.horizontalHeaderItem(i).text()
+       is_numeric = self.view.is_column_numeric(column_name)
+       self.view.comboBox2.addItem(column_name, is_numeric)
+
 
     def change_theme(self):
         """
@@ -177,7 +180,7 @@ class Controller:
         except ValueError:
             # Handle invalid input
             continue
-     subsets = self.split_into_subsets(self.model.data_frame, thresholds)
+     subsets = self.split_into_subsets(self.view.table_widget, thresholds)
     # Now, subsets contain the indices of rows that meet the criteria.
     # You can further process these subsets as needed.
 ######################################################## trying Functionalities for docked widget#####################################################
@@ -501,43 +504,54 @@ class Controller:
 
 
 
+    
     def convert_columns_data(self, column_names, new_dtype):
-        # Initialize a list with default values ('False' indicating no conversion initially)
-        conversion_status = {col: False for col in self.model.data_frame.columns}
+        # Find the column indexes for the specified column names in the QTableWidget
+        column_indexes = {self.view.table_widget.horizontalHeaderItem(i).text(): i for i in range(self.view.table_widget.columnCount()) if self.view.table_widget.horizontalHeaderItem(i).text() in column_names}
 
-        for column_name in column_names:
-            if column_name in self.model.data_frame.columns:
-                try:
-                    if new_dtype == 'Integer':
-                        self.model.data_frame[column_name] = pd.to_numeric(
-                            self.model.data_frame[column_name], errors='coerce', downcast='integer')
-                    elif new_dtype == 'Float':
-                        self.model.data_frame[column_name] = pd.to_numeric(
-                            self.model.data_frame[column_name], errors='coerce')
-                    elif new_dtype == 'Date Time':
-                        # Using astype for datetime conversion
-                        self.model.data_frame[column_name] = self.model.data_frame[column_name].astype(
-                            'datetime64[ns]')
-                    elif new_dtype == 'Boolean':
-                        self.model.data_frame[column_name] = self.model.data_frame[column_name].astype(
-                            bool)
+        # Initialize a list to keep track of conversion status
+        conversion_status = {col: False for col in column_names}
+        for col_name, col_index in column_indexes.items():
+            for row in range(self.view.table_widget.rowCount()):
+                item = self.view.table_widget.item(row, col_index)
+                if item is not None:
+                    original_text = item.text()
+                    try:
+                        converted_value = self.convert_value(original_text, new_dtype)
+                        self.view.table_widget.setItem(row, col_index, QTableWidgetItem(str(converted_value)))
+                        conversion_status[col_name] = True
+                    except Exception as e:
+                        # Log or handle exceptions as needed.
+                        print(f"Error converting {col_name}: {e}")
 
-                    # Mark as successfully converted
-                    conversion_status[column_name] = True
-                except Exception as e:
-                    # Log or handle exceptions as needed.
-                    pass
-
-        # Update the View to reflect changes
+        # Check conversion results and show a message
         successfully_converted = [col for col, status in conversion_status.items() if status]
         if successfully_converted:
-            self.view.display_data(self.model.data_frame)
             message = f"Columns {', '.join(successfully_converted)} were successfully converted to {new_dtype}."
-            QMessageBox.information(self.view, "Success", message)
+            QMessageBox.information(self.view, "Conversion Success", message)
         else:
-            self.view.show_message("Warning", "No columns were converted.")
+            pass
 
-
+    def convert_value(self, value, new_dtype):
+     try:
+        if new_dtype == 'Integer':
+            # Convert to numeric and use numpy to handle coercion directly
+            converted = pd.to_numeric(value, errors='coerce')
+            return np.int32(0 if np.isnan(converted) else converted)
+        elif new_dtype == 'Float':
+            # Convert to numeric and handle NaN directly
+            converted = pd.to_numeric(value, errors='coerce')
+            return float(0.0 if np.isnan(converted) else converted)
+        elif new_dtype == 'Date Time':
+            return QDateTime.fromString(value, "yyyy-MM-dd HH:mm:ss").toString("yyyy-MM-dd HH:mm:ss")
+        elif new_dtype == 'Boolean':
+            # Simple conversion to boolean, consider more robust handling for different string representations
+            return bool(value)
+        else:
+            return value
+     except Exception as e:
+        print(f"Error during conversion: {e}")
+        return value
 # ==============================================================================================================
 
 
@@ -572,18 +586,55 @@ class Controller:
 
         icon_path = os.path.abspath('images/bulb_icon.png')
         self.view.setWindowIcon(QIcon(icon_path))
+    def setup_signals(self):
+     self.view.table_widget.itemChanged.connect(self.on_item_changed)
+
+    def on_item_changed(self, item):
+    # Get row and column number from the item
+     row = item.row()
+     column = item.column()
+    
+     # Get the new value from the item
+     new_value = item.text()
+    
+    # Convert new value to appropriate type, e.g., int, float, etc. as required
+    # This step depends on the data type of your DataFrame column
+     try:
+        new_value = type(self.model.data_frame.iloc[row, column])(new_value)
+     except ValueError:
+        # Handle the case where conversion fails, e.g., invalid input
+        return
+    
+    # Update the DataFrame
+     self.model.data_frame.iloc[row, column] = new_value
+    # In controller.py
+    def check_frequency(self):
+    
+     if self.model.data_frame is not None:
+        current_freq = self.model.data_frame.index.freq
+        freq_str = 'None' if current_freq is None else current_freq.freqstr
+        self.view.show_message("Current Frequency", f"The current frequency is: {freq_str}")
+     else:
+        self.view.show_message("Error", "DataFrame is not loaded or index is not datetime.")
+
     def set_frequency(self):
-        """
-        Shows the set frequency dialog and updates the frequency of the DataFrame index.
-        """
-        dialog = SetFrequencyDialog(self.view)
-        if dialog.exec():
-            frequency = dialog.get_frequency()
-            try:
-                self.model.set_frequency(frequency)
-                self.view.show_message("Frequency Updated", f"Frequency set to: {frequency}")
-            except ValueError as e:
-                self.view.show_message("Error", str(e))
+    
+     dialog = SetFrequencyDialog(self.view)
+     if dialog.exec():
+        frequency = dialog.get_frequency()
+        aggregation = dialog.get_aggregation()  # You would need to implement this method in your dialog
+        try:
+            # Use asfreq if the data conforms to the frequency
+            if frequency.endswith('T'):  # For minute data
+                self.model.data_frame = self.model.data_frame.asfreq(frequency)
+            else:
+                # For non-conforming data, resample and aggregate
+                self.model.data_frame = self.model.data_frame.resample(frequency).apply(aggregation)
+            self.view.show_message("Frequency Updated", f"Frequency set to: {frequency}")
+        except ValueError as e:
+            self.view.show_message("Error", str(e))
+
+
 
 
         

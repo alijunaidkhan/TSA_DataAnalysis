@@ -77,7 +77,7 @@ class Model:
             # Create a copy of the column to be used as index
             self.data_frame['index_'] = self.data_frame[column_name]
             # Set the column as index
-            self.data_frame.set_index(column_name, inplace=True)
+            self.data_frame.set_index(column_name, inplace=True,drop=False)
 
         else:
             raise ValueError("Column not found in DataFrame")
@@ -101,6 +101,18 @@ class Model:
         else:
             raise ValueError("One or more selected columns are not in the DataFrame")
 
+
+# In your model class
+    # In your model class
+    def get_index_frequency(self):
+     try:
+        if self.data_frame is not None:
+            freq = self.data_frame.index.freqstr or self.data_frame.index.inferred_freq
+            return freq if freq is not None else "Frequency cannot be inferred."
+        else:
+            return "DataFrame is not loaded."
+     except Exception as e:
+        return f"An error occurred: {e}"
 
 
     def seasonal_decompose(self, series_name, period, model_type):
