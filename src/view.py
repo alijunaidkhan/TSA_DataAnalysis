@@ -433,6 +433,9 @@ class View(QMainWindow):
         self.table_widget.setAlternatingRowColors(True)
 
         self.setStyleSheet(dark_stylesheet)
+
+
+
 # In your main window or wherever the subset button is defined
     def openSubsetDialog(self):
     # Check if data is loaded in the model
@@ -641,7 +644,12 @@ class View(QMainWindow):
         subset_action.triggered.connect(self.openSubsetDialog)  # Connect the action to the method
         preprocess_menu.addAction(subset_action)
 
-    # Subset action with an icon
+       # Create Resample action with an icon and add it to the Preprocess menu
+        resample_icon = QIcon('images/resample_icon.svg')  # Ensure the icon path is correct
+        resample_action = QAction(resample_icon, "&Resample", self)
+        resample_action.triggered.connect(self.controller.open_resample_dialog)
+        preprocess_menu.addAction(resample_action)
+
 
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -1242,11 +1250,11 @@ class SetFrequencyDialog(QDialog):
         self.help_button.clicked.connect(self.open_pandas_docs)
         # Load the SVG file and set its color
           # ComboBox for aggregation methods
-        self.aggregation_combo = QComboBox()
-        aggregation_methods = ['mean', 'sum', 'std', 'mode', 'max', 'min', 'count']
-        self.aggregation_combo.addItems(aggregation_methods)
-        self.aggregation_combo.insertItem(0, "Select Aggregation Method", None)
-        self.aggregation_combo.setCurrentIndex(0)
+        # self.aggregation_combo = QComboBox()
+        # aggregation_methods = ['mean', 'sum', 'std', 'mode', 'max', 'min', 'count']
+        # self.aggregation_combo.addItems(aggregation_methods)
+        # self.aggregation_combo.insertItem(0, "Select Aggregation Method", None)
+        # self.aggregation_combo.setCurrentIndex(0)
 
         #layout.addWidget(self.help_button)
 
@@ -1266,8 +1274,8 @@ class SetFrequencyDialog(QDialog):
         layout.addWidget(self.common_freq_combo)
         layout.addWidget(self.custom_freq_radio)
         layout.addWidget(self.custom_freq_lineedit)
-        layout.addWidget(QLabel("Aggregation Method:"))
-        layout.addWidget(self.aggregation_combo)
+        # layout.addWidget(QLabel("Aggregation Method:"))
+        # layout.addWidget(self.aggregation_combo)
         # Set the default state and connect signals
         self.common_freq_radio.setChecked(True)
         self.common_freq_combo.setEnabled(True)
@@ -1317,18 +1325,18 @@ class SetFrequencyDialog(QDialog):
         
         QMessageBox.information(self, "Frequency Set", f"Frequency set to: {frequency}")
         self.accept()
-    def get_aggregation(self):
-        """
-        Retrieves the aggregation method set in the dialog.
+    # def get_aggregation(self):
+    #     """
+    #     Retrieves the aggregation method set in the dialog.
 
-        Returns:
-            callable: The aggregation function.
-        """
-        aggregation = self.aggregation_combo.currentText()
-        if aggregation == 'mode':
-            # For 'mode', you need a custom function because pandas' mode method returns a DataFrame
-            return lambda x: x.mode().iloc[0] if not x.empty else None
-        return aggregation
+    #     Returns:
+    #         callable: The aggregation function.
+    #     """
+    #     aggregation = self.aggregation_combo.currentText()
+    #     if aggregation == 'mode':
+    #         # For 'mode', you need a custom function because pandas' mode method returns a DataFrame
+    #         return lambda x: x.mode().iloc[0] if not x.empty else None
+    #     return aggregation
     def get_frequency(self):
         """
         Retrieves the frequency set in the dialog.
@@ -1897,6 +1905,80 @@ class UnitRootTestDialog(QMainWindow):
     def update_status_bar(self, message):
         self.statusBar().showMessage(message)
 
+class ResampleDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Resample Data")
+        layout = QVBoxLayout(self)
+        icon = QIcon('images/resample_icon.svg')
+        self.setWindowIcon(icon)
+        # Frequency input
+        self.freqInput = QLineEdit(self)
+        layout.addWidget(QLabel("Frequency (e.g., '10T', '1H','1D')"))
+        layout.addWidget(self.freqInput)
+        
+        # Aggregation method selection
+        self.aggMethod = QComboBox(self)
+        self.aggMethod.addItems(["mean", "sum", "max", "min"])
+        layout.addWidget(QLabel("Aggregation Method"))
+        layout.addWidget(self.aggMethod)
+        
+        # Confirm Changes button
+        self.confirm_button = QPushButton("Confirm Changes", self)
+        layout.addWidget(self.confirm_button)
+        
+        # Save CSV button
+        self.cancel_button = QPushButton("Cancel", self)  # "Cancel"
+        layout.addWidget(self.cancel_button)
+        
+        # Error handling message placeholder
+        self.error_message = QLabel("")
+        self.error_message.setStyleSheet("color: red;")
+        layout.addWidget(self.error_message)
+        
+        self.setLayout(layout)
+        
+        # Connect the buttons to their respective slots
+        self.confirm_button.clicked.connect(self.on_confirm)
+        self.cancel_button.clicked.connect(self.on_cancel)
+        
+        self.save_csv_requested = False
+
+    def on_confirm(self):
+    # Validate the frequency input
+     freq = self.freqInput.text().strip()
+     if not freq:
+        self.error_message.setText("Please enter a valid frequency.")
+        return
+    
+    # Validate the aggregation method selection
+     agg_method = self.aggMethod.currentText()
+     if agg_method not in ["mean", "sum", "max", "min"]:
+        self.error_message.setText("Please select a valid aggregation method.")
+        return
+    
+    # Clear any previous error messages
+     self.error_message.setText("")
+    
+    # ResampleDialog.py
+# ... existing code ...
+
+
+     reply = QMessageBox.question(self, 'Confirm Resample',
+                                 "Resampling will modify the current data. Do you want to continue?",
+                                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+
+     if reply == QMessageBox.StandardButton.Yes:
+      self.accept()  # Close the dialog if everything is valid
+        # Proceed with resampling
+        # ... call the resampling method or emit a signal ...
+     else:
+        self.error_message.setText("Resampling cancelled by the user.")
+        self.reject()  # Close the dialog
+# ... existing code ...
+
+    def on_cancel(self):
+     self.close()  # Closes the current dialog or widget
 
 
 class SubsetDialog(QDialog):

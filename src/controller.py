@@ -6,7 +6,7 @@ import pandas as pd
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
 from tabulate import tabulate
 from model import Model
-from view import View, DataInfoDialog, SetIndexDialog, SetFrequencyDialog
+from view import ResampleDialog, View, DataInfoDialog, SetIndexDialog, SetFrequencyDialog,QDialog
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QMessageBox, QTableWidgetItem
 from PyQt6.QtCore import QDateTime
@@ -608,31 +608,46 @@ class Controller:
     # Update the DataFrame
      self.model.data_frame.iloc[row, column] = new_value
     # In controller.py
+     # In your controller class
+    def check_index_frequency(self):
+     freq = self.model.get_index_frequency()
+     self.view.show_message("Index Frequency Check", f"The frequency of the DataFrame's index is: {freq}")
+
     def check_frequency(self):
     
+     icon_path = os.path.abspath('images/set_frequency_icon.svg')
+     self.view.setWindowIcon(QIcon(icon_path))
      if self.model.data_frame is not None:
         current_freq = self.model.data_frame.index.freq
         freq_str = 'None' if current_freq is None else current_freq.freqstr
         self.view.show_message("Current Frequency", f"The current frequency is: {freq_str}")
      else:
         self.view.show_message("Error", "DataFrame is not loaded or index is not datetime.")
-
+     icon_path = os.path.abspath('images/bulb_icon.png')
+     self.view.setWindowIcon(QIcon(icon_path))
     def set_frequency(self):
-    
+     icon_path = os.path.abspath('images/set_frequency_icon.svg')
+     self.view.setWindowIcon(QIcon(icon_path))
+    # Check if data is loaded
+     if self.model.data_frame is None:
+        self.view.show_message("Error", "Please load data first!")
+        return  # Exit the function early
+
      dialog = SetFrequencyDialog(self.view)
      if dialog.exec():
         frequency = dialog.get_frequency()
-        aggregation = dialog.get_aggregation()  # You would need to implement this method in your dialog
         try:
             # Use asfreq if the data conforms to the frequency
             if frequency.endswith('T'):  # For minute data
                 self.model.data_frame = self.model.data_frame.asfreq(frequency)
             else:
-                # For non-conforming data, resample and aggregate
-                self.model.data_frame = self.model.data_frame.resample(frequency).apply(aggregation)
+                # For non-conforming data, resample without aggregation
+                self.model.data_frame = self.model.data_frame.resample(frequency).asfreq()
             self.view.show_message("Frequency Updated", f"Frequency set to: {frequency}")
         except ValueError as e:
             self.view.show_message("Error", str(e))
+     icon_path = os.path.abspath('images/bulb_icon.png')
+     self.view.setWindowIcon(QIcon(icon_path))
 
 
 
@@ -741,4 +756,73 @@ class Controller:
         self.view.unit_root_test_dialog.display_test_result(result)
 
 
-  
+    def open_resample_dialog(self):
+        icon_path = os.path.abspath('images/resample_icon.svg')
+        self.view.setWindowIcon(QIcon(icon_path))
+        if self.loaded_file_path:
+         dialog = ResampleDialog(self.view)
+         if dialog.exec() == QDialog.DialogCode.Accepted:
+            freq = dialog.freqInput.text().strip()
+            agg_method = dialog.aggMethod.currentText()
+            if dialog.save_csv_requested:
+                self.save_resampled_data_as_csv(freq, agg_method)
+            else:
+                self.resample_data(freq, agg_method)
+        else:
+         QMessageBox.warning(self.view, "Error", "No data has been loaded.")
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.view.setWindowIcon(QIcon(icon_path))
+    def resample_data(self, freq, agg_method):
+     icon_path = os.path.abspath('images/resample_icon.svg')
+     self.view.setWindowIcon(QIcon(icon_path))
+     if self.loaded_file_path:
+        try:
+            # Assuming the time column is named 'Time' and is the first column
+            # Set the 'Time' column as the index
+            self.model.data_frame.set_index('Time', inplace=True)
+            
+            # Select numeric columns for mean aggregation
+            if agg_method == 'mean':
+                numeric_cols = self.model.data_frame.select_dtypes(include=[np.number]).columns
+                resampled_df = self.model.data_frame[numeric_cols].resample(freq).mean()
+            elif agg_method == 'max':
+                numeric_cols = self.model.data_frame.select_dtypes(include=[np.number]).columns
+                resampled_df = self.model.data_frame[numeric_cols].resample(freq).max()            
+            elif agg_method == 'min':
+                numeric_cols = self.model.data_frame.select_dtypes(include=[np.number]).columns
+                resampled_df = self.model.data_frame[numeric_cols].resample(freq).min()
+            elif agg_method == 'sum':
+                numeric_cols = self.model.data_frame.select_dtypes(include=[np.number]).columns
+                resampled_df = self.model.data_frame[numeric_cols].resample(freq).sum()
+            else:
+                # Handle other aggregation methods
+                resampled_df = self.model.data_frame.resample(freq).agg(agg_method)
+            
+            # Reset index to bring the 'Time' column back as a column
+            resampled_df.reset_index(inplace=True)
+            
+            # Update the view with the resampled data
+            self.view.display_data(resampled_df)
+        except Exception as e:
+            QMessageBox.critical(self.view, "Resampling Error", str(e))
+     else:
+        QMessageBox.warning(self.view, "Error", "No data has been loaded.")
+     icon_path = os.path.abspath('images/bulb_icon.png')
+     self.view.setWindowIcon(QIcon(icon_path))
+    def save_resampled_data_as_csv(self, freq, agg_method):
+        icon_path = os.path.abspath('images/resample_icon.svg')
+        self.view.setWindowIcon(QIcon(icon_path))
+        if self.model.data_frame is not None and not self.model.data_frame.empty:
+            try:
+                numeric_only = True if agg_method != 'mean' else None
+                resampled_data = self.model.data_frame.resample(freq).agg(agg_method, numeric_only=numeric_only)
+                filepath, _ = QFileDialog.getSaveFileName(self.view, "Save File", "", "CSV Files (*.csv)")
+                if filepath:
+                    resampled_data.to_csv(filepath)
+                    QMessageBox.information(self.view, "Success", "Data saved successfully.")
+            except Exception as e:
+                QMessageBox.critical(self.view, "Error", str(e))
+        else:
+            QMessageBox.warning(self.view, "Error", "No data loaded or invalid frequency.")
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.view.setWindowIcon(QIcon(icon_path))
