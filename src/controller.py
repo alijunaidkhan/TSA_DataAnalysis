@@ -1,4 +1,5 @@
 # controller.py
+import csv
 import os
 from pathlib import Path
 import numpy as np
@@ -30,49 +31,53 @@ class Controller:
         self.view = View(self)
         self.loaded_file_path = None  # Initialize loaded_file_path
 
-
     def save_as(self):
-        icon_path = os.path.abspath('images/save_as_icon.svg')
-        self.view.setWindowIcon(QIcon(icon_path))
-        try:
-            # Check if data is loaded
-            if self.view.table_widget.rowCount() == 0 or self.view.table_widget.columnCount() == 0:
-                self.view.show_message("Error", "No data to save.")
-                return
+     icon_path = os.path.abspath('images/save_as_icon.svg')
+     self.view.setWindowIcon(QIcon(icon_path))
+     try:
+        # Check if data is loaded
+        if self.view.table_widget.rowCount() == 0 or self.view.table_widget.columnCount() == 0:
+            self.view.show_message("Error", "No data to save.")
+            return
 
-            # Get the loaded file name
-            loaded_file_name = Path(self.loaded_file_path).name if self.loaded_file_path else "Untitled"
+        # Get the loaded file name
+        loaded_file_name = Path(self.loaded_file_path).name if self.loaded_file_path else "Untitled"
 
-            # Open a file dialog to get the save path
-            file_dialog = QFileDialog()
-            selected_file, _ = file_dialog.getSaveFileName(self.view, "Save As", f"TSA_{loaded_file_name}", "CSV Files (*.csv);;All Files (*)")
+        # Open a file dialog to get the save path
+        file_dialog = QFileDialog()
+        selected_file, _ = file_dialog.getSaveFileName(self.view, "Save As", f"TSA_{loaded_file_name}", "CSV Files (*.csv);;All Files (*)")
 
-            # Check if the user canceled the save operation
-            if not selected_file:
-                return
+        # Check if the user canceled the save operation
+        if not selected_file:
+            return
 
-            # Save data to the selected file
-            with open(selected_file, 'w', newline='') as csv_file:
-                for row in range(self.view.table_widget.rowCount()):
-                    row_data = []
-                    for column in range(self.view.table_widget.columnCount()):
-                        item = self.view.table_widget.item(row, column)
-                        if item is not None:
-                            row_data.append(item.text())
-                        else:
-                            row_data.append('')
-                    csv_file.write(','.join(row_data) + '\n')
+        # Save data to the selected file
+        with open(selected_file, 'w', newline='') as csv_file:
+            writer = csv.writer(csv_file)
+            # Write headers
+            headers = [self.view.table_widget.horizontalHeaderItem(i).text() for i in range(self.view.table_widget.columnCount())]
+            writer.writerow(headers)
+            # Write data rows
+            for row in range(self.view.table_widget.rowCount()):
+                row_data = []
+                for column in range(self.view.table_widget.columnCount()):
+                    item = self.view.table_widget.item(row, column)
+                    if item is not None:
+                        row_data.append(item.text())
+                    else:
+                        row_data.append('')
+                writer.writerow(row_data)
 
-            # Update the status bar
-            self.view.update_status_bar(f"Data saved to {selected_file} successfully.")
-            QMessageBox.information(self.view, "Success", f"Data saved to {selected_file}")
+        # Update the status bar
+        self.view.update_status_bar(f"Data saved to {selected_file} successfully.")
+        QMessageBox.information(self.view, "Success", f"Data saved to {selected_file}")
 
+     except Exception as e:
+        print(f"Error in save_as: {e}")
+        self.view.show_message("Error", f"Error saving data: {e}")
+     icon_path = os.path.abspath('images/bulb_icon.png')
+     self.view.setWindowIcon(QIcon(icon_path))
 
-        except Exception as e:
-            print(f"Error in save_as: {e}")
-            self.view.show_message("Error", f"Error saving data: {e}")
-        icon_path = os.path.abspath('images/bulb_icon.png')
-        self.view.setWindowIcon(QIcon(icon_path))
 
 
     def run(self):
@@ -754,20 +759,18 @@ class Controller:
     def perform_kpss_test(self, column_name):
         result = self.model.perform_kpss_test(column_name)
         self.view.unit_root_test_dialog.display_test_result(result)
-
-
     def open_resample_dialog(self):
         icon_path = os.path.abspath('images/resample_icon.svg')
         self.view.setWindowIcon(QIcon(icon_path))
         if self.loaded_file_path:
          dialog = ResampleDialog(self.view)
          if dialog.exec() == QDialog.DialogCode.Accepted:
-            freq = dialog.freqInput.text().strip()
-            agg_method = dialog.aggMethod.currentText()
-            if dialog.save_csv_requested:
-                self.save_resampled_data_as_csv(freq, agg_method)
-            else:
-                self.resample_data(freq, agg_method)
+          if(dialog.custom_freq_radio.isChecked):
+            freq = dialog.custom_freq_lineedit.text().strip()
+          else:
+            freq = dialog.common_freq_combo.currentText()
+            agg_method = dialog.aggregation_combo.currentText()
+            self.resample_data(freq, agg_method)
         else:
          QMessageBox.warning(self.view, "Error", "No data has been loaded.")
         icon_path = os.path.abspath('images/bulb_icon.png')
@@ -794,6 +797,12 @@ class Controller:
             elif agg_method == 'sum':
                 numeric_cols = self.model.data_frame.select_dtypes(include=[np.number]).columns
                 resampled_df = self.model.data_frame[numeric_cols].resample(freq).sum()
+            elif agg_method == 'first':
+                numeric_cols = self.model.data_frame.select_dtypes(include=[np.number]).columns
+                resampled_df = self.model.data_frame[numeric_cols].resample(freq).first()
+            elif agg_method == 'last':
+                numeric_cols = self.model.data_frame.select_dtypes(include=[np.number]).columns
+                resampled_df = self.model.data_frame[numeric_cols].resample(freq).last()
             else:
                 # Handle other aggregation methods
                 resampled_df = self.model.data_frame.resample(freq).agg(agg_method)
