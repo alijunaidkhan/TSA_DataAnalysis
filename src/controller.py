@@ -765,12 +765,17 @@ class Controller:
         if self.loaded_file_path:
          dialog = ResampleDialog(self.view)
          if dialog.exec() == QDialog.DialogCode.Accepted:
-          if(dialog.custom_freq_radio.isChecked):
+         
+          #if(dialog.custom_freq_radio.isChecked):
+          if dialog.custom_freq_radio.isChecked():
             freq = dialog.custom_freq_lineedit.text().strip()
           else:
             freq = dialog.common_freq_combo.currentText()
             agg_method = dialog.aggregation_combo.currentText()
             self.resample_data(freq, agg_method)
+        
+         agg_method = dialog.aggregation_combo.currentText()
+         self.resample_data(freq, agg_method)
         else:
          QMessageBox.warning(self.view, "Error", "No data has been loaded.")
         icon_path = os.path.abspath('images/bulb_icon.png')
