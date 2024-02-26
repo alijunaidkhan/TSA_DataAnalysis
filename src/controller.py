@@ -760,26 +760,27 @@ class Controller:
         result = self.model.perform_kpss_test(column_name)
         self.view.unit_root_test_dialog.display_test_result(result)
     def open_resample_dialog(self):
-        icon_path = os.path.abspath('images/resample_icon.svg')
-        self.view.setWindowIcon(QIcon(icon_path))
-        if self.loaded_file_path:
-         dialog = ResampleDialog(self.view)
-         if dialog.exec() == QDialog.DialogCode.Accepted:
-         
-          #if(dialog.custom_freq_radio.isChecked):
-          if dialog.custom_freq_radio.isChecked():
-            freq = dialog.custom_freq_lineedit.text().strip()
-          else:
-            freq = dialog.common_freq_combo.currentText()
-            agg_method = dialog.aggregation_combo.currentText()
-            self.resample_data(freq, agg_method)
-        
-         agg_method = dialog.aggregation_combo.currentText()
-         self.resample_data(freq, agg_method)
+     icon_path = os.path.abspath('images/resample_icon.svg')
+     self.view.setWindowIcon(QIcon(icon_path))
+     if self.loaded_file_path:
+        dialog = ResampleDialog(self.view)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            if dialog.custom_freq_radio.isChecked():  # Corrected method call with parentheses
+                freq = dialog.custom_freq_lineedit.text().strip()
+            else:
+                freq = dialog.common_freq_combo.currentText()
+            if freq:  # Ensure freq is not empty or None
+                agg_method = dialog.aggregation_combo.currentText()
+                self.resample_data(freq, agg_method)
+            else:
+                QMessageBox.warning(self.view, "Input Error", "Frequency is not specified.")
         else:
-         QMessageBox.warning(self.view, "Error", "No data has been loaded.")
-        icon_path = os.path.abspath('images/bulb_icon.png')
-        self.view.setWindowIcon(QIcon(icon_path))
+            QMessageBox.warning(self.view, "Dialog Cancelled", "Operation cancelled by user.")
+     else:
+        QMessageBox.warning(self.view, "Error", "No data has been loaded.")
+     icon_path = os.path.abspath('images/bulb_icon.png')
+     self.view.setWindowIcon(QIcon(icon_path))
+
     def resample_data(self, freq, agg_method):
      icon_path = os.path.abspath('images/resample_icon.svg')
      self.view.setWindowIcon(QIcon(icon_path))
