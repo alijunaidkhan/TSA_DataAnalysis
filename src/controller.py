@@ -2,6 +2,7 @@
 import csv
 import os
 from pathlib import Path
+import time
 import numpy as np
 import pandas as pd
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
@@ -11,6 +12,53 @@ from view import ResampleDialog, View, DataInfoDialog, SetIndexDialog, SetFreque
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QMessageBox, QTableWidgetItem
 from PyQt6.QtCore import QDateTime
+from PyQt6.QtCore import pyqtSignal, QObject
+import os
+import pandas as pd
+from PyQt6.QtWidgets import QFileDialog, QMessageBox
+from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import QThread, pyqtSignal, QObject
+
+ 
+# Signals class for safe communication from the thread to the main GUI
+class LoaderSignals(QObject):
+    data_loaded = pyqtSignal(pd.DataFrame)
+    update_status = pyqtSignal(str)
+    loading_error = pyqtSignal(str)
+    update_combobox = pyqtSignal(list)
+    progress = pyqtSignal(int)  # Add this line for progress updates
+
+# Thread class for loading data
+class DataLoadThread(QThread):
+    def __init__(self, file_path, file_type, model):
+        super(DataLoadThread, self).__init__()
+        self.file_path = file_path
+        self.file_type = file_type
+        self.model = model
+        self.signals = LoaderSignals()
+
+    def run(self):
+        try:
+            data = self.model.load_data(self.file_path, self.file_type)
+            if 'Time' in data.columns:
+                data['Time'] = pd.to_datetime(data['Time'])
+                data.set_index('Time', inplace=True, drop=False)
+            for step in range(1, 101):  # Example loop to represent progress
+             self.signals.progress.emit(step)  # Emit progress update
+             time.sleep(0.1) 
+            # Emit signals to update GUI safely
+            self.signals.data_loaded.emit(data)
+            shape_message = f"Data Loaded: {data.shape[0]} rows, {data.shape[1]} columns"
+            self.signals.update_status.emit(shape_message)
+            if self.model.data_frame is not None:
+                columns = self.model.data_frame.columns.tolist()
+                self.signals.update_combobox.emit(columns)
+        except Exception as e:
+            self.signals.loading_error.emit(str(e))
+   
+
+# Ensure to replace 'YourClass' with the actual name of your class and adjust the method implementations to fit your actual class structure and method names.
+
 
 class Controller:
     """
@@ -21,6 +69,44 @@ class Controller:
     separation of the GUI and the business logic/data handling.
     """
 
+
+    def load_data(self):
+        file_dialog = QFileDialog(self.view)
+        icon_path = os.path.abspath('images/load_data_icon.svg')
+
+        self.view.setWindowIcon(QIcon(icon_path))
+
+        file_path, _ = file_dialog.getOpenFileName(self.view, "Open File", "", "CSV Files (*.csv);;Excel Files (*.xlsx)")
+
+        if file_path:
+            self.loaded_file_path = file_path
+            if file_path.endswith('.csv'):
+                file_type = 'csv'
+            elif file_path.endswith('.xlsx'):
+                file_type = 'excel'
+            else:
+                self.view.show_message("Unsupported file format")
+                return
+
+            # Create and start the data loading thread
+            self.thread = DataLoadThread(file_path, file_type, self.model)
+            self.thread.signals.data_loaded.connect(self.view.display_data)
+            self.thread.signals.update_status.connect(self.view.update_status_bar)
+            self.thread.signals.loading_error.connect(lambda e: self.view.show_message("Loading Error", f"Error loading data: {e}"))
+            self.thread.signals.update_combobox.connect(self.update_combobox_items)
+            self.thread.start()
+            self.thread.signals.progress.connect(self.update_progress_bar)
+
+
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.view.setWindowIcon(QIcon(icon_path))
+    def update_combobox_items(self, columns):
+        self.view.comboBox.clear()
+        self.view.comboBox.addItems(columns)
+        self.view.comboBox2.clear()
+        for column_name in columns:
+            is_numeric = self.view.is_column_numeric(column_name)
+            self.view.comboBox2.addItem(column_name, is_numeric)
     def __init__(self):
         """
         Initializes the Controller component.
@@ -99,64 +185,7 @@ class Controller:
             self.model.set_working_directory(directory)
         icon_path = os.path.abspath('images/bulb_icon.png')
         self.view.setWindowIcon(QIcon(icon_path))
-        
-    def load_data(self):
-     file_dialog = QFileDialog(self.view)
-     icon_path = os.path.abspath('images/load_data_icon.svg')
-     self.view.setWindowIcon(QIcon(icon_path))
-
-     file_path, _ = file_dialog.getOpenFileName(
-        self.view, "Open File", "", "CSV Files (*.csv);;Excel Files (*.xlsx)")
-   
-     if file_path:
-        self.loaded_file_path = file_path  # Store the loaded file path
-        if file_path.endswith('.csv'):
-            file_type = 'csv'
-        elif file_path.endswith('.xlsx'):
-            file_type = 'excel'
-        else:
-            self.view.show_message("Unsupported file format")
-            return
-
-        try:
-            data = self.model.load_data(file_path, file_type)
-            # Convert a specific column to datetime, for example 'Time'
-            if 'Time' in data.columns:  # Check if 'Time' column exists
-                data['Time'] = pd.to_datetime(data['Time'])
-                data.set_index('Time', inplace=True,drop=False)
-            #data = data.asfreq('T')
- # Reset index if you need 'Time' as a column again
-  # Set 'Time' column as index
-
-            self.view.display_data(data)
-            shape_message = f"Data Loaded: {data.shape[0]} rows, {data.shape[1]} columns"
-            self.view.update_status_bar(shape_message)
-            self.view.set_data_loaded(True)
-
-            # Update the column names in the view
-            self.view.lineplotting_dialog.update_combobox_items(data.columns)
-
-        except Exception as e:
-            self.view.show_message("Loading Error", f"Error loading data: {e}")
-            self.view.set_data_loaded(False)
-        icon_path = os.path.abspath('images/bulb_icon.png')
-        self.view.setWindowIcon(QIcon(icon_path))
-     
-        if self.model.data_frame is not None:
-         columns = self.model.data_frame.columns
-   
-    # Update comboBox as usual
-        self.view.comboBox.clear()
-        self.view.comboBox.addItems(columns)
-   
-    # Clear comboBox2 and add items with checkboxes
-     self.view.comboBox2.clear()
-     for i in range(self.view.table_widget.columnCount()):
-       column_name = self.view.table_widget.horizontalHeaderItem(i).text()
-       is_numeric = self.view.is_column_numeric(column_name)
-       self.view.comboBox2.addItem(column_name, is_numeric)
-
-
+ 
     def change_theme(self):
         """
         Handles the logic to change the application's theme.
@@ -775,7 +804,7 @@ class Controller:
             else:
                 QMessageBox.warning(self.view, "Input Error", "Frequency is not specified.")
         else:
-            QMessageBox.warning(self.view, "Dialog Cancelled", "Operation cancelled by user.")
+            QMessageBox.warning(self.view, "Resampling Cancelled", "Operation cancelled by user.")
      else:
         QMessageBox.warning(self.view, "Error", "No data has been loaded.")
      icon_path = os.path.abspath('images/bulb_icon.png')
@@ -824,6 +853,12 @@ class Controller:
         QMessageBox.warning(self.view, "Error", "No data has been loaded.")
      icon_path = os.path.abspath('images/bulb_icon.png')
      self.view.setWindowIcon(QIcon(icon_path))
+    def update_progress_bar(self, value):
+     self.view.progressBar.setValue(value)
+     if value == 100:  # Hide progress bar when done
+        self.view.progressBar.hide()
+     else:
+        self.view.progressBar.show()
     def save_resampled_data_as_csv(self, freq, agg_method):
         icon_path = os.path.abspath('images/resample_icon.svg')
         self.view.setWindowIcon(QIcon(icon_path))

@@ -134,7 +134,7 @@ from PyQt6.QtCore import Qt, QUrl,QThread, pyqtSignal
 from PyQt6.QtGui import QAction, QIcon,QFont,QColor,QPixmap,QStandardItem, QStandardItemModel, QDesktopServices
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget, QTabWidget, \
     QTableWidget,QMenu, QTableWidgetItem, QHBoxLayout, QLabel, QLineEdit, QGridLayout, QDialog, QGroupBox,\
-    QRadioButton, QComboBox,QDialogButtonBox, QFormLayout,QTextEdit,QAbstractItemView, QMessageBox, QButtonGroup, QDockWidget,QSpinBox, QSpacerItem, QSizePolicy
+    QRadioButton, QComboBox,QDialogButtonBox, QProgressBar,QFormLayout,QTextEdit,QAbstractItemView, QMessageBox, QButtonGroup, QDockWidget,QSpinBox, QSpacerItem, QSizePolicy
 import pandas as pd
 import zipfile
 import os
@@ -147,6 +147,9 @@ from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from pandas.plotting import lag_plot
 
+class View(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
 
 
 class View(QMainWindow):
@@ -159,14 +162,13 @@ class View(QMainWindow):
 
 
     def __init__(self, controller):
-        
-        self.data_changed = False
+        # Inside your View's __init__ method or a specific setup method
+
         """
         Initializes the View component.
         Args:
             controller (Controller): The controller instance for the view to communicate with.
         """
-        
 
 
 
@@ -189,6 +191,11 @@ class View(QMainWindow):
         self.closeEvent = self.close_event
 
         self.init_ui()
+        self.progressBar = QProgressBar(self)
+        self.progressBar.setGeometry(50, 140, 200, 25)  # Adjust the size and position as needed
+        self.progressBar.setMaximum(100)  # Set the maximum value of progress bar
+        self.progressBar.hide()  # Initially hide the progress bar
+        self.data_changed = False
 
     def style_index_column(self,table_widget, index_column=0):
 
@@ -694,14 +701,11 @@ class View(QMainWindow):
         Args:
             data_frame (pd.DataFrame): The data to display.
         """
-        
-        # Check if the table widget already exists
         if not hasattr(self, 'table_widget'):
             self.table_widget = QTableWidget()
-            # Add the table widget to the central layout
             self.central_layout.addWidget(self.table_widget)
 
-        # Clear the table widget and set new row and column counts
+        self.table_widget.setUpdatesEnabled(False)  # Disable updates for batch processing
         self.table_widget.clear()
         self.table_widget.setRowCount(data_frame.shape[0])
         self.table_widget.setColumnCount(data_frame.shape[1])
@@ -729,17 +733,16 @@ class View(QMainWindow):
                 alternate-background-color: #e8e8e8; /* Beige for alternating rows */
             }
         """)
+ 
 
-        # Populate the table with data
+
         for row in range(data_frame.shape[0]):
             for col in range(data_frame.shape[1]):
                 item = QTableWidgetItem(str(data_frame.iloc[row, col]))
                 self.table_widget.setItem(row, col, item)
 
-        # Hide the initial message label
+        self.table_widget.setUpdatesEnabled(True)  # Re-enable updates after batch processing
         self.initial_message_label.hide()
-        #table_widget.itemChanged.connect(lambda item: cell_changed(item.row(), item.column()))
-        self.controller.setup_signals()
 
 
     def open_data_info_dialog(self, data_frame_info):
@@ -2102,5 +2105,7 @@ class SubsetDialog(QDialog):
         # Update the message to include the full path where the file is saved
         save_path = os.path.abspath(zip_filename)
         QMessageBox.information(self, "Success", f"Subsets saved to {save_path}")
+
+
 
 
