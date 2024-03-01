@@ -563,31 +563,42 @@ class Controller:
         if successfully_converted:
             message = f"Columns {', '.join(successfully_converted)} were successfully converted to {new_dtype}."
             QMessageBox.information(self.view, "Conversion Success", message)
+
         else:
             pass
 
-    def convert_value(self, value, new_dtype):
+
+
+    def convert_value(value, new_dtype):
      try:
         if new_dtype == 'Integer':
-            # Convert to numeric and use numpy to handle coercion directly
             converted = pd.to_numeric(value, errors='coerce')
             return np.int32(0 if np.isnan(converted) else converted)
         elif new_dtype == 'Float':
-            # Convert to numeric and handle NaN directly
             converted = pd.to_numeric(value, errors='coerce')
             return float(0.0 if np.isnan(converted) else converted)
         elif new_dtype == 'Date Time':
-            return QDateTime.fromString(value, "yyyy-MM-dd HH:mm:ss").toString("yyyy-MM-dd HH:mm:ss")
+            date_formats = [
+                "yyyy-MM-dd", "dd-MM-yyyy", "MM-dd-yyyy",
+                "yyyy/MM/dd", "dd/MM/yyyy", "MM/dd/yyyy",
+                "yyyy-MM-dd HH:mm:ss", "dd-MM-yyyy HH:mm:ss", "MM-dd-yyyy HH:mm:ss",
+                "yyyy/MM/dd HH:mm:ss", "dd/MM/yyyy HH:mm:ss", "MM/dd/yyyy HH:mm:ss",
+                "yyyy-MM-dd'T'HH:mm:ssZ", "yyyy-MM-dd'T'HH:mm:ss.SSSZ", "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                "EEEE, MMMM d, yyyy"
+            ]
+            for format in date_formats:
+                converted_date = QDateTime.fromString(value, format)
+                if converted_date.isValid():
+                    return converted_date.toString(format)
+            print(f"Invalid date/time format: {value}")
+            return value
         elif new_dtype == 'Boolean':
-            # Simple conversion to boolean, consider more robust handling for different string representations
             return bool(value)
         else:
             return value
      except Exception as e:
         print(f"Error during conversion: {e}")
         return value
-# ==============================================================================================================
-
 
     def set_index(self):
         """
