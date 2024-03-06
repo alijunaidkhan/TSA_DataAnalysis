@@ -123,6 +123,7 @@ QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
     border-radius: 6px;         /* Rounded scrollbar handle */
 }
 """
+import cProfile
 from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget,QCheckBox
 import os
 import matplotlib
@@ -693,8 +694,6 @@ class View(QMainWindow):
         QMessageBox.information(self, title, message)
 # Assume `self.table_widget` is your QTableWidget and `self.model.data_frame` is your pandas DataFrame
 
-    
-
     def display_data(self, data_frame):
         """
         Displays the given DataFrame in a QTableWidget, replacing any existing data.
@@ -750,6 +749,8 @@ class View(QMainWindow):
         Args:data_frame_info (dict): Information about the DataFrame to be displayed.'''
 
         dialog = DataInfoDialog()
+        dialog.refresh_dialog()  # Update the dialog with the latest data
+
         dialog.populate_data_info(data_frame_info)
         dialog.exec()
 
@@ -961,7 +962,6 @@ class DataInfoDialog(QDialog):
         layout = QVBoxLayout()
         layout.addWidget(self.tabs)
         self.setLayout(layout)
-
         # Setup Tab 1 (DataFrame Info)
         self.setup_tab1()
 
@@ -974,6 +974,7 @@ class DataInfoDialog(QDialog):
     def setup_tab1(self):
         layout = QVBoxLayout()
         self.table_widget = QTableWidget()
+  
         self.table_widget.setColumnCount(3)
         self.table_widget.setHorizontalHeaderLabels(['Column', 'DataType', 'Missing Values'])
 
@@ -1012,7 +1013,7 @@ class DataInfoDialog(QDialog):
         column_layout.addWidget(QLabel("Columns:"))
         column_layout.addWidget(self.column_combo)
         column_group.setLayout(column_layout)
-
+        
         # GroupBox for Data Type Selection
         datatype_group = QGroupBox("Choose New Data Type")
         datatype_layout = QVBoxLayout()
@@ -1078,6 +1079,7 @@ class DataInfoDialog(QDialog):
             'data_types': [str(dtype) for dtype in self.controller.model.data_frame.dtypes],
             'missing_values': self.controller.model.data_frame.isnull().sum().tolist()
         }
+        
         self.populate_data_info(data_info)
         # Display a message box
         QMessageBox.information(self, "Confirm and Exit", "Changes confirmed.")
@@ -1086,6 +1088,9 @@ class DataInfoDialog(QDialog):
         # Display a message box for confirmation
         QMessageBox.information(self, "Confirm", "Changes have been confirmed.")
         self.refresh_data_info_tab()
+    def showEvent(self, event):
+        super(DataInfoDialog, self).showEvent(event)
+        self.refresh_data_info_tab()
 
     def confirm_and_exit(self):
         QMessageBox.information(self, "Confirm and Exit", "Changes confirmed. Exiting now.")
@@ -1093,6 +1098,11 @@ class DataInfoDialog(QDialog):
         self.accept()  # Closes the dialog
 
     def populate_data_info(self, data_info):
+        self.table_widget.clearContents()  # Clear existing contents
+        self.table_widget.setRowCount(0)   # Reset the row count
+        self.table_widget.setRowCount(len(data_info['columns']))  # Set new row count
+    # The rest of the code for populating data remains the same
+
         self.table_widget.setColumnCount(3)
         header_style = """
         QHeaderView::section {
@@ -1117,6 +1127,7 @@ class DataInfoDialog(QDialog):
         for column in data_info['columns']:
             self.column_combo.addItem(column,True)  # Add column name as both text and data
         self.column_combo.check_first_item_only()
+       # Refresh the DataFrame info tab
 
 
 class CheckableComboBox(QComboBox):
@@ -2040,14 +2051,101 @@ class SubsetDialog(QDialog):
             self.formLayout.addRow(QLabel(f"{column} (Max)"), max_input)
 
         self.layout.addLayout(self.formLayout)
-        self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        ok_button = self.buttons.button(QDialogButtonBox.StandardButton.Ok)
-        ok_button.setText("Generate Subsets") 
-        self.buttons.accepted.connect(self.on_accept)
-        self.buttons.rejected.connect(self.reject)
-        self.layout.addWidget(self.buttons)
-        self.setLayout(self.layout)
+         
+        # Create individual buttons
+        self.generate_subsets_button = QPushButton("Generate Subsets")
+        self.download_zip_button = QPushButton("Download Zip")
+        self.cancel_button = QPushButton("Cancel")
         
+        # Connect buttons to their respective slots
+        self.generate_subsets_button.clicked.connect(self.on_generate_subsets)
+        self.download_zip_button.clicked.connect(self.on_accept)
+        self.cancel_button.clicked.connect(self.reject)
+        
+        # Create a horizontal layout for the buttons
+        self.buttons_layout = QHBoxLayout()
+        self.buttons_layout.addWidget(self.generate_subsets_button)
+        self.buttons_layout.addWidget(self.download_zip_button)
+        self.buttons_layout.addWidget(self.cancel_button)
+        
+        # Add the buttons layout to the main layout
+        self.layout.addLayout(self.buttons_layout)
+
+    def on_generate_subsets(self):
+    # Generate subsets based on the current input values
+     thresholds = self.getValues()  # Get current input values
+     self.subsets = self.split_into_subsets(thresholds)  # Generate subsets
+
+     if not hasattr(self, 'tableWidget'):  # If the tableWidget doesn't exist, create it
+        self.createSubsetTable()
+
+     self.populateTable()  # Update or initialize the table with subsets
+    def populateTable(self):
+     print("Populating table with subsets...")  # Debug print
+
+    # Check if self.subsets is populated
+     if not hasattr(self, 'subsets') or not self.subsets:
+        print("No subsets to display.")  # Debug print
+        return  # Exit if there are no subsets
+
+     self.tableWidget.setRowCount(len(self.subsets))
+     for i, subset_indices in enumerate(self.subsets):
+        print(f"Processing subset {i+1}")  # Debug print
+        try:
+            # Fetch the actual subset DataFrame using indices
+            subset_df = self.dataframe.iloc[subset_indices]
+            self.tableWidget.setItem(i, 0, QTableWidgetItem(f"Subset {i+1}"))
+            self.tableWidget.setItem(i, 1, QTableWidgetItem(str(len(subset_df))))
+            self.tableWidget.setItem(i, 2, QTableWidgetItem(str(len(subset_df.columns))))
+
+            # Create and add a radio button for the subset selection
+            radioBtn = QRadioButton()
+            self.tableWidget.setCellWidget(i, 3, radioBtn)
+        except Exception as e:
+            print(f"Error populating table for subset {i+1}: {e}")  # Log any error
+
+     print("Table populated.")  # Debug print
+
+    def createSubsetTable(self):
+    # Create and configure the table widget
+     self.tableWidget = QTableWidget()
+     self.tableWidget.setColumnCount(4)
+     self.tableWidget.setHorizontalHeaderLabels(['Subset Name', 'Rows', 'Columns', 'Select'])
+
+    # Create selection and cancel buttons
+     selectButton = QPushButton("Select Subset")
+     cancelButton = QPushButton("Cancel")
+     selectButton.clicked.connect(self.on_subset_selected)
+     cancelButton.clicked.connect(self.reject)
+
+    # Add widgets to the existing layout
+     self.layout.addWidget(self.tableWidget)
+     self.layout.addWidget(selectButton)
+     self.layout.addWidget(cancelButton)
+
+    def on_subset_selected(self):
+     selected_subset = self.getSelectedSubset()
+     if selected_subset is not None:
+        reply = QMessageBox.question(self, 'Confirm Subset Process',
+                                     "Subsetting Process will modify the current data. Do you want to continue?",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+
+        if reply == QMessageBox.StandardButton.Yes:
+            # Directly update the main UI with the selected subset
+            self.parent().display_data(selected_subset)
+            QMessageBox.information(self, "Subset Selected", "The dataset has been updated.")
+            self.accept()  # Close the dialog
+
+    # Method to get selected subset
+    def getSelectedSubset(self):
+     for i in range(self.tableWidget.rowCount()):
+        cellWidget = self.tableWidget.cellWidget(i, 3)
+        if cellWidget and cellWidget.isChecked():
+            subset_indices = self.subsets[i]
+            return self.dataframe.iloc[subset_indices]
+     return None  # Handle the case where no subset is selected
+
+
     def getValues(self):
         values = {}
         for column, (min_input, max_input) in self.inputs.items():

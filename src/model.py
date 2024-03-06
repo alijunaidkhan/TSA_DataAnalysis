@@ -6,12 +6,14 @@ from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.tsa.stattools import acf, pacf, adfuller, kpss
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.tools.sm_exceptions import InterpolationWarning
+import cProfile
 
 
 
 
 
 class Model:
+    
     """
     The Model part of the MVC architecture. It is responsible for managing the data, logic, and rules of the application.
 
@@ -45,11 +47,17 @@ class Model:
             pd.DataFrame: The loaded data.
         """
         if file_type == 'csv':
-            self.data_frame = pd.read_csv(file_path)
+            # Define the chunk size
+            chunk_size = 1000  # You can adjust this size based on your needs and memory limitations
+            
+            # Use a generator expression to read the CSV in chunks
+            self.data_frame = pd.concat(pd.read_csv(file_path, chunksize=chunk_size))
+            
         elif file_type == 'excel':
             self.data_frame = pd.read_excel(file_path)
         else:
             raise ValueError("Unsupported file type")
+        
         return self.data_frame  # Return the loaded DataFrame
 
     def save_data(self, data, file_path):
@@ -101,6 +109,14 @@ class Model:
         else:
             raise ValueError("One or more selected columns are not in the DataFrame")
 
+    def profile_load_data(self, file_path, file_type):
+  
+     profiler = cProfile.Profile()
+     profiler.enable()
+     result = self.load_data(file_path, file_type)
+     profiler.disable()
+     profiler.print_stats(sort='time')
+     return result
 
 # In your model class
     # In your model class

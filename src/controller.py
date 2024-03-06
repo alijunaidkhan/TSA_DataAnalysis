@@ -40,9 +40,7 @@ class DataLoadThread(QThread):
     def run(self):
         try:
             data = self.model.load_data(self.file_path, self.file_type)
-            if 'Time' in data.columns:
-                data['Time'] = pd.to_datetime(data['Time'])
-                data.set_index('Time', inplace=True, drop=False)
+            self.model.profile_load_data(self.file_path, self.file_type)
             for step in range(1, 101):  # Example loop to represent progress
              self.signals.progress.emit(step)  # Emit progress update
              time.sleep(0.1) 
@@ -538,67 +536,73 @@ class Controller:
 
 
 
-    
     def convert_columns_data(self, column_names, new_dtype):
-        # Find the column indexes for the specified column names in the QTableWidget
-        column_indexes = {self.view.table_widget.horizontalHeaderItem(i).text(): i for i in range(self.view.table_widget.columnCount()) if self.view.table_widget.horizontalHeaderItem(i).text() in column_names}
+        for col_name in column_names:
+            try:
+                if new_dtype == 'Float':
+                    self.model.data_frame[col_name] = self.model.data_frame[col_name].astype(float)
+                elif new_dtype == 'Integer':
+                    self.model.data_frame[col_name] = pd.to_numeric(self.model.data_frame[col_name], errors='coerce').astype('Int64')
+                elif new_dtype == 'Boolean':
+                    self.model.data_frame[col_name] = self.model.data_frame[col_name].astype(bool)
+                elif new_dtype == 'String':
+                    self.model.data_frame[col_name] = self.model.data_frame[col_name].astype(str)
+                elif new_dtype == 'Date Time':
+                    self.model.data_frame[col_name] = pd.to_datetime(self.model.data_frame[col_name], errors='coerce')
+                print(f"Column {col_name} converted to {new_dtype}.")
+            except Exception as e:
+                print(f"Error converting column {col_name} to {new_dtype}: {e}")
 
-        # Initialize a list to keep track of conversion status
-        conversion_status = {col: False for col in column_names}
-        for col_name, col_index in column_indexes.items():
-            for row in range(self.view.table_widget.rowCount()):
-                item = self.view.table_widget.item(row, col_index)
-                if item is not None:
-                    original_text = item.text()
-                    try:
-                        converted_value = self.convert_value(original_text, new_dtype)
-                        self.view.table_widget.setItem(row, col_index, QTableWidgetItem(str(converted_value)))
-                        conversion_status[col_name] = True
-                    except Exception as e:
-                        # Log or handle exceptions as needed.
-                        print(f"Error converting {col_name}: {e}")
+        self.refresh_data_view()
 
-        # Check conversion results and show a message
-        successfully_converted = [col for col, status in conversion_status.items() if status]
-        if successfully_converted:
-            message = f"Columns {', '.join(successfully_converted)} were successfully converted to {new_dtype}."
+        if column_names:
+            message = f"Columns {' '.join(column_names)} were successfully converted to {new_dtype}."
             QMessageBox.information(self.view, "Conversion Success", message)
-
         else:
-            pass
+            QMessageBox.warning(self.view, "Conversion Error", "No columns were converted.")
 
-
-
-    def convert_value(value, new_dtype):
-     try:
-        if new_dtype == 'Integer':
-            converted = pd.to_numeric(value, errors='coerce')
-            return np.int32(0 if np.isnan(converted) else converted)
-        elif new_dtype == 'Float':
-            converted = pd.to_numeric(value, errors='coerce')
-            return float(0.0 if np.isnan(converted) else converted)
-        elif new_dtype == 'Date Time':
-            date_formats = [
-                "yyyy-MM-dd", "dd-MM-yyyy", "MM-dd-yyyy",
-                "yyyy/MM/dd", "dd/MM/yyyy", "MM/dd/yyyy",
-                "yyyy-MM-dd HH:mm:ss", "dd-MM-yyyy HH:mm:ss", "MM-dd-yyyy HH:mm:ss",
-                "yyyy/MM/dd HH:mm:ss", "dd/MM/yyyy HH:mm:ss", "MM/dd/yyyy HH:mm:ss",
-                "yyyy-MM-dd'T'HH:mm:ssZ", "yyyy-MM-dd'T'HH:mm:ss.SSSZ", "yyyy-MM-dd'T'HH:mm:ss'Z'",
-                "EEEE, MMMM d, yyyy"
-            ]
-            for format in date_formats:
-                converted_date = QDateTime.fromString(value, format)
-                if converted_date.isValid():
-                    return converted_date.toString(format)
-            print(f"Invalid date/time format: {value}")
-            return value
-        elif new_dtype == 'Boolean':
-            return bool(value)
+    def refresh_data_view(self):
+        data_info = {
+            'columns': self.model.data_frame.columns.tolist(),
+            'data_types': [str(dtype) for dtype in self.model.data_frame.dtypes],
+            'missing_values': self.model.data_frame.isnull().sum().tolist()
+        }
+        if hasattr(self.view, 'data_info_dialog'):
+            self.view.data_info_dialog.populate_data_info(data_info)
         else:
+            print("Data info dialog is not available.")
+
+    # Assuming convert_value is used elsewhere and needs to be part of the class
+    def convert_value(self, value, new_dtype):
+        try:
+            if new_dtype == 'Integer':
+                converted = pd.to_numeric(value, errors='coerce')
+                return np.int32(0 if np.isnan(converted) else converted)
+            elif new_dtype == 'Float':
+                converted = pd.to_numeric(value, errors='coerce')
+                return float(0.0 if np.isnan(converted) else converted)
+            elif new_dtype == 'Date Time':
+                date_formats = [
+                    "yyyy-MM-dd", "dd-MM-yyyy", "MM-dd-yyyy",
+                    "yyyy/MM/dd", "dd/MM/yyyy", "MM/dd/yyyy",
+                    "yyyy-MM-dd HH:mm:ss", "dd-MM-yyyy HH:mm:ss", "MM-dd-yyyy HH:mm:ss",
+                    "yyyy/MM/dd HH:mm:ss", "dd/MM/yyyy HH:mm:ss", "MM/dd/yyyy HH:mm:ss",
+                    "yyyy-MM-dd'T'HH:mm:ssZ", "yyyy-MM-dd'T'HH:mm:ss.SSSZ", "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                    "EEEE, MMMM d, yyyy"
+                ]
+                for format in date_formats:
+                    converted_date = QDateTime.fromString(value, format)
+                    if converted_date.isValid():
+                        return converted_date.toString(format)
+                print(f"Invalid date/time format: {value}")
+                return value
+            elif new_dtype == 'Boolean':
+                return bool(value)
+            else:
+                return value
+        except Exception as e:
+            print(f"Error during conversion: {e}")
             return value
-     except Exception as e:
-        print(f"Error during conversion: {e}")
-        return value
 
     def set_index(self):
         """
