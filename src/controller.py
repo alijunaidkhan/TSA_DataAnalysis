@@ -40,10 +40,10 @@ class DataLoadThread(QThread):
     def run(self):
         try:
             data = self.model.load_data(self.file_path, self.file_type)
-            self.model.profile_load_data(self.file_path, self.file_type)
+            #self.model.profile_load_data(self.file_path, self.file_type)
             for step in range(1, 101):  # Example loop to represent progress
              self.signals.progress.emit(step)  # Emit progress update
-             time.sleep(0.1) 
+             time.sleep(0.01) 
             # Emit signals to update GUI safely
             self.signals.data_loaded.emit(data)
             shape_message = f"Data Loaded: {data.shape[0]} rows, {data.shape[1]} columns"
@@ -69,6 +69,7 @@ class Controller:
 
 
     def load_data(self):
+
         file_dialog = QFileDialog(self.view)
         icon_path = os.path.abspath('images/load_data_icon.svg')
 
@@ -94,7 +95,7 @@ class Controller:
             self.thread.signals.update_combobox.connect(self.update_combobox_items)
             self.thread.start()
             self.thread.signals.progress.connect(self.update_progress_bar)
-
+            
 
         icon_path = os.path.abspath('images/bulb_icon.png')
         self.view.setWindowIcon(QIcon(icon_path))
@@ -114,55 +115,48 @@ class Controller:
         self.model = Model()
         self.view = View(self)
         self.loaded_file_path = None  # Initialize loaded_file_path
-
+    def onSubsetGenerated(self):
+        self.view.subsetTableButton.setVisible(False)
+        self.view.subset_button.setVisible(True)
+        self.view.subset_controls_widget.setVisible(True)
+        self.view.comboBox2.setVisible(True)
+        self.view.label2.setVisible(True)
+        self.view.unselect_button.setVisible(True)
+        self.view.subsetCreated = False
+        #QMessageBox.information(self, "Subset Created", "Your subset has been generated. You can view it using the 'Latest Subset Table' button.")
+        
     def save_as(self):
-     icon_path = os.path.abspath('images/save_as_icon.svg')
-     self.view.setWindowIcon(QIcon(icon_path))
-     try:
-        # Check if data is loaded
-        if self.view.table_widget.rowCount() == 0 or self.view.table_widget.columnCount() == 0:
-            self.view.show_message("Error", "No data to save.")
-            return
+        icon_path = os.path.abspath('images/save_as_icon.svg')
+        self.view.setWindowIcon(QIcon(icon_path))
+        try:
+            # Check if data is loaded
+            if self.model.data_frame.empty:
+                self.view.show_message("Error", "No data to save.")
+                return
 
-        # Get the loaded file name
-        loaded_file_name = Path(self.loaded_file_path).name if self.loaded_file_path else "Untitled"
+            # Get the loaded file name
+            loaded_file_name = Path(self.loaded_file_path).name if self.loaded_file_path else "Untitled"
 
-        # Open a file dialog to get the save path
-        file_dialog = QFileDialog()
-        selected_file, _ = file_dialog.getSaveFileName(self.view, "Save As", f"TSA_{loaded_file_name}", "CSV Files (*.csv);;All Files (*)")
+            # Open a file dialog to get the save path
+            file_dialog = QFileDialog()
+            selected_file, _ = file_dialog.getSaveFileName(self.view, "Save As", f"TSA_{loaded_file_name}", "CSV Files (*.csv);;All Files (*)")
 
-        # Check if the user canceled the save operation
-        if not selected_file:
-            return
+            # Check if the user canceled the save operation
+            if not selected_file:
+                return
 
-        # Save data to the selected file
-        with open(selected_file, 'w', newline='') as csv_file:
-            writer = csv.writer(csv_file)
-            # Write headers
-            headers = [self.view.table_widget.horizontalHeaderItem(i).text() for i in range(self.view.table_widget.columnCount())]
-            writer.writerow(headers)
-            # Write data rows
-            for row in range(self.view.table_widget.rowCount()):
-                row_data = []
-                for column in range(self.view.table_widget.columnCount()):
-                    item = self.view.table_widget.item(row, column)
-                    if item is not None:
-                        row_data.append(item.text())
-                    else:
-                        row_data.append('')
-                writer.writerow(row_data)
+            # Save data to the selected file
+            self.model.data_frame.to_csv(selected_file, index=False)
 
-        # Update the status bar
-        self.view.update_status_bar(f"Data saved to {selected_file} successfully.")
-        QMessageBox.information(self.view, "Success", f"Data saved to {selected_file}")
+            # Update the status bar
+            self.view.update_status_bar(f"Data saved to {selected_file} successfully.")
+            QMessageBox.information(self.view, "Success", f"Data saved to {selected_file}")
 
-     except Exception as e:
-        print(f"Error in save_as: {e}")
-        self.view.show_message("Error", f"Error saving data: {e}")
-     icon_path = os.path.abspath('images/bulb_icon.png')
-     self.view.setWindowIcon(QIcon(icon_path))
-
-
+        except Exception as e:
+            print(f"Error in save_as: {e}")
+            self.view.show_message("Error", f"Error saving data: {e}")
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.view.setWindowIcon(QIcon(icon_path))
 
     def run(self):
         """
@@ -212,264 +206,198 @@ class Controller:
         except ValueError:
             # Handle invalid input
             continue
-     subsets = self.split_into_subsets(self.view.table_widget, thresholds)
+     subsets = self.split_into_subsets(self.model.data_frame, thresholds)
     # Now, subsets contain the indices of rows that meet the criteria.
     # You can further process these subsets as needed.
 ######################################################## trying Functionalities for docked widget#####################################################
     def update_column_names(self):
-  
-      if self.model.data_frame is not None:
+     if self.model.data_frame is not None:
         columns = self.model.data_frame.columns
         
-        # Update comboBox as usual
+        # Update comboBox
         self.view.comboBox.clear()
         self.view.comboBox.addItems(columns)
         
         # Clear comboBox2 and add items with checkboxes
         self.view.comboBox2.clear()
-        for i in range(self.view.table_widget.columnCount()):
-            column_name = self.view.table_widget.horizontalHeaderItem(i).text()
+        for column_name in columns:
             is_numeric = self.view.is_column_numeric(column_name)
             self.view.comboBox2.addItem(column_name, is_numeric)
 
-    def calculate_nans(self):
 
-      try:
+    def calculate_nans(self):
+     try:
         selected_column = self.view.comboBox.currentText()
 
-        if selected_column and hasattr(self.view, 'table_widget'):
-        # Find the logical index of the column by its name
-           logical_index = -1
-           for i in range(self.view.table_widget.columnCount()):
-               if self.view.table_widget.horizontalHeaderItem(i).text() == selected_column:
-                logical_index = i
-                break
+        if selected_column in self.model.data_frame.columns:
+            # Directly calculate the number of NaN values using pandas functions
+            nan_count = self.model.data_frame[selected_column].isna().sum()
 
-        if logical_index != -1:
-            nan_count = 0
-            for row in range(self.view.table_widget.rowCount()):
-                item = self.view.table_widget.item(row, logical_index)
-                if item is not None and item.text() == "" or item.text()=="NAN" or item.text()=="nan" or item.text()=="Nan":
-                    nan_count += 1
-
-            self.view.output_display.setText(                    "====================\n"
-                    "Number of NaNs\n"
-                    "====================\n"f"{nan_count}")
+            self.view.output_display.setText(
+                "====================\n"
+                "Number of NaNs\n"
+                "====================\n" + str(nan_count)
+            )
         else:
-            self.view.output_display.setText(f"Column {selected_column} not found in the table.")
+            self.view.output_display.setText(f"Column {selected_column} not found in DataFrame.")
 
-
-      except Exception as e:
+     except Exception as e:
         # Handle the exception - print an error message or log it
-        
         self.view.output_display.setText(f"An exception occurred: {e}")
 
-
-
     def calculate_dtype(self):
-  
-      try:
+     try:
         selected_column = self.view.comboBox.currentText()
 
-        if selected_column and hasattr(self.view, 'table_widget'):
-            # Find the logical index of the column by its name
-            logical_index = -1
-            for i in range(self.view.table_widget.columnCount()):
-                if self.view.table_widget.horizontalHeaderItem(i).text() == selected_column:
-                    logical_index = i
-                    break
+        if selected_column in self.model.data_frame.columns:
+            # Access the data directly from the pandas DataFrame for the selected column
+            column_data = self.model.data_frame[selected_column]
 
-            if logical_index != -1:
-                # Get the data from the selected column in the QTableWidget
-                column_data = [self.view.table_widget.item(row, logical_index).text() 
-                               for row in range(self.view.table_widget.rowCount())]
+            # Update dtype_map with Boolean and datetime64[ns] for DateTime
+            dtype_map = {
+                'int64': int,
+                'float64': float,
+                'object': str,  # Assuming 'object' dtype could contain strings, Booleans, or DateTime
+                'bool': bool,
+                'datetime64[ns]': pd.Timestamp,  # pandas datetime
+                # Consider adding 'timedelta[ns]' if your data includes timedelta values
+            }
 
-                # Attempt to convert values to different types and infer the most suitable type
-                inferred_dtype = None
-                for dtype in [int, float, str]:
-                    try:
-                        converted_data = [dtype(value) for value in column_data if value.strip()]
-                        if all(isinstance(value, dtype) for value in converted_data):
-                            inferred_dtype = dtype
-                            break
-                    except ValueError:
-                        pass
-
-                self.view.output_display.setText(    "====================\n"
-                    "Data Type\n"
-                    "====================\n"+f" {inferred_dtype.__name__}")
+            # Special handling for 'object' dtype which might include mixed types
+            if column_data.dtype == 'object':
+                if all(isinstance(v, bool) for v in column_data.dropna()):
+                    inferred_dtype = bool
+                elif pd.api.types.infer_dtype(column_data) == 'datetime':
+                    inferred_dtype = pd.Timestamp
+                else:
+                    inferred_dtype = str  # Default to str for mixed or unidentified object types
             else:
-                self.view.output_display.setText(f"Column {selected_column} not found in the table.")
-        else:
-            self.view.output_display.setText("Invalid selection or table not available.")
+                # Direct mapping for non-object dtypes
+                pandas_dtype = column_data.dtype
+                inferred_dtype = dtype_map.get(str(pandas_dtype), None)
 
-      except Exception as e:
-        # Handle the exception - print an error message or log it
+            if inferred_dtype:
+                self.view.output_display.setText(
+                    "====================\n"
+                    "Data Type\n"
+                    "====================\n" + f"{inferred_dtype.__name__}"
+                )
+            else:
+                self.view.output_display.setText(
+                    "====================\n"
+                    "Data Type\n"
+                    "====================\n" + "Unknown or unsupported data type"
+                )
+
+        else:
+            self.view.output_display.setText(f"Column {selected_column} not found in DataFrame.")
+
+     except Exception as e:
         self.view.output_display.setText(f"An exception occurred: {e}")
 
     def calculate_statistics(self):
-  
-      try:
+     try:
         selected_column = self.view.comboBox.currentText()
 
-        if selected_column and hasattr(self.view, 'table_widget'):
-            # Find the logical index of the column by its name
-            logical_index = -1
-            for i in range(self.view.table_widget.columnCount()):
-                if self.view.table_widget.horizontalHeaderItem(i).text() == selected_column:
-                    logical_index = i
-                    break
+        if selected_column in self.model.data_frame.columns:
+            # Directly work with pandas Series for the selected column
+            numeric_data = pd.to_numeric(self.model.data_frame[selected_column], errors='coerce').dropna()
 
-            if logical_index != -1:
-                # Get the data from the selected column in the QTableWidget
-                column_data = [self.view.table_widget.item(row, logical_index).text() 
-                               for row in range(self.view.table_widget.rowCount())]
+            if not numeric_data.empty:
+                statistics = {
+                    "Count": numeric_data.count(),
+                    "Mean": numeric_data.mean(),
+                    "Std Dev": numeric_data.std(),
+                    "Min": numeric_data.min(),
+                    "25th Percentile": numeric_data.quantile(0.25),
+                    "Median": numeric_data.median(),
+                    "75th Percentile": numeric_data.quantile(0.75),
+                    "Max": numeric_data.max(),
+                }
 
-                # Convert the data to numeric values
-                numeric_data = [float(value) if value.replace(".", "").isdigit() else None for value in column_data]
+                # Format the statistics for display
+                formatted_stats = "\n".join([f"{label}: {value:.2f}" for label, value in statistics.items()])
 
-                # Remove None values before calculating statistics
-                numeric_data = [value for value in numeric_data if value is not None]
-
-                if numeric_data:
-                    statistics = {
-                        "Count": len(numeric_data),
-                        "Mean": np.mean(numeric_data),
-                        "Std Dev": np.std(numeric_data),
-                        "Min": np.min(numeric_data),
-                        "25th Percentile": np.percentile(numeric_data, 25),
-                        "Median": np.percentile(numeric_data, 50),
-                        "75th Percentile": np.percentile(numeric_data, 75),
-                        "Max": np.max(numeric_data),
-                    }
-
-                    # Format the statistics for display
-                    formatted_stats = "\n".join([f"{label}: {value:.2f}" for label, value in statistics.items()])
-
-                    # Add header with separator lines
-                    separator = "=" * 30
-                    display_text = (
-                        f"{separator}\n     Descriptive Statistics\n{separator}\n{formatted_stats}\n{separator}"
-                    )
-
-                    self.view.output_display.setText(display_text)
-                else:
-                    self.view.output_display.setText("No numeric data to calculate statistics.")
-            else:
-                self.view.output_display.setText(f"Column '{selected_column}' not found in the table.")
-        else:
-            self.view.output_display.setText("Invalid selection or table not available.")
-
-      except Exception as e:
-        # Handle the exception - print an error message or log it
-        self.view.output_display.setText(f"An exception occurred: {e}")
-
-    def calculate_unique(self):
-   
-      try:
-        selected_column = self.view.comboBox.currentText()
-
-        if selected_column and hasattr(self.view, 'table_widget'):
-            # Find the logical index of the column by its name
-            logical_index = -1
-            for i in range(self.view.table_widget.columnCount()):
-                if self.view.table_widget.horizontalHeaderItem(i).text() == selected_column:
-                    logical_index = i
-                    break
-
-            if logical_index != -1:
-                # Get the data from the selected column in the QTableWidget
-                column_data = [self.view.table_widget.item(row, logical_index).text() 
-                               for row in range(self.view.table_widget.rowCount())]
-
-                # Count unique values
-                unique_values = set(column_data)
-                unique_count = len(unique_values)
-
-                formatted_output = (
-                    "====================\n"
-                    "Unique Values Count\n"
-                    "====================\n"
-                    f"{unique_count}"
+                # Add header with separator lines
+                separator = "=" * 30
+                display_text = (
+                    f"{separator}\n     Descriptive Statistics\n{separator}\n{formatted_stats}\n{separator}"
                 )
 
-                self.view.output_display.setText(formatted_output)
+                self.view.output_display.setText(display_text)
             else:
-                self.view.output_display.setText(f"Column {selected_column} not found in the table.")
+                self.view.output_display.setText("No numeric data to calculate statistics.")
         else:
-            self.view.output_display.setText("Invalid selection or table not available.")
+            self.view.output_display.setText(f"Column '{selected_column}' not found in DataFrame.")
 
-      except Exception as e:
-        # Handle the exception - print an error message or log it
+     except Exception as e:
         self.view.output_display.setText(f"An exception occurred: {e}")
+    def calculate_unique(self):
+     try:
+        selected_column = self.view.comboBox.currentText()
 
+        if selected_column in self.model.data_frame.columns:
+            # Directly work with pandas Series for the selected column
+            unique_values = self.model.data_frame[selected_column].nunique()
+
+            formatted_output = (
+                "====================\n"
+                "Unique Values Count\n"
+                "====================\n"
+                f"{unique_values}"
+            )
+
+            self.view.output_display.setText(formatted_output)
+        else:
+            self.view.output_display.setText(f"Column '{selected_column}' not found in DataFrame.")
+
+     except Exception as e:
+        self.view.output_display.setText(f"An exception occurred: {e}")
     def calculate_missing(self):
-      try:
+     try:
         selected_column = self.view.comboBox.currentText()
 
-        if selected_column and hasattr(self.view, 'table_widget'):
-            # Find the logical index of the column by its name
-            logical_index = -1
-            for i in range(self.view.table_widget.columnCount()):
-                if self.view.table_widget.horizontalHeaderItem(i).text() == selected_column:
-                    logical_index = i
-                    break
+        if selected_column in self.model.data_frame.columns:
+            # Calculate the number of missing values using pandas
+            missing_count = self.model.data_frame[selected_column].isna().sum()
 
-            if logical_index != -1:
-                missing_count = 0
-                for row in range(self.view.table_widget.rowCount()):
-                    item = self.view.table_widget.item(row, logical_index)
-                    if item is None or item.text().strip() == "" or item.text()=="nan":
-                        missing_count += 1
-
-                self.view.output_display.setText(    "====================\n"
-                    "Number of Missing Values\n"
-                    "====================\n"f"{missing_count}")
-            else:
-                self.view.output_display.setText(f"Column {selected_column} not found in the table.")
+            self.view.output_display.setText(
+                "====================\n"
+                "Number of Missing Values\n"
+                "====================\n" + str(missing_count)
+            )
         else:
-            self.view.output_display.setText("Invalid selection or table not available.")
-
-      except Exception as e:
-        # Handle the exception - print an error message or log it
+            self.view.output_display.setText(f"Column {selected_column} not found in DataFrame.")
+     except Exception as e:
+         # Handle the exception - print an error message or log it
         self.view.output_display.setText(f"An exception occurred: {e}")
+
     def calculate_shape(self):
-  
-      try:
+     try:
         selected_column = self.view.comboBox.currentText()
 
-        if selected_column and hasattr(self.view, 'table_widget'):
-            # Find the logical index of the column by its name
-            logical_index = -1
-            for i in range(self.view.table_widget.columnCount()):
-                if self.view.table_widget.horizontalHeaderItem(i).text() == selected_column:
-                    logical_index = i
-                    break
+        if selected_column in self.model.data_frame.columns:
+            # The shape of a DataFrame column is the total number of rows in the DataFrame
+            row_count = self.model.data_frame.shape[0]
 
-            if logical_index != -1:
-               # column_count = self.view.table_widget.columnCount()
-                row_count = self.view.table_widget.rowCount()  
-
-                shape_text = f"{row_count} Rows"
-                self.view.output_display.setText("====================\n"
-                    f"Shape of column:\n{selected_column}\n"
-                    "====================\n"+shape_text)
-            else:
-                self.view.output_display.setText(f"Column {selected_column} not found in the table.")
+            self.view.output_display.setText(
+                "====================\n"
+                f"Shape of column: {selected_column}\n"
+                "====================\n"
+                f"{row_count} Rows"
+            )
         else:
-            self.view.output_display.setText("Invalid selection or table not available.")
-
-      except Exception as e:
+            self.view.output_display.setText(f"Column {selected_column} not found in DataFrame.")
+     except Exception as e:
         # Handle the exception - print an error message or log it
         self.view.output_display.setText(f"An exception occurred: {e}")
+
 
 
 ##########################################################################################################
 ############################### Explore menu #############################################################
     def open_data_info(self):
-
-      try:
-  
+     try:
         if self.model.data_frame is None:
             icon_path = os.path.abspath('images/data_info_icon.svg')
             self.view.setWindowIcon(QIcon(icon_path))
@@ -477,48 +405,38 @@ class Controller:
             icon_path = os.path.abspath('images/bulb_icon.png')
             self.view.setWindowIcon(QIcon(icon_path))
             return
-       
-        if hasattr(self.view, 'table_widget'):
-            columns = []
-            data_types = []
-            missing_values = []
-            
-            # Retrieve column names from the table widget
-            for col in range(self.view.table_widget.columnCount()):
-                columns.append(self.view.table_widget.horizontalHeaderItem(col).text())
-            
-            # Retrieve data types from the table widget
-            for col in range(self.view.table_widget.columnCount()):
-                column_data = [self.view.table_widget.item(row, col) for row in range(self.view.table_widget.rowCount())]
-                
-                # Check data types
-                is_float = all(self._is_float(item.text()) for item in column_data if item and item.text())
-                is_int = all(self._is_int(item.text()) for item in column_data if item and item.text())
-                data_type = 'float' if is_float else ('int' if is_int else 'str')
-                data_types.append(data_type)
-            
-            # Retrieve missing values count from the table widget
-            for col in range(self.view.table_widget.columnCount()):
-                missing_count = sum(1 for row in range(self.view.table_widget.rowCount()) 
-                                    if not self.view.table_widget.item(row, col) or 
-                                    self.view.table_widget.item(row, col).text() in ('', 'nan', 'NaN', 'NAN'))
-                missing_values.append(missing_count)
-            
-            data_info = {
-                'columns': columns,
-                'data_types': data_types,
-                'missing_values': missing_values
-            }
-            
-            # Open the DataInfoDialog and populate it with data_info
-            dialog = DataInfoDialog(self)  # Pass the controller instance
-            dialog.populate_data_info(data_info)
-            dialog.exec()
-        else:
-            QMessageBox.warning(self.view, "Warning", "Table widget not available.")
-      except Exception as e:
+
+        columns = list(self.model.data_frame.columns)
+        data_types = []
+        missing_values = []
+
+        for column in self.model.data_frame.columns:
+            column_data = self.model.data_frame[column]
+
+            # Check data types
+            is_float = column_data.apply(lambda x: isinstance(x, float)).all()
+            is_int = column_data.apply(lambda x: isinstance(x, int)).all()
+            data_type = 'float' if is_float else ('int' if is_int else 'str')
+            data_types.append(data_type)
+
+            # Count missing values
+            missing_count = column_data.isnull().sum()
+            missing_values.append(missing_count)
+
+        data_info = {
+            'columns': columns,
+            'data_types': data_types,
+            'missing_values': missing_values
+        }
+
+        # Open the DataInfoDialog and populate it with data_info
+        dialog = DataInfoDialog(self)  # Pass the controller instance
+        dialog.populate_data_info(data_info)
+        dialog.exec()
+     except Exception as e:
         QMessageBox.warning(self.view, "Error", f"An error occurred: {str(e)}")
         print("Error", f"An error occurred: {str(e)}")
+
 
     def _is_float(self, s):
       try:

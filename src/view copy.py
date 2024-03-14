@@ -123,7 +123,7 @@ QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
     border-radius: 6px;         /* Rounded scrollbar handle */
 }
 """
-
+import cProfile
 from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget,QCheckBox
 import os
 import matplotlib
@@ -136,7 +136,6 @@ from PyQt6.QtGui import QAction, QIcon,QFont,QColor,QPixmap,QStandardItem, QStan
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget, QTabWidget, \
     QTableWidget,QMenu, QTableWidgetItem, QHBoxLayout, QLabel, QLineEdit, QGridLayout, QDialog, QGroupBox,\
     QRadioButton, QComboBox,QDialogButtonBox, QProgressBar,QFormLayout,QTextEdit,QAbstractItemView, QMessageBox, QButtonGroup, QDockWidget,QSpinBox, QSpacerItem, QSizePolicy
-import numpy as np
 import pandas as pd
 import zipfile
 import os
@@ -161,9 +160,6 @@ class View(QMainWindow):
     Args:
         controller (Controller): An instance of the Controller class to handle user interactions.
     """
-    subsetGenerated = pyqtSignal()
-    scrolling = pyqtSignal(int, int)  # Signal to notify controller to load subset of data
-
 
 
     def __init__(self, controller):
@@ -178,15 +174,11 @@ class View(QMainWindow):
 
 
         super().__init__()
-        self.subsetCreated = False  # Track whether a subset has been created
-        self.savedSubsets = None  # Initialize the data_frame attribute
         self.thresholds_layout = QVBoxLayout()  # Initialize the layout
         self.comboBox2 = CheckableComboBox()
         self.controller = controller
-
         # Assuming this is done in the part of your code where UI components are initialized
-        self.current_row = 0
-        self.rows_per_page = 1000
+
 
         # Initialize the plotting dialog
     
@@ -201,7 +193,7 @@ class View(QMainWindow):
 
         self.init_ui()
         self.progressBar = QProgressBar(self)
-        self.progressBar.setGeometry(700, 100, 200, 20)  # Adjust the size and position as needed
+        self.progressBar.setGeometry(50, 140, 200, 25)  # Adjust the size and position as needed
         self.progressBar.setMaximum(100)  # Set the maximum value of progress bar
         self.progressBar.hide()  # Initially hide the progress bar
         self.data_changed = False
@@ -222,7 +214,6 @@ class View(QMainWindow):
     def on_cell_changed(self, row, column):
         # Set the flag when a cell is changed
       self.data_changed = True
-      return True
     def close_event(self, event):
         if self.data_changed:
             # Ask the user if they want to save changes
@@ -292,7 +283,7 @@ class View(QMainWindow):
         self.table_widget = QTableWidget()
         self.table_widget.setStyleSheet("background-color: grey;")  # 333333
         self.style_index_column(self.table_widget, index_column=0)  # Style the first column
-       # self.setup_scroll_handling()
+
         image_path = 'images/bulb.png'
         style_sheet = (
          f"border-image: url({image_path}) 0 0 0 0 stretch stretch;"
@@ -309,8 +300,6 @@ class View(QMainWindow):
         self.setCentralWidget(self.central_widget)
         
         self.create_docked_widget()
-        self.subsetGenerated.connect(self.onSubsetGenerated)  # Connect the custom signal to a slot
-
         # Set global stylesheet for buttons and comboboxes
         self.setStyleSheet("""
             QPushButton {
@@ -334,18 +323,10 @@ class View(QMainWindow):
                 border: none;              /* No border for the dropdown button */
 
         """)
-
+        
         self.table_widget.cellChanged.connect(self.on_cell_changed)
 
-        
-        self.setup_scroll_handling()
-        if self.bool_test:
-         self.table_widget.itemChanged.connect(self.handle_item_change)
-    def bool_test(self):
-     if self.data_changed:
-        return True
-     else: 
-       return False
+    
     def set_light_theme(self):
         # Placeholder implementation
         header_style = """
@@ -492,39 +473,34 @@ class View(QMainWindow):
         column_ranges = {}
         for column in checked_columns:
             column_ranges[column] = self.calculate_min_max_for_column(column)
-        dataframe = self.controller.model.data_frame  # Get the DataFrame from the controller
+        dataframe = self.controller.get_dataframe()  # Get the DataFrame from the controller
         dialog = SubsetDialog(column_ranges, dataframe, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             values = dialog.getValues()
             # Handle the values as needed
             print(values)  # Example usage
 
+
     def calculate_min_max_for_column(self, column):
-     try:
-        if hasattr(self.controller.model, 'data_frame'):
-            if column in self.controller.model.data_frame.columns:
-                column_values = self.controller.model.data_frame[column]
+     column_index = self.table_widget.columnCount()
+     for i in range(self.table_widget.columnCount()):
+        if self.table_widget.horizontalHeaderItem(i).text() == column:
+            column_index = i
+            break
 
-                # Replace missing values with NaN
-                column_values = column_values.replace('', np.nan).astype(float)
+     values = []
+     for row in range(self.table_widget.rowCount()):
+        item = self.table_widget.item(row, column_index)
+        if item:
+            try:
+                value = float(item.text())  # Use float to accommodate decimal values
+                values.append(value)
+            except ValueError:
+                continue  # Skip non-numeric values
 
-                # Filter out NaN values and calculate min and max
-                valid_values = column_values.dropna()
-                if not valid_values.empty:
-                    return valid_values.min(), valid_values.max()
-                else:
-                    print("No numeric values found in the column:", column)
-                    return None, None
-            else:
-                print("Column", column, "not found in the DataFrame.")
-                return None, None
-        else:
-            print("DataFrame attribute is not present.")
-            return None, None
-     except AttributeError:
-        print("Model attribute is not present.")
-        return None, None
-
+     if values:
+        return min(values), max(values)
+     return 0, 0  # Return default min and max if no numeric values found
 
 
     def set_data_loaded(self, is_loaded):
@@ -542,14 +518,6 @@ class View(QMainWindow):
                 action.setEnabled(is_loaded)
     
    
-    def handle_item_change(self, item):
-        """
-        Handles changes made to items in the QTableWidget and updates the corresponding DataFrame cell.
-        """
-        row = item.row() + self.current_row
-        column = item.column()
-        new_value = item.text()
-        self.controller.model.data_frame.iloc[row, column] = new_value
     def create_menus(self):
         """
         Creates the menu bar and adds menus to it.
@@ -727,100 +695,54 @@ class View(QMainWindow):
 # Assume `self.table_widget` is your QTableWidget and `self.model.data_frame` is your pandas DataFrame
 
     def display_data(self, data_frame):
-     """
-    Displays the given DataFrame in a QTableWidget, replacing any existing data.
-    Args:
-        data_frame (pd.DataFrame): The data to display.
-     """
-     if not hasattr(self, 'table_widget'):
-        self.table_widget = QTableWidget()
-        self.central_layout.addWidget(self.table_widget)
+        """
+        Displays the given DataFrame in a QTableWidget, replacing any existing data.
+        Args:
+            data_frame (pd.DataFrame): The data to display.
+        """
+        if not hasattr(self, 'table_widget'):
+            self.table_widget = QTableWidget()
+            self.central_layout.addWidget(self.table_widget)
 
-     self.table_widget.setUpdatesEnabled(False)  # Disable updates for batch processing
-     self.table_widget.clear()
-     self.table_widget.setRowCount(min(self.rows_per_page, data_frame.shape[0]))
-     self.table_widget.setColumnCount(data_frame.shape[1])
-     self.table_widget.setHorizontalHeaderLabels(data_frame.columns)
+        self.table_widget.setUpdatesEnabled(False)  # Disable updates for batch processing
+        self.table_widget.clear()
+        self.table_widget.setRowCount(data_frame.shape[0])
+        self.table_widget.setColumnCount(data_frame.shape[1])
+        self.table_widget.setHorizontalHeaderLabels(data_frame.columns)
 
-    # Styling the header
-     header_style = """
-    QHeaderView::section {
-        background-color: #B22222; /* FireBrick red background */
-        color: white;              /* White text color */
-        font-weight: bold;         /* Bold font for the text */
-        border: 1px solid #9B1B1B; /* Darker red border */
-        padding: 3px;              /* Padding inside the header */
-    }
-    """
-     self.table_widget.horizontalHeader().setStyleSheet(header_style)
+        # Allow editing of items in the table
+        #self.table_widget.setEditTriggers(QAbstractItemView.AllEditTriggers)
 
-    # Alternating row colors
-     self.table_widget.setAlternatingRowColors(True)
-     self.table_widget.setStyleSheet("""
-        QTableWidget {
-            alternate-background-color: #e8e8e8; /* Beige for alternating rows */
+        # Styling the header
+        header_style = """
+        QHeaderView::section {
+            background-color: #B22222; /* FireBrick red background */
+            color: white;              /* White text color */
+            font-weight: bold;         /* Bold font for the text */
+            border: 1px solid #9B1B1B; /* Darker red border */
+            padding: 3px;              /* Padding inside the header */
         }
-    """)
+        """
+        self.table_widget.horizontalHeader().setStyleSheet(header_style)
 
-    # Populate table with initial subset of rows
-     for row in range(self.current_row, min(self.current_row + self.rows_per_page, data_frame.shape[0])):
-        for col in range(data_frame.shape[1]):
-            item = QTableWidgetItem(str(data_frame.iloc[row, col]))
-            self.table_widget.setItem(row - self.current_row, col, item)
+        # Alternating row colors
+        self.table_widget.setAlternatingRowColors(True)
+        self.table_widget.setStyleSheet("""
+            QTableWidget {
+                alternate-background-color: #e8e8e8; /* Beige for alternating rows */
+            }
+        """)
+ 
 
-     self.table_widget.setUpdatesEnabled(True)  # Re-enable updates after batch processing
-    # Connect signals for scrolling behavior
-        # Populate table with initial subset of rows
-     self.update_table(data_frame.iloc[:self.rows_per_page])
-     self.initial_message_label.hide()
-    def setup_scroll_handling(self):
-        # Connect signal for vertical scroll bar value change
-        self.table_widget.verticalScrollBar().valueChanged.connect(self.scroll_handler)
 
-    def scroll_handler(self, value):
-        max_value = self.table_widget.verticalScrollBar().maximum()
-        visible_rows = self.table_widget.rowCount()
-        total_rows = self.controller.model.data_frame.shape[0]
+        for row in range(data_frame.shape[0]):
+            for col in range(data_frame.shape[1]):
+                item = QTableWidgetItem(str(data_frame.iloc[row, col]))
+                self.table_widget.setItem(row, col, item)
 
-        if value == max_value and self.current_row + visible_rows < total_rows:
-            # Reached the bottom, load next set of rows
-            self.current_row += self.rows_per_page
-            self.update_table(self.controller.model.data_frame.iloc[self.current_row:self.current_row+self.rows_per_page])
-            print(self.current_row)
-            print(self.rows_per_page)
-        elif value == 0 and self.current_row > 0:
-            # Reached the top, load previous set of rows
-            self.current_row -= self.rows_per_page
-            self.update_table(self.controller.model.data_frame.iloc[self.current_row:self.current_row+self.rows_per_page])
-    def update_table(self, data_frame):
-     num_rows = min(self.rows_per_page, data_frame.shape[0])
-     self.table_widget.setRowCount(num_rows)
+        self.table_widget.setUpdatesEnabled(True)  # Re-enable updates after batch processing
+        self.initial_message_label.hide()
 
-     for row in range(num_rows):
-        for col in range(data_frame.shape[1]):
-            item = QTableWidgetItem(str(data_frame.iloc[row, col]))
-            self.table_widget.setItem(row, col, item)
-
-        # Set the row number as the first column
-        row_number_item = QTableWidgetItem(str(row + self.current_row + 1))
-        self.table_widget.setVerticalHeaderItem(row, row_number_item)
-
-    # Check if there are more rows to load beyond the current subset
-     total_rows = self.controller.model.data_frame.shape[0]
-     if self.current_row + self.rows_per_page < total_rows:
-        # Show a loading animation or "Show More" button here
-        # For now, I'll just print a message
-        print("Loading more rows...")
-
-    # Check if the user has reached the top or bottom of the currently loaded subset
-     if self.current_row == 0:
-        # User has reached the top, disable loading more rows in the upward direction
-        self.table_widget.verticalScrollBar().setValue(0)
-     elif self.current_row + num_rows >= total_rows:
-        # User has reached the bottom, load the next 1000 rows
-        self.current_row = max(0, total_rows - self.rows_per_page)
-        # Scroll to the bottom
-        self.table_widget.verticalScrollBar().setValue(self.table_widget.verticalScrollBar().maximum())
 
     def open_data_info_dialog(self, data_frame_info):
         '''Opens the Data Information dialog window to display DataFrame details.
@@ -839,35 +761,40 @@ class View(QMainWindow):
 
      
     def update_column_combobox(self, logical_index):
-     if self.controller.model.data_frame is None:
-        return
-
-     column_name = self.controller.model.data_frame.columns[logical_index]
+    
+     column_name = self.table_widget.horizontalHeaderItem(logical_index).text()
      self.comboBox.clear()
      self.comboBox.addItem(column_name)
-
 
      # Clear previous items from comboBox2
     
 ##################################################################################################################
+
     def is_column_numeric(self, column_name):
+  
      try:
-        if column_name and hasattr(self.controller.model, 'data_frame'):
-            if column_name in self.controller.model.data_frame.columns:
-                column_data = self.controller.model.data_frame[column_name]
-                print(column_data)
+        if column_name and hasattr(self, 'table_widget'):
+            logical_index = -1
+            for i in range(self.table_widget.columnCount()):
+                if self.table_widget.horizontalHeaderItem(i).text() == column_name:
+                    logical_index = i
+                    break
+
+            if logical_index != -1:
+                column_data = [self.table_widget.item(row, logical_index).text()
+                               for row in range(self.table_widget.rowCount()) if self.table_widget.item(row, logical_index)]
 
                 for dtype in [int, float]:
                     try:
-                        column_data.astype(dtype)
+                        [dtype(value) for value in column_data if value.strip()]
                         return True  # Column is numeric
                     except ValueError:
                         continue
 
-            return False  # Column is not present or not numeric
-     except AttributeError:
-        return False  # Model or DataFrame attribute is not present
-
+                return False  # Column is not numeric
+     except Exception as e:
+        print(f"An exception occurred: {e}")  # Or handle the exception as needed
+        return False
     def onItemCheckStateChanged(self, item_text, is_checked):
     # Handle UI update here
      if is_checked:
@@ -877,185 +804,560 @@ class View(QMainWindow):
         print(f"Hide input fields for {item_text}")
         # Logic to hide min/max input fields for item_text
 
-    def create_docked_widget(self):
-        """
-        Creates a docked widget with a red background central widget and three container widgets.
-        The 'column_selection_wshapeidget' contains a label, a combobox, and a button arranged horizontally.
-        The 'buttons_widget' contains a grid of six buttons.
-        The 'display_results_widget' contains a QTextEdit for displaying output.
-        """
 
+#     def create_docked_widget(self):
+#         """
+#         Creates a docked widget with a red background central widget and three container widgets.
+#         The 'column_selection_widget' contains a label, a combobox, and a button arranged horizontally.
+#         The 'buttons_widget' contains a grid of six buttons.
+#         The 'display_results_widget' contains a QTextEdit for displaying output.
+#         """
+#         docked_widget = QDockWidget("Property", self)
+#         central_widget = QWidget()
+#         central_widget.setObjectName("centralWidget")
+#         central_widget.setStyleSheet("QWidget#centralWidget { background-color: #B22222; }")
+#         central_layout = QVBoxLayout(central_widget)
+
+#       # Create and setup the column_selection_widget
+#         column_selection_widget = QWidget(central_widget)
+#         column_selection_layout = QVBoxLayout(column_selection_widget)
+
+# # First row layout for label, combobox, and refresh button
+#         first_row_layout = QHBoxLayout()
+#         label = QLabel("Header", column_selection_widget)
+#         label.setStyleSheet("color: white; font-weight: bold;")
+#         label.setFixedHeight(30)
+
+#         self.comboBox = QComboBox(column_selection_widget)
+#         self.comboBox.setObjectName("columnComboBox")
+#         self.comboBox.setFixedHeight(30)
+#         self.table_widget.horizontalHeader().sectionClicked.connect(self.update_column_combobox)
+
+#         refresh_button = QPushButton("Refresh", column_selection_widget)
+#         refresh_button.setObjectName("refreshButton")
+#         refresh_button.setToolTip("Refresh the data and update column names.")
+#         refresh_button.setFixedHeight(30)
+# ############################################################################################################        
+#         first_row_layout.addWidget(label, 1)
+#         first_row_layout.addWidget(self.comboBox, 4)
+#         first_row_layout.addWidget(refresh_button, 2)
+
+
+# # Second row layout for the second ComboBox and its label
+#         second_row_layout = QHBoxLayout()
+#         label2 = QLabel("Subsets", column_selection_widget)
+#         label2.setStyleSheet("color: white; font-weight: bold;")
+#         label2.setFixedHeight(30)
+#         self.comboBox2 = CheckableComboBox()
+        
+#         self.comboBox2.setObjectName("columnComboBox2")
+#         self.comboBox2.setFixedHeight(30)
+#         self.table_widget.horizontalHeader().sectionClicked.connect(self.update_column_combobox)
+# ###############################################################################################################
+#         unselect_button = QPushButton("Unselect", column_selection_widget)
+#         unselect_button.setObjectName("unselectButton")
+#         unselect_button.setToolTip("Unselect all columns.")
+#         unselect_button.setFixedHeight(30)
+#         unselect_button.clicked.connect(self.comboBox2.unselect_all)       
+# ################################################################################
+#         subset_button = QPushButton("Subset", column_selection_widget)
+#         subset_button.setObjectName("subsetButton")
+#         subset_button.setToolTip("Filter data into subsets based on selected columns and thresholds.")
+#         subset_button.setFixedHeight(30)
+
+# ###############################################################
+#         second_row_layout.addWidget(label2,1)
+#         second_row_layout.addWidget(self.comboBox2,4)
+#         second_row_layout.addWidget(unselect_button, 2)
+
+# ###############################################################
+#         third_row_layout = QHBoxLayout()
+#         third_row_layout.addWidget(subset_button)
+
+# # Add first and second row layouts to the column_selection_layout
+#         column_selection_layout.addLayout(first_row_layout)
+#         column_selection_layout.addLayout(second_row_layout)
+#         column_selection_layout.addLayout(third_row_layout)
+       
+#         # Create and setup the buttons_widget
+#         buttons_widget = QWidget(central_widget)
+#         buttons_layout = QGridLayout(buttons_widget)
+#         self.buttons = {}
+#         button_info = {
+#     "Size": "Number of rows the column.",
+#     "Type": "Data type of the column.",
+#     "Missing": "Number of rows with missing values.",
+#     "Statistics": "Basic statistics of the column.",  
+# }
+
+#         button_labels = ["Size", "Type", "Missing", "Statistics"]
+
+# #self.buttons[label].clicked.connect(getattr(self.controller, f"calculate_{label.lower()}"))
+#         for i, label in enumerate(button_labels):
+#             button = QPushButton(label, buttons_widget)
+#             button.setObjectName(f"{label.lower()}Button")
+#             self.buttons[label] = button
+#             self.buttons[label].setToolTip(button_info[label])
+#             row, col = divmod(i, 2)
+#             buttons_layout.addWidget(button, row, col)
+
+#         # Create and setup the display_results_widget
+#         display_results_widget = QWidget(central_widget)
+#         display_results_layout = QVBoxLayout(display_results_widget)
+#         self.output_display = QTextEdit(display_results_widget)
+#         self.output_display.setReadOnly(True)
+#         display_results_layout.addWidget(self.output_display)
+
+#         # Add the container widgets to the central_layout
+#         central_layout.addWidget(column_selection_widget, 3)
+#         central_layout.addWidget(buttons_widget, 3)
+#         central_layout.addWidget(display_results_widget, 4)
+
+#         # Set the central widget as the docked widget's content
+#         docked_widget.setWidget(central_widget)
+
+#         # Add the docked widget to the main window
+#         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, docked_widget)
+
+# ######################################################## trying Functionalities for docked widget#####################################################
+#         refresh_button.clicked.connect(self.controller.update_column_names)
+#         subset_button.clicked.connect(self.openSubsetDialog)
+
+#         self.buttons["Size"].clicked.connect(self.controller.calculate_shape)
+#         # Connect the "Type" button
+#         self.buttons["Type"].clicked.connect(self.controller.calculate_dtype)
+#         # Connect the "Statistics" button
+#         self.buttons["Statistics"].clicked.connect(self.controller.calculate_statistics)
+#         # Connect the "Missing"
+#         self.buttons["Missing"].clicked.connect(self.controller.calculate_missing)
+# ################################################################################################################
+    # def create_docked_widget(self):
+    #     docked_widget = QDockWidget("Property", self)
+    #     central_widget = QWidget()
+    #     central_widget.setObjectName("centralWidget")
+    #     central_widget.setStyleSheet("QWidget#centralWidget { background-color: #B22222; }")
+    #     central_layout = QVBoxLayout(central_widget)
+
+    #     # Create and setup the column_selection_widget
+    #     column_selection_widget = QWidget()
+    #     column_selection_layout = QVBoxLayout(column_selection_widget)
+
+    #     # First row layout for label, combobox, and refresh button
+    #     first_row_layout = QHBoxLayout()
+    #     label = QLabel("Header", column_selection_widget)
+    #     label.setStyleSheet("color: white; font-weight: bold;")
+    #     label.setFixedHeight(30)
+
+    #     self.comboBox = QComboBox()
+    #     self.comboBox.setObjectName("columnComboBox")
+    #     self.comboBox.setFixedHeight(30)
+
+    #     refresh_button = QPushButton("Refresh", column_selection_widget)
+    #     refresh_button.setObjectName("refreshButton")
+    #     refresh_button.setFixedHeight(30)
+
+    #     first_row_layout.addWidget(label)
+    #     first_row_layout.addWidget(self.comboBox)
+    #     first_row_layout.addWidget(refresh_button)
+
+    #     # Grid buttons setup
+    #     buttons_widget = QWidget()
+    #     buttons_layout = QGridLayout(buttons_widget)
+    #     self.buttons = {}
+    #     button_info = {
+    #         "Size": "Number of rows the column.",
+    #         "Type": "Data type of the column.",
+    #         "Missing": "Number of rows with missing values.",
+    #         "Statistics": "Basic statistics of the column.",  
+    #     }
+
+    #     button_labels = ["Size", "Type", "Missing", "Statistics"]
+    #     for i, label in enumerate(button_labels):
+    #         button = QPushButton(label, buttons_widget)
+    #         button.setObjectName(f"{label.lower()}Button")
+    #         self.buttons[label] = button
+    #         self.buttons[label].setToolTip(button_info[label])
+    #         row, col = divmod(i, 2)
+    #         buttons_layout.addWidget(button, row, col)
+
+    #     # Second row layout for the second ComboBox and its label
+    #     second_row_layout = QHBoxLayout()
+    #     label2 = QLabel("Subsets", column_selection_widget)
+    #     label2.setStyleSheet("color: white; font-weight: bold;")
+    #     label2.setFixedHeight(30)
+
+    #     self.comboBox2 = CheckableComboBox()  # Instantiate without passing column_selection_widget
+    #     self.comboBox2.setObjectName("columnComboBox2")
+    #     self.comboBox2.setFixedHeight(30)
+
+    #     unselect_button = QPushButton("Unselect", column_selection_widget)
+    #     unselect_button.setObjectName("unselectButton")
+    #     unselect_button.setFixedHeight(30)
+    #     unselect_button.clicked.connect(self.comboBox2.unselect_all)
+
+    #     subset_button = QPushButton("Subset", column_selection_widget)
+    #     subset_button.setObjectName("subsetButton")
+    #     subset_button.setFixedHeight(30)
+    #     subset_button.clicked.connect(self.openSubsetDialog)
+
+    #     second_row_layout.addWidget(label2)
+    #     second_row_layout.addWidget(self.comboBox2)
+    #     second_row_layout.addWidget(unselect_button)
+
+    #     # Add first row and grid buttons to column_selection_layout
+    #     column_selection_layout.addLayout(first_row_layout)
+    #     column_selection_layout.addWidget(buttons_widget)
+
+    #     # Add second row to column_selection_layout
+    #     column_selection_layout.addLayout(second_row_layout)
+
+    #     # Add subset button to column_selection_layout
+    #     column_selection_layout.addWidget(subset_button)
+
+    #     # Set column_selection_layout as the layout for column_selection_widget
+    #     column_selection_widget.setLayout(column_selection_layout)
+
+    #     # Create and setup the display_results_widget
+    #     display_results_widget = QWidget()
+    #     display_results_layout = QVBoxLayout(display_results_widget)
+    #     self.output_display = QTextEdit()
+    #     self.output_display.setReadOnly(True)
+    #     display_results_layout.addWidget(self.output_display)
+
+    #     # Add all widgets to central_layout
+    #     central_layout.addWidget(column_selection_widget)
+    #     central_layout.addWidget(display_results_widget)
+
+    #     # Set the central widget as the docked widget's content and add it to the main window
+    #     docked_widget.setWidget(central_widget)
+    #     self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, docked_widget)
+
+    #     # Connect signals to slots
+    #     refresh_button.clicked.connect(self.controller.update_column_names)
+    #     self.buttons["Size"].clicked.connect(self.controller.calculate_shape)
+    #     self.buttons["Type"].clicked.connect(self.controller.calculate_dtype)
+    #     self.buttons["Missing"].clicked.connect(self.controller.calculate_missing)
+    #     self.buttons["Statistics"].clicked.connect(self.controller.calculate_statistics)
+
+    # def create_docked_widget(self):
+    #     docked_widget = QDockWidget("Property", self)
+    #     central_widget = QWidget()
+    #     central_widget.setObjectName("centralWidget")
+    #     central_widget.setStyleSheet("QWidget#centralWidget { background-color: #B22222; }")
+    #     central_layout = QVBoxLayout(central_widget)
+
+    #     # Create and setup the column_selection_widget with the first row layout
+    #     column_selection_widget = QWidget()
+    #     column_selection_layout = QVBoxLayout(column_selection_widget)
+
+    #     first_row_layout = QHBoxLayout()
+    #     label = QLabel("Header", column_selection_widget)
+    #     label.setStyleSheet("color: white; font-weight: bold;")
+    #     label.setFixedHeight(30)
+
+    #     self.comboBox = QComboBox()
+    #     self.comboBox.setObjectName("columnComboBox")
+    #     self.comboBox.setFixedHeight(30)
+
+    #     refresh_button = QPushButton("Refresh", column_selection_widget)
+    #     refresh_button.setObjectName("refreshButton")
+    #     refresh_button.setFixedHeight(30)
+
+    #     first_row_layout.addWidget(label)
+    #     first_row_layout.addWidget(self.comboBox)
+    #     first_row_layout.addWidget(refresh_button)
+
+    #     column_selection_layout.addLayout(first_row_layout)
+    #     column_selection_widget.setLayout(column_selection_layout)
+    #     central_layout.addWidget(column_selection_widget, 1)
+
+    #     # Create and setup the buttons_widget with grid buttons and subset controls
+    #     buttons_widget = QWidget()
+    #     buttons_layout = QVBoxLayout(buttons_widget)  # Use QVBoxLayout to stack grid and subset controls
+
+    #     # Grid buttons setup
+    #     grid_buttons_layout = QGridLayout()
+    #     self.buttons = {}
+    #     button_labels = ["Size", "Type", "Missing", "Statistics"]
+    #     for i, label in enumerate(button_labels):
+    #         button = QPushButton(label, buttons_widget)
+    #         button.setObjectName(f"{label.lower()}Button")
+    #         self.buttons[label] = button
+    #         row, col = divmod(i, 2)
+    #         grid_buttons_layout.addWidget(button, row, col)
+        
+    #     # Add grid buttons layout to buttons_layout
+    #     buttons_layout.addLayout(grid_buttons_layout)
+
+    #     # Subset controls setup
+    #     subset_controls_layout = QHBoxLayout()
+    #     label2 = QLabel("Subsets", buttons_widget)
+    #     label2.setStyleSheet("color: white; font-weight: bold;")
+    #     label2.setFixedHeight(30)
+
+    #     self.comboBox2 = CheckableComboBox()
+    #     self.comboBox2.setObjectName("columnComboBox2")
+    #     self.comboBox2.setFixedHeight(30)
+
+    #     unselect_button = QPushButton("Unselect", buttons_widget)
+    #     unselect_button.setObjectName("unselectButton")
+    #     unselect_button.setFixedHeight(30)
+
+    #     subset_button = QPushButton("Subset", buttons_widget)
+    #     subset_button.setObjectName("subsetButton")
+    #     subset_button.setFixedHeight(30)
+
+    #     subset_controls_layout.addWidget(label2)
+    #     subset_controls_layout.addWidget(self.comboBox2)
+    #     subset_controls_layout.addWidget(unselect_button)
+    #     subset_controls_layout.addWidget(subset_button)
+
+    #     # Add subset controls layout to buttons_layout
+    #     buttons_layout.addLayout(subset_controls_layout)
+
+    #     buttons_widget.setLayout(buttons_layout)
+    #     central_layout.addWidget(buttons_widget, 3)  # Larger stretch factor for buttons_widget
+
+    #     # Create and setup the display_results_widget
+    #     display_results_widget = QWidget()
+    #     display_results_layout = QVBoxLayout(display_results_widget)
+    #     self.output_display = QTextEdit()
+    #     self.output_display.setObjectName("outputDisplay")
+    #     self.output_display.setReadOnly(True)
+    #     display_results_layout.addWidget(self.output_display)
+    #     display_results_widget.setLayout(display_results_layout)
+    #     central_layout.addWidget(display_results_widget, 4)
+
+    #     docked_widget.setWidget(central_widget)
+    #     self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, docked_widget)
+
+    #     # Connection setup
+    #     refresh_button.clicked.connect(self.controller.update_column_names)
+    #     unselect_button.clicked.connect(self.comboBox2.unselect_all)
+    #     subset_button.clicked.connect(self.openSubsetDialog)
+    #     self.buttons["Size"].clicked.connect(self.controller.calculate_shape)
+    #     self.buttons["Type"].clicked.connect(self.controller.calculate_dtype)
+    #     self.buttons["Missing"].clicked.connect(self.controller.calculate_missing)
+    #     self.buttons["Statistics"].clicked.connect(self.controller.calculate_statistics)
+
+    # def create_docked_widget(self):
+    #     docked_widget = QDockWidget("Property", self)
+    #     central_widget = QWidget()
+    #     central_widget.setObjectName("centralWidget")
+    #     central_widget.setStyleSheet("QWidget#centralWidget { background-color: #B22222; }")
+    #     central_layout = QVBoxLayout(central_widget)
+
+    #     # Column selection setup remains the same
+    #     column_selection_widget = QWidget()
+    #     column_selection_layout = QVBoxLayout(column_selection_widget)
+        
+    #     first_row_layout = QHBoxLayout()
+    #     label = QLabel("Header", column_selection_widget)
+    #     label.setStyleSheet("color: white; font-weight: bold;")
+    #     label.setFixedHeight(30)
+    #     self.comboBox = QComboBox()
+    #     self.comboBox.setObjectName("columnComboBox")
+    #     self.comboBox.setFixedHeight(30)
+    #     refresh_button = QPushButton("Refresh", column_selection_widget)
+    #     refresh_button.setObjectName("refreshButton")
+    #     refresh_button.setFixedHeight(30)
+    #     first_row_layout.addWidget(label)
+    #     first_row_layout.addWidget(self.comboBox)
+    #     first_row_layout.addWidget(refresh_button)
+    #     column_selection_layout.addLayout(first_row_layout)
+    #     column_selection_widget.setLayout(column_selection_layout)
+    #     central_layout.addWidget(column_selection_widget, 1)
+
+    #     # Buttons widget setup with grid buttons and subset controls
+    #     buttons_widget = QWidget()
+    #     buttons_layout = QVBoxLayout(buttons_widget)
+    #     grid_buttons_layout = QGridLayout()
+    #     self.buttons = {}
+    #     button_labels = ["Size", "Type", "Missing", "Statistics"]
+    #     for i, label in enumerate(button_labels):
+    #         button = QPushButton(label, buttons_widget)
+    #         button.setObjectName(f"{label.lower()}Button")
+    #         self.buttons[label] = button
+    #         row, col = divmod(i, 2)
+    #         grid_buttons_layout.addWidget(button, row, col)
+    #     buttons_layout.addLayout(grid_buttons_layout)
+
+    #     # Subset controls setup, excluding the Subset button
+    #     subset_controls_layout = QHBoxLayout()
+    #     label2 = QLabel("Subsets", buttons_widget)
+    #     label2.setStyleSheet("color: white; font-weight: bold;")
+    #     label2.setFixedHeight(30)
+    #     self.comboBox2 = CheckableComboBox()
+    #     self.comboBox2.setObjectName("columnComboBox2")
+    #     self.comboBox2.setFixedHeight(30)
+    #     unselect_button = QPushButton("Clear", buttons_widget)
+    #     unselect_button.setObjectName("unselectButton")
+    #     unselect_button.setFixedHeight(30)
+    #     subset_controls_layout.addWidget(label2)
+    #     subset_controls_layout.addWidget(self.comboBox2)
+    #     subset_controls_layout.addWidget(unselect_button)
+
+    #     # Add subset controls layout to buttons_layout
+    #     buttons_layout.addLayout(subset_controls_layout)
+
+    #     # Separate layout for Subset button
+    #     subset_button_layout = QHBoxLayout()
+    #     subset_button = QPushButton("Subset", buttons_widget)
+    #     subset_button.setObjectName("subsetButton")
+    #     subset_button.setFixedHeight(30)
+    #     subset_button_layout.addWidget(subset_button)
+
+    #     # Add Subset button layout to buttons_layout
+    #     buttons_layout.addLayout(subset_button_layout)
+
+    #     buttons_widget.setLayout(buttons_layout)
+    #     central_layout.addWidget(buttons_widget, 3)
+
+    #     # Display results widget setup remains the same
+    #     display_results_widget = QWidget()
+    #     display_results_layout = QVBoxLayout(display_results_widget)
+    #     self.output_display = QTextEdit()
+    #     self.output_display.setObjectName("outputDisplay")
+    #     self.output_display.setReadOnly(True)
+    #     display_results_layout.addWidget(self.output_display)
+    #     display_results_widget.setLayout(display_results_layout)
+    #     central_layout.addWidget(display_results_widget, 4)
+
+    #     docked_widget.setWidget(central_widget)
+    #     self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, docked_widget)
+
+    #     # Connection setup remains the same
+    #     refresh_button.clicked.connect(self.controller.update_column_names)
+    #     unselect_button.clicked.connect(self.comboBox2.unselect_all)
+    #     subset_button.clicked.connect(self.openSubsetDialog)
+    #     self.buttons["Size"].clicked.connect(self.controller.calculate_shape)
+    #     self.buttons["Type"].clicked.connect(self.controller.calculate_dtype)
+    #     self.buttons["Missing"].clicked.connect(self.controller.calculate_missing)
+    #     self.buttons["Statistics"].clicked.connect(self.controller.calculate_statistics)
+    def create_docked_widget(self):
         docked_widget = QDockWidget("Property", self)
         central_widget = QWidget()
         central_widget.setObjectName("centralWidget")
         central_widget.setStyleSheet("QWidget#centralWidget { background-color: #B22222; }")
         central_layout = QVBoxLayout(central_widget)
 
-      # Create and setup the column_selection_widget
-        column_selection_widget = QWidget(central_widget)
+        # Column selection widget setup
+        column_selection_widget = QWidget()
         column_selection_widget.setStyleSheet("QWidget { border: 1px solid white; margin: 3px; padding: 3px; }")
         column_selection_layout = QVBoxLayout(column_selection_widget)
-
-# First row layout for label, combobox, and refresh button
+        
         first_row_layout = QHBoxLayout()
         label = QLabel("Header", column_selection_widget)
         label.setStyleSheet("color: white; font-weight: bold;")
         label.setFixedHeight(30)
 
-        self.comboBox = QComboBox(column_selection_widget)
+        self.comboBox = QComboBox()
         self.comboBox.setObjectName("columnComboBox")
         self.comboBox.setFixedHeight(30)
-        self.table_widget.horizontalHeader().sectionClicked.connect(self.update_column_combobox)
 
         refresh_button = QPushButton("Refresh", column_selection_widget)
         refresh_button.setObjectName("refreshButton")
-        refresh_button.setToolTip("Refresh the data and update column names.")
         refresh_button.setFixedHeight(30)
-  
-        first_row_layout.addWidget(label, 1)
-        self.subsetTableButton = QPushButton("Latest Subset Table", column_selection_widget)
-        self.subsetTableButton.setObjectName("subsetTableButton")
-        self.subsetTableButton.setToolTip("View generated subset table.")
-        self.subsetTableButton.setFixedHeight(30)
-        self.subsetTableButton.clicked.connect(self.viewSubsetTable)
 
-        self.subsetTableButton.setVisible(False)  # Initially hidden
-        first_row_layout.addWidget(self.comboBox, 5)
-        first_row_layout.addWidget(refresh_button, 2)
-
-# Second row layout for the second ComboBox and its label
-
-
-# Add first and second row layouts to the column_selection_layout
+        first_row_layout.addWidget(label,1)
+        first_row_layout.addWidget(self.comboBox,4)
+        first_row_layout.addWidget(refresh_button,1)
         column_selection_layout.addLayout(first_row_layout)
-        #column_selection_layout.addLayout(second_row_layout)
-       # Add checkboxes and input fields for thresholds
-       # Iterate over the columns of comboBox2 and add checkboxes and input fields for numerical columns
-       # Add checkboxes and input fields for each numerical column in comboBox2
+        column_selection_widget.setLayout(column_selection_layout)
+        central_layout.addWidget(column_selection_widget, 1)
 
-
-        # Create and setup the buttons_widget
-        buttons_widget = QWidget(central_widget)
+        # Buttons widget setup
+        buttons_widget = QWidget()
         buttons_widget.setStyleSheet("QWidget { border: 1px solid white; margin: 3px; padding: 3px; }")#setStyleSheet("QWidget { border: 2px solid black; margin: 5px; padding: 5px; }")
-        buttons_layout = QGridLayout(buttons_widget)
+        buttons_layout = QVBoxLayout(buttons_widget)
+        grid_buttons_layout = QGridLayout()
         self.buttons = {}
-        button_info = {
-    "Size": "Calculate the size of the data.",
-   
-    "Type": "Calculate data types of columns.",
-    "Missing": "Calculate the number of missing values.",
-    "Statistics": "Calculate basic statistics of the data.",
-   
-}
 
         button_labels = ["Size", "Type", "Missing", "Statistics"]
-
-
-#self.buttons[label].clicked.connect(getattr(self.controller, f"calculate_{label.lower()}"))
         for i, label in enumerate(button_labels):
             button = QPushButton(label, buttons_widget)
             button.setObjectName(f"{label.lower()}Button")
             self.buttons[label] = button
-            self.buttons[label].setToolTip(button_info[label])
             row, col = divmod(i, 2)
-            buttons_layout.addWidget(button, row, col)
-        buttons_layout.addWidget(self.subsetTableButton)
-                # Subset controls setup
+            grid_buttons_layout.addWidget(button, row, col)
+
+        buttons_layout.addLayout(grid_buttons_layout)
+
+        # Subset controls setup
         subset_controls_layout = QHBoxLayout()
-        self.label2 = QLabel("Subsets", buttons_widget)
-        self.label2.setStyleSheet("color: white; font-weight: bold;")
-        self.label2.setFixedHeight(30)
+        label2 = QLabel("Subsets", buttons_widget)
+        label2.setStyleSheet("color: white; font-weight: bold;")
+        label2.setFixedHeight(30)
 
         self.comboBox2 = CheckableComboBox()
         self.comboBox2.setObjectName("columnComboBox2")
         self.comboBox2.setFixedHeight(30)
 
-        self.unselect_button = QPushButton("Clear", column_selection_widget)
-        self.unselect_button.setObjectName("unselectButton")
-        self.unselect_button.setToolTip("Unselect all columns.")
-        self.unselect_button.setFixedHeight(30)
-        self.unselect_button.clicked.connect(self.comboBox2.unselect_all)
+        unselect_button = QPushButton("Clear", buttons_widget)
+        unselect_button.setObjectName("unselectButton")
+        unselect_button.setFixedHeight(30)
 
-        subset_controls_layout.addWidget(self.label2,1)
+        subset_controls_layout.addWidget(label2,1)
         subset_controls_layout.addWidget(self.comboBox2,4)
-        subset_controls_layout.addWidget(self.unselect_button,2)
+        subset_controls_layout.addWidget(unselect_button,2)
 
-        # Instead of buttons_layout.addLayout(subset_controls_layout)
-        self.subset_controls_widget = QWidget()
-        self.subset_controls_widget.setLayout(subset_controls_layout)
-        buttons_layout.addWidget(self.subset_controls_widget, 2, 0, 1, -1)  # Span across all columns
+        buttons_layout.addLayout(subset_controls_layout)
 
-        self.subset_button = QPushButton("Subset",buttons_widget)
-        self.subset_button.setObjectName("subsetButton")
-        self.subset_button.setFixedHeight(30)
-       
-            #self.subset_button.setVisible(False)
-        buttons_layout.addWidget(self.subset_button)
+        subset_button_layout = QHBoxLayout()
+        subset_button = QPushButton("Subset", buttons_widget)
+        subset_button.setObjectName("subsetButton")
+        subset_button.setFixedHeight(30)
+        subset_button_layout.addWidget(subset_button)
+
+        buttons_layout.addLayout(subset_button_layout)
 
         buttons_widget.setLayout(buttons_layout)
-        central_layout.addWidget(buttons_widget,3)
-        #$buttons_layout.addWidget(second_row_layout)
-        # Create and setup the display_results_widget
-        display_results_widget = QWidget(central_widget)
+        central_layout.addWidget(buttons_widget, 3)
+
+        # Display results widget setup
+        display_results_widget = QWidget()
+        #display_results_widget.setStyleSheet("QWidget { border: 0.5px solid white; margin: 3px; padding: 3px; }")#setStyleSheet("QWidget { border: 2px solid black; margin: 5px; padding: 5px; }")
         display_results_layout = QVBoxLayout(display_results_widget)
-        self.output_display = QTextEdit(display_results_widget)
+        
+        self.output_display = QTextEdit()
+        self.output_display.setObjectName("outputDisplay")
         self.output_display.setReadOnly(True)
         display_results_layout.addWidget(self.output_display)
+        display_results_widget.setLayout(display_results_layout)
+        central_layout.addWidget(display_results_widget, 4)
 
-        # Add the container widgets to the central_layout
-        central_layout.addWidget(column_selection_widget, 1)
-        central_layout.addWidget(buttons_widget, 4)
-        central_layout.addWidget(display_results_widget, 5)
-
-        # Set the central widget as the docked widget's content
         docked_widget.setWidget(central_widget)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, docked_widget)
 
-        # Add the docked widget to the main window
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, docked_widget)
-
-######################################################## trying Functionalities for docked widget#####################################################
+        # Connection setup remains the same
         refresh_button.clicked.connect(self.controller.update_column_names)
-        self.subset_button.clicked.connect(self.openSubsetDialog)
-
+        unselect_button.clicked.connect(self.comboBox2.unselect_all)
+        subset_button.clicked.connect(self.openSubsetDialog)
         self.buttons["Size"].clicked.connect(self.controller.calculate_shape)
-        # Connect the "Type" button
         self.buttons["Type"].clicked.connect(self.controller.calculate_dtype)
-        # Connect the "Statistics" button
-        self.buttons["Statistics"].clicked.connect(self.controller.calculate_statistics)
-        # Connecting the 'Unique' button
-      #  self.buttons["Unique"].clicked.connect(self.controller.calculate_unique)
-        # Connect the "Missing"
         self.buttons["Missing"].clicked.connect(self.controller.calculate_missing)
-        # Connect the"NaNs" buttons
-       # self.buttons["NaNs"].clicked.connect(self.controller.calculate_nans)
-# Function to update column widgets based on selected column
+        self.buttons["Statistics"].clicked.connect(self.controller.calculate_statistics)
+        # Subset controls setup
+        subset_controls_layout = QHBoxLayout()
+        label2 = QLabel("Subsets", buttons_widget)
+        label2.setStyleSheet("color: white; font-weight: bold;")
+        label2.setFixedHeight(30)
 
-# In View class
-    def viewSubsetTable(self):
-     if self.savedSubsets is not None:
+        self.comboBox2 = CheckableComboBox()
+        self.comboBox2.setObjectName("columnComboBox2")
+        self.comboBox2.setFixedHeight(30)
 
-        # For simplicity, we assume savedSubsets is a list of DataFrames. Adapt as necessary.
-        dialog = SubsetDisplayDialog(self.savedSubsets, self)  # Display the first subset for this example
-        dialog.exec()
-     else:
-        QMessageBox.information(self, "Subset", "No subsets have been generated.")
+        unselect_button = QPushButton("Clear", buttons_widget)
+        unselect_button.setObjectName("unselectButton")
+        unselect_button.setFixedHeight(30)
 
-    def onSubsetGenerated(self):
-        self.subsetTableButton.setVisible(True)
-        self.subset_button.setVisible(False)
-        self.subset_controls_widget.setVisible(False)
-        self.comboBox2.setVisible(False)
-        self.label2.setVisible(False)
-        self.unselect_button.setVisible(False)
-        self.subsetCreated = True
-        QMessageBox.information(self, "Subset Created", "Your subset has been generated. You can view it using the 'Latest Subset Table' button.")
-        
+        subset_controls_layout.addWidget(label2,1)
+        subset_controls_layout.addWidget(self.comboBox2,4)
+        subset_controls_layout.addWidget(unselect_button,2)
+
+        buttons_layout.addLayout(subset_controls_layout)
 ###########################################################################################################################################
 """ The lines below are specifically creating the UI elemnents for the Explore Menu: starting with DataInfo dialog, Setindex dialog """
-###########################################################################################################################################
-
-# No.1 DataInfo dialog
-    
 
 class DataInfoDialog(QDialog):
     def __init__(self, controller):
@@ -1873,66 +2175,6 @@ class LagAcfPacfDialog(QMainWindow):
 # ##################################################################################################
 # """The code below is for unit root test: ADF and KPSS"""
 # ##################################################################################################
-# class ADFTestDialog(QMainWindow):
-#     def __init__(self, controller, parent=None):
-#         super().__init__(parent)
-#         print("Initializing ADF Test Dialog")  # Debug print
-#         self.controller = controller
-#         self.init_ui()
-
-#     def init_ui(self):
-#         self.setWindowTitle("ADF Test")
-#         icon = QIcon('images/adf_icon.png')  # Replace with your ADF icon
-#         self.setWindowIcon(icon)
-#         self.setGeometry(100, 100, 600, 400)  # Adjust size and position as needed
-
-#         # Main layout
-#         main_layout = QVBoxLayout()
-
-#         # Parameters layout
-#         parameters_layout = self.create_parameters_layout()
-#         main_layout.addLayout(parameters_layout)
-
-#         # TextEdit to display results
-#         self.results_text_edit = QTextEdit(self)
-#         self.results_text_edit.setReadOnly(True)  # Make the text edit read-only
-#         main_layout.addWidget(self.results_text_edit)
-
-#         # Set the layout to the central widget
-#         central_widget = QWidget()
-#         central_widget.setLayout(main_layout)
-#         self.setCentralWidget(central_widget)
-
-#     def create_parameters_layout(self):
-#         parameters_layout = QHBoxLayout()
-#         self.column_combobox = QComboBox()
-#         parameters_layout.addWidget(QLabel("Select Column:"))
-#         parameters_layout.addWidget(self.column_combobox)
-#         adf_test_button = QPushButton("Perform ADF Test")
-#         adf_test_button.clicked.connect(self.on_adf_test_button_clicked)
-#         parameters_layout.addWidget(adf_test_button)
-#         return parameters_layout
-
-#     def on_adf_test_button_clicked(self):
-#         column_name = self.column_combobox.currentText()
-#         self.controller.perform_adf_test(column_name)
-
-#     def populate_columns(self, column_list):
-#         """Populates the combobox with a list of column names."""
-#         self.column_combobox.clear()
-#         self.column_combobox.addItems(column_list)
-
-#     def display_adf_result(self, result):
-#         """Displays the ADF test result in the QTextEdit."""
-#         self.results_text_edit.setText(result)
-
-#     def update_status_bar(self, message):
-#         """Updates the status bar with a message."""
-#         self.statusBar().showMessage(message)
-
-# ##################################################################################################
-# """The code below is for unit root test: ADF and KPSS"""
-# ##################################################################################################
 class UnitRootTestDialog(QMainWindow):
     def __init__(self, controller, parent=None):
         super().__init__(parent)
@@ -2143,28 +2385,6 @@ class ResampleDialog(QDialog):
         self.reject()  # Use reject to signal cancellation
 
 
-# SubsetDisplayDialog implementation
-class SubsetDisplayDialog(QDialog):
-    def __init__(self, subsetDataFrame, parent=None):
-        super().__init__(parent)
-        self.layout = QVBoxLayout(self)
-        self.tableWidget = QTableWidget()
-        self.parent().savedSubsets = self.tableWidget # Assume subsets is a list of DataFrame objects or similar
-
-        self.setWindowTitle("Subsets Latest Table")
-        icon = QIcon('images/subset_icon.svg')
-        self.setWindowIcon(icon)
-        self.setGeometry(100, 100, 400, 300)
-        self.populateTable(subsetDataFrame)
-        self.layout.addWidget(self.tableWidget)
-
-    def populateTable(self, df):
-        self.tableWidget.setRowCount(df.shape[0])
-        self.tableWidget.setColumnCount(df.shape[1])
-        self.tableWidget.setHorizontalHeaderLabels(df.columns.tolist())
-        for i, row in df.iterrows():
-            for j, val in enumerate(row):
-                self.tableWidget.setItem(i, j, QTableWidgetItem(str(val)))
 
 class SubsetDialog(QDialog):
     def __init__(self, column_ranges, dataframe, parent=None):
@@ -2175,7 +2395,6 @@ class SubsetDialog(QDialog):
         self.setWindowIcon(icon)
         self.setGeometry(100, 100, 400, 300)
         self.dataframe = dataframe  # The pandas DataFrame
-       
         self.initUI()
         
     def initUI(self):
@@ -2224,13 +2443,7 @@ class SubsetDialog(QDialog):
 
     # Show the subset dialog modally
         self.subsetDialog.exec()
-        self.parent().subsetGenerated.emit()
-        # In SubsetDialog, after generating subsets
-
-        self.accept()
-        self.generate_subsets_button.setEnabled(False)  # Disable the generation button
-        self.download_zip_button.setEnabled(False) 
-
+        
 
     def populateTable(self):
      print("Populating table with subsets...")  # Debug print
@@ -2249,14 +2462,12 @@ class SubsetDialog(QDialog):
             self.tableWidget.setItem(i, 0, QTableWidgetItem(f"Subset {i+1}"))
             self.tableWidget.setItem(i, 1, QTableWidgetItem(str(len(subset_df))))
             self.tableWidget.setItem(i, 2, QTableWidgetItem(str(len(subset_df.columns))))
-          
+
             # Create and add a radio button for the subset selection
             radioBtn = QRadioButton()
             self.tableWidget.setCellWidget(i, 3, radioBtn)
-            print(subset_df)
         except Exception as e:
             print(f"Error populating table for subset {i+1}: {e}")  # Log any error
-        #self.parent().subsetGenerated.emit(self.parent().generatedSubsets)  # Emit signal with generated subsets
 
      print("Table populated.")  # Debug print
 
@@ -2322,33 +2533,21 @@ class SubsetDialog(QDialog):
                 QMessageBox.information(self, "No Subsets", "No subsets were created based on the given thresholds.")
         except ValueError:
             QMessageBox.warning(self, "Error", "Invalid input: Please ensure all threshold values are numeric.")
+
     def split_into_subsets(self, thresholds):
-     df = self.dataframe.copy()  # Work on a copy to avoid modifying the original DataFrame
-     subsets = []
-     continuous_subset = []
-     for i in range(len(df)):
-        valid_subset = True
-        for col in thresholds:
-            threshold_min = float(thresholds[col][0])
-            threshold_max = float(thresholds[col][1])
-            value = df.iloc[i][col]
-            try:
-                value = float(value)
-            except ValueError:
-                valid_subset = False
-                break
-            if not (threshold_min <= value <= threshold_max):
-                valid_subset = False
-                break
-        if valid_subset:
-            continuous_subset.append(i)
-        else:
-            if continuous_subset:
-                subsets.append(continuous_subset)
-                continuous_subset = []
-     if continuous_subset:
-        subsets.append(continuous_subset)
-     return subsets
+        df = self.dataframe.copy()  # Work on a copy to avoid modifying the original DataFrame
+        subsets = []
+        continuous_subset = []
+        for i in range(len(df)):
+            if all(thresholds[col][0] <= df.iloc[i][col] <= thresholds[col][1] for col in thresholds):
+                continuous_subset.append(i)
+            else:
+                if continuous_subset:
+                    subsets.append(continuous_subset)
+                    continuous_subset = []
+        if continuous_subset:
+            subsets.append(continuous_subset)
+        return subsets
 
     def show_result_message(self, num_subsets, subset_lengths):
         message = f"Number of subsets created: {num_subsets}\n"

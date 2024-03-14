@@ -6,7 +6,7 @@ from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.tsa.stattools import acf, pacf, adfuller, kpss
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.tools.sm_exceptions import InterpolationWarning
-import cProfile
+
 
 
 
@@ -109,14 +109,6 @@ class Model:
         else:
             raise ValueError("One or more selected columns are not in the DataFrame")
 
-    def profile_load_data(self, file_path, file_type):
-  
-     profiler = cProfile.Profile()
-     profiler.enable()
-     result = self.load_data(file_path, file_type)
-     profiler.disable()
-     profiler.print_stats(sort='time')
-     return result
 
 # In your model class
     # In your model class
