@@ -257,14 +257,14 @@ class Controller:
             dtype_map = {
                 'int64': int,
                 'float64': float,
-                'object': str,  # Assuming 'object' dtype could contain strings, Booleans, or DateTime
+                'string': str,  # Assuming 'object' dtype could contain strings, Booleans, or DateTime
                 'bool': bool,
                 'datetime64[ns]': pd.Timestamp,  # pandas datetime
                 # Consider adding 'timedelta[ns]' if your data includes timedelta values
             }
 
             # Special handling for 'object' dtype which might include mixed types
-            if column_data.dtype == 'object':
+            if column_data.dtype == 'string':
                 if all(isinstance(v, bool) for v in column_data.dropna()):
                     inferred_dtype = bool
                 elif pd.api.types.infer_dtype(column_data) == 'datetime':
@@ -413,11 +413,17 @@ class Controller:
         for column in self.model.data_frame.columns:
             column_data = self.model.data_frame[column]
 
-            # Check data types
-            is_float = column_data.apply(lambda x: isinstance(x, float)).all()
-            is_int = column_data.apply(lambda x: isinstance(x, int)).all()
-            data_type = 'float' if is_float else ('int' if is_int else 'str')
-            data_types.append(data_type)
+            # Check if column contains only string values
+            is_str = column_data.apply(lambda x: isinstance(x, str)).all()
+            if is_str:
+                data_types.append('string')
+            else:
+                # Check data types for other cases
+                is_float = column_data.apply(lambda x: isinstance(x, float)).all()
+                is_int = column_data.apply(lambda x: isinstance(x, int)).all()
+                
+                data_type = 'float' if is_float else ('int' if is_int else 'str')
+                data_types.append(data_type)
 
             # Count missing values
             missing_count = column_data.isnull().sum()
@@ -451,16 +457,18 @@ class Controller:
         return True
       except ValueError:
         return False
-
+ 
 
 
     def convert_columns_data(self, column_names, new_dtype):
         for col_name in column_names:
             try:
                 if new_dtype == 'Float':
-                    self.model.data_frame[col_name] = self.model.data_frame[col_name].astype(float)
+                     self.model.data_frame[col_name] = pd.to_numeric(self.model.data_frame[col_name], errors='coerce').astype(float)
+
                 elif new_dtype == 'Integer':
-                    self.model.data_frame[col_name] = pd.to_numeric(self.model.data_frame[col_name], errors='coerce').astype('Int64')
+                    self.model.data_frame[col_name] = pd.to_numeric(self.model.data_frame[col_name], errors='coerce')
+                    self.model.data_frame[col_name] = self.model.data_frame[col_name].fillna(0).astype(int)
                 elif new_dtype == 'Boolean':
                     self.model.data_frame[col_name] = self.model.data_frame[col_name].astype(bool)
                 elif new_dtype == 'String':
@@ -742,56 +750,39 @@ class Controller:
         QMessageBox.warning(self.view, "Error", "No data has been loaded.")
      icon_path = os.path.abspath('images/bulb_icon.png')
      self.view.setWindowIcon(QIcon(icon_path))
-
     def resample_data(self, freq, agg_method):
-     icon_path = os.path.abspath('images/resample_icon.svg')
-     self.view.setWindowIcon(QIcon(icon_path))
-     if self.loaded_file_path:
         try:
-            # Assuming the time column is named 'Time' and is the first column
-            # Set the 'Time' column as the index
-            self.model.data_frame.set_index('Time', inplace=True)
+            icon_path = os.path.abspath('images/resample_icon.svg')
+            self.view.setWindowIcon(QIcon(icon_path))
             
-            # Select numeric columns for mean aggregation
-            if agg_method == 'mean':
+            if self.loaded_file_path:
+                # Assuming the time column is named 'Time' and is the first column
+                self.model.data_frame['Time'] = pd.to_datetime(self.model.data_frame['Time'])
+                self.model.data_frame.set_index('Time', inplace=True)
+                
                 numeric_cols = self.model.data_frame.select_dtypes(include=[np.number]).columns
-                resampled_df = self.model.data_frame[numeric_cols].resample(freq).mean()
-            elif agg_method == 'max':
-                numeric_cols = self.model.data_frame.select_dtypes(include=[np.number]).columns
-                resampled_df = self.model.data_frame[numeric_cols].resample(freq).max()            
-            elif agg_method == 'min':
-                numeric_cols = self.model.data_frame.select_dtypes(include=[np.number]).columns
-                resampled_df = self.model.data_frame[numeric_cols].resample(freq).min()
-            elif agg_method == 'sum':
-                numeric_cols = self.model.data_frame.select_dtypes(include=[np.number]).columns
-                resampled_df = self.model.data_frame[numeric_cols].resample(freq).sum()
-            elif agg_method == 'first':
-                numeric_cols = self.model.data_frame.select_dtypes(include=[np.number]).columns
-                resampled_df = self.model.data_frame[numeric_cols].resample(freq).first()
-            elif agg_method == 'last':
-                numeric_cols = self.model.data_frame.select_dtypes(include=[np.number]).columns
-                resampled_df = self.model.data_frame[numeric_cols].resample(freq).last()
+                
+                if agg_method in ['mean', 'max', 'min', 'sum', 'first', 'last']:
+                    resampled_df = self.model.data_frame[numeric_cols].resample(freq).agg(agg_method)
+                else:
+                    resampled_df = self.model.data_frame.resample(freq).agg(agg_method)
+                
+                resampled_df.reset_index(inplace=True)
+                self.view.display_data(resampled_df)
             else:
-                # Handle other aggregation methods
-                resampled_df = self.model.data_frame.resample(freq).agg(agg_method)
-            
-            # Reset index to bring the 'Time' column back as a column
-            resampled_df.reset_index(inplace=True)
-            
-            # Update the view with the resampled data
-            self.view.display_data(resampled_df)
+                QMessageBox.warning(self.view, "Error", "No data has been loaded.")
         except Exception as e:
             QMessageBox.critical(self.view, "Resampling Error", str(e))
-     else:
-        QMessageBox.warning(self.view, "Error", "No data has been loaded.")
-     icon_path = os.path.abspath('images/bulb_icon.png')
-     self.view.setWindowIcon(QIcon(icon_path))
+        finally:
+            icon_path = os.path.abspath('images/bulb_icon.png')
+            self.view.setWindowIcon(QIcon(icon_path))
+    
     def update_progress_bar(self, value):
-     self.view.progressBar.setValue(value)
-     if value == 100:  # Hide progress bar when done
-        self.view.progressBar.hide()
-     else:
-        self.view.progressBar.show()
+        self.view.progressBar.setValue(value)
+        if value == 100:
+            self.view.progressBar.hide()
+        else:
+            self.view.progressBar.show()
     def save_resampled_data_as_csv(self, freq, agg_method):
         icon_path = os.path.abspath('images/resample_icon.svg')
         self.view.setWindowIcon(QIcon(icon_path))
