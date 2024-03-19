@@ -6,6 +6,7 @@ from controller import Controller
 def main():
     app = QApplication(sys.argv)
 
+
     controller = Controller()
     controller.run()
     sys.exit(app.exec())

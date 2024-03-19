@@ -95,7 +95,8 @@ class Controller:
             self.thread.signals.update_combobox.connect(self.update_combobox_items)
             self.thread.start()
             self.thread.signals.progress.connect(self.update_progress_bar)
-            
+            self.view.resetLayout()
+
 
         icon_path = os.path.abspath('images/bulb_icon.png')
         self.view.setWindowIcon(QIcon(icon_path))
@@ -206,6 +207,7 @@ class Controller:
         except ValueError:
             # Handle invalid input
             continue
+    
      subsets = self.split_into_subsets(self.model.data_frame, thresholds)
     # Now, subsets contain the indices of rows that meet the criteria.
     # You can further process these subsets as needed.
@@ -631,21 +633,29 @@ class Controller:
         
 
 #############################################################################################################################
-
     def open_line_plot_dialog(self):
-        if self.model.data_frame is not None:
-            # Access the lineplotting dialog from the view
-            self.view.lineplotting_dialog.populate_columns(self.model.data_frame.columns)
-            self.view.lineplotting_dialog.show()
-        else:
-            self.view.show_message("Error", "No data loaded.")
+     if self.model.data_frame is not None:
+        # Access the lineplotting dialog from the view
+        self.view.lineplotting_dialog.populate_columns(self.model.data_frame.columns)
+        self.view.lineplotting_dialog.show()
+     else:
+        self.view.show_message("Error", "No data loaded.")
 
     def plot_selected_columns(self, selected_columns):
-        if selected_columns:
-            data_to_plot = self.model.get_data_for_columns(selected_columns)
+     if selected_columns:
+        valid_columns = [col for col in selected_columns if self.is_numeric_column(col)]
+        if valid_columns:
+            data_to_plot = self.model.get_data_for_columns(valid_columns)
             self.view.lineplotting_dialog.plot_data(data_to_plot)
         else:
-            self.view.show_message("Warning", "No columns selected for plotting.")
+            self.view.show_message("Error", "Selected columns must be of type float or int.")
+     else:
+        self.view.show_message("Warning", "No columns selected for plotting.")
+
+    def is_numeric_column(self, column_name):
+     column_data = self.model.data_frame[column_name]
+     return column_data.dtype in ['float64', 'int64']  # Adjust dtype check as needed
+
 ##########################################################################################
     """For Decomposition of Series"""           
 ##########################################################################################            

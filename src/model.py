@@ -7,11 +7,6 @@ from statsmodels.tsa.stattools import acf, pacf, adfuller, kpss
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.tools.sm_exceptions import InterpolationWarning
 
-
-
-
-
-
 class Model:
     
     """
@@ -27,7 +22,6 @@ class Model:
         """
         self.working_directory = None
         self.data_frame = None  # Initialize the data_frame attribute
-
     def set_working_directory(self, directory):
         """
         Sets the working directory where file operations are performed.

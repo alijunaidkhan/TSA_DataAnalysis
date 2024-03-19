@@ -181,13 +181,17 @@ class View(QMainWindow):
         self.subsetCreated = False  # Track whether a subset has been created
         self.savedSubsets = None  # Initialize the data_frame attribute
         self.thresholds_layout = QVBoxLayout()  # Initialize the layout
+        self.getValuesthreshold={}
         self.comboBox2 = CheckableComboBox()
         self.controller = controller
-
+        self.latest_subset_display_dialog = None
+        self.copied_data_frame=None
         # Assuming this is done in the part of your code where UI components are initialized
         self.current_row = 0
         self.rows_per_page = 1000
-
+        self.generated_subsets = []
+        self.copy_data_frame=None
+        
         # Initialize the plotting dialog
     
         self.lineplotting_dialog = PlottingDialog(controller=self.controller)
@@ -205,7 +209,7 @@ class View(QMainWindow):
         self.progressBar.setMaximum(100)  # Set the maximum value of progress bar
         self.progressBar.hide()  # Initially hide the progress bar
         self.data_changed = False
-
+        self.checked_columns=None
     def style_index_column(self,table_widget, index_column=0):
 
      for row in range(self.table_widget.rowCount()):
@@ -460,8 +464,19 @@ class View(QMainWindow):
         self.table_widget.setAlternatingRowColors(True)
 
         self.setStyleSheet(dark_stylesheet)
-
-
+    def openSubsetDialogTable(self):
+        if not self.generated_subsets:
+            QMessageBox.warning(self, "No Subsets", "No subsets have been generated yet.")
+            return
+        # print(self.copy_data_frame)
+        # print(self.checked_columns)
+        # print(self.getValuesthreshold)
+        #checked_columns = self.comboBox2.get_checked_items()
+        column_ranges =self.checked_columns
+          # Get the DataFrame from the controller
+        dialog = LatestSubsetDialog(column_ranges, self.copy_data_frame,self.getValuesthreshold, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+           pass
 
 # In your main window or wherever the subset button is defined
     def openSubsetDialog(self):
@@ -497,7 +512,7 @@ class View(QMainWindow):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             values = dialog.getValues()
             # Handle the values as needed
-            print(values)  # Example usage
+         
 
     def calculate_min_max_for_column(self, column):
      try:
@@ -725,6 +740,16 @@ class View(QMainWindow):
         # QMessageBox.information(self, "Information", message)
         QMessageBox.information(self, title, message)
 # Assume `self.table_widget` is your QTableWidget and `self.model.data_frame` is your pandas DataFrame
+    def display_latest_subset(self):
+     if hasattr(self, 'Latest_subset_dialog'):
+        self.latest_subset_dialog.close()  # Close previous dialog if open
+
+    # Here, you need to fetch the latest subset DataFrame from wherever you're storing it
+     latest_subset_dataframe = ...  # Fetch the latest subset DataFrame
+
+    # Create and display the dialog to show the latest subset
+     self.latest_subset_dialog = SubsetDisplayDialog(latest_subset_dataframe)
+     self.latest_subset_dialog.exec()
 
     def display_data(self, data_frame):
      """
@@ -786,8 +811,7 @@ class View(QMainWindow):
             # Reached the bottom, load next set of rows
             self.current_row += self.rows_per_page
             self.update_table(self.controller.model.data_frame.iloc[self.current_row:self.current_row+self.rows_per_page])
-            print(self.current_row)
-            print(self.rows_per_page)
+         
         elif value == 0 and self.current_row > 0:
             # Reached the top, load previous set of rows
             self.current_row -= self.rows_per_page
@@ -855,7 +879,7 @@ class View(QMainWindow):
         if column_name and hasattr(self.controller.model, 'data_frame'):
             if column_name in self.controller.model.data_frame.columns:
                 column_data = self.controller.model.data_frame[column_name]
-                print(column_data)
+                
 
                 for dtype in [int, float]:
                     try:
@@ -917,7 +941,7 @@ class View(QMainWindow):
         self.subsetTableButton.setObjectName("subsetTableButton")
         self.subsetTableButton.setToolTip("View generated subset table.")
         self.subsetTableButton.setFixedHeight(30)
-        self.subsetTableButton.clicked.connect(self.viewSubsetTable)
+        self.subsetTableButton.clicked.connect(self.openSubsetDialogTable)
 
         self.subsetTableButton.setVisible(False)  # Initially hidden
         first_row_layout.addWidget(self.comboBox, 5)
@@ -1041,6 +1065,8 @@ class View(QMainWindow):
         QMessageBox.information(self, "Subset", "No subsets have been generated.")
 
     def onSubsetGenerated(self):
+        self.copied_data_frame = self.controller.model.data_frame.copy()
+
         self.subsetTableButton.setVisible(True)
         self.subset_button.setVisible(False)
         self.subset_controls_widget.setVisible(False)
@@ -1050,8 +1076,19 @@ class View(QMainWindow):
         self.subsetCreated = True
         QMessageBox.information(self, "Subset Created", "Your subset has been generated. You can view it using the 'Latest Subset Table' button.")
         
+    def resetLayout(self):
+    # Reset visibility of widgets
+     self.subsetTableButton.setVisible(False)
+     self.subset_button.setVisible(True)
+     self.subset_controls_widget.setVisible(True)
+     self.comboBox2.setVisible(True)
+     self.label2.setVisible(True)
+     self.unselect_button.setVisible(True)
+     self.subsetCreated = False
+
 ###########################################################################################################################################
 """ The lines below are specifically creating the UI elemnents for the Explore Menu: starting with DataInfo dialog, Setindex dialog """
+
 ###########################################################################################################################################
 
 # No.1 DataInfo dialog
@@ -1269,7 +1306,7 @@ class CheckableComboBox(QComboBox):
         :param text: The text of the item to add
         :param is_numeric: Boolean indicating whether the item is numeric
         """
-        print(f"Adding item: {text}, Numeric: {is_numeric}")  # Debug print
+        # print(f"Adding item: {text}, Numeric: {is_numeric}")  # Debug print
         item = QStandardItem(text)
         if is_numeric:
             item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
@@ -1294,7 +1331,7 @@ class CheckableComboBox(QComboBox):
         if item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
             newState = Qt.CheckState.Unchecked if item.checkState() == Qt.CheckState.Checked else Qt.CheckState.Checked
             item.setCheckState(newState)
-            print(f"Item pressed: {item.text()}, new state: {newState}")  # Debug print
+            # print(f"Item pressed: {item.text()}, new state: {newState}")  # Debug print
 
     def checkedItems(self):
         checked_items = []
@@ -2175,7 +2212,8 @@ class SubsetDialog(QDialog):
         self.setWindowIcon(icon)
         self.setGeometry(100, 100, 400, 300)
         self.dataframe = dataframe  # The pandas DataFrame
-       
+        self.parent().copy_data_frame=self.dataframe
+
         self.initUI()
         
     def initUI(self):
@@ -2212,6 +2250,7 @@ class SubsetDialog(QDialog):
         self.layout.addLayout(self.buttons_layout)
     def on_generate_subsets(self):
         thresholds = self.getValues()  # Get current input values
+        self.parent().getValuesthreshold=thresholds
         self.subsets = self.split_into_subsets(thresholds)  # Generate subsets
     # Ensure the subset dialog and table are correctly setup and displayed
         self.subsetDialog = QDialog(self)  # Create a new dialog as a child of the main dialog
@@ -2221,7 +2260,12 @@ class SubsetDialog(QDialog):
     # Create the subset table within the new dialog
         self.createSubsetTable()
         self.populateTable()  # Populate the table with subset data
-
+        self.parent().generated_subsets = self.tableWidget
+        self.parent().checked_columns=self.column_ranges
+        
+            # Directly update the main UI with the selected subset
+        # self.latest_subset_dialog = LatestSubsetDialog(selected_subset, parent=self)
+        # self.latest_subset_dialog.show()
     # Show the subset dialog modally
         self.subsetDialog.exec()
         self.parent().subsetGenerated.emit()
@@ -2242,7 +2286,7 @@ class SubsetDialog(QDialog):
 
      self.tableWidget.setRowCount(len(self.subsets))
      for i, subset_indices in enumerate(self.subsets):
-        print(f"Processing subset {i+1}")  # Debug print
+      #  print(f"Processing subset {i+1}")  # Debug print
         try:
             # Fetch the actual subset DataFrame using indices
             subset_df = self.dataframe.iloc[subset_indices]
@@ -2253,7 +2297,7 @@ class SubsetDialog(QDialog):
             # Create and add a radio button for the subset selection
             radioBtn = QRadioButton()
             self.tableWidget.setCellWidget(i, 3, radioBtn)
-            print(subset_df)
+            #print(subset_df)
         except Exception as e:
             print(f"Error populating table for subset {i+1}: {e}")  # Log any error
         #self.parent().subsetGenerated.emit(self.parent().generatedSubsets)  # Emit signal with generated subsets
@@ -2287,21 +2331,26 @@ class SubsetDialog(QDialog):
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
 
         if reply == QMessageBox.StandardButton.Yes:
-            # Directly update the main UI with the selected subset
-            self.parent().display_data(selected_subset)
+      
+            subset_dataframe = self.dataframe.iloc[selected_subset]
+            self.parent().controller.model.data_frame=subset_dataframe
+
+            # Directly update the main UI with the selected subset DataFrame
+            self.parent().display_data(subset_dataframe)
             QMessageBox.information(self, "Subset Selected", "The dataset has been updated.")
             self.accept()  # Close the dialog
 
-    # Method to get selected subset
+
     def getSelectedSubset(self):
-     for i in range(self.tableWidget.rowCount()):
-        cellWidget = self.tableWidget.cellWidget(i, 3)
-        if cellWidget and cellWidget.isChecked():
-            subset_indices = self.subsets[i]
-            return self.dataframe.iloc[subset_indices]
-     return None  # Handle the case where no subset is selected
-
-
+        selected_indices = []
+        for i in range(self.tableWidget.rowCount()):
+            cellWidget = self.tableWidget.cellWidget(i, 3)
+            if cellWidget and cellWidget.isChecked():
+                subset_indices = self.subsets[i]
+                selected_indices.extend(subset_indices)
+        if selected_indices:
+            return selected_indices
+        return None
     def getValues(self):
         values = {}
         for column, (min_input, max_input) in self.inputs.items():
@@ -2371,7 +2420,121 @@ class SubsetDialog(QDialog):
         # Update the message to include the full path where the file is saved
         save_path = os.path.abspath(zip_filename)
         QMessageBox.information(self, "Success", f"Subsets saved to {save_path}")
+class LatestSubsetDialog(QDialog):
+    def __init__(self, column_ranges, dataframe, threshold, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Subset Table")
+        self.setGeometry(200, 200, 600, 400)
+        icon_path = os.path.abspath('images/subset_icon.svg')
+        self.setWindowIcon(QIcon(icon_path))
+        self.threshold = threshold
+        self.column_ranges = column_ranges
+        self.dataframe = dataframe
+
+        self.tableWidget = QTableWidget()
+        self.tableWidget.setColumnCount(4)
+        self.tableWidget.setHorizontalHeaderLabels(['Subset Name', 'Rows', 'Columns', 'Select'])
+        selectButton = QPushButton("Select Subset")
+        cancelButton = QPushButton("Cancel")
+        selectButton.clicked.connect(self.on_subset_selected)
+        cancelButton.clicked.connect(self.reject)
+
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(selectButton)
+        button_layout.addWidget(cancelButton)
 
 
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.tableWidget)
+        layout.addLayout(button_layout)
+        self.setLayout(layout)
+        self.populateTable()  # Populate the table with subset data
+
+    def populateTable(self):
+        print("Populating table with subsets...")  # Debug print
+
+        # Generate subsets using the provided threshold
+        subsets = self.split_into_subsets(self.threshold)
+
+        # Check if subsets are populated
+        if not subsets:
+            print("No subsets to display.")  # Debug print
+            return
+
+        self.tableWidget.setRowCount(len(subsets))
+        for i, subset_indices in enumerate(subsets):
+            print(f"Processing subset {i+1}")  # Debug print
+            try:
+                # Fetch the actual subset DataFrame using indices
+                subset_df = self.dataframe.iloc[subset_indices]
+                self.tableWidget.setItem(i, 0, QTableWidgetItem(f"Subset {i+1}"))
+                self.tableWidget.setItem(i, 1, QTableWidgetItem(str(len(subset_df))))
+                self.tableWidget.setItem(i, 2, QTableWidgetItem(str(len(subset_df.columns))))
+
+                # Create and add a radio button for the subset selection
+                radioBtn = QRadioButton()
+                self.tableWidget.setCellWidget(i, 3, radioBtn)
+                #print(subset_df)
+            except Exception as e:
+                print(f"Error populating table for subset {i+1}: {e}")  # Log any error
+
+        print("Table populated.")  # Debug print
 
 
+    def getSelectedSubset(self):
+        selected_indices = []
+        self.subsets = self.split_into_subsets(self.threshold)  # Generate subsets
+
+        for i in range(self.tableWidget.rowCount()):
+            cellWidget = self.tableWidget.cellWidget(i, 3)
+            if cellWidget and cellWidget.isChecked():
+                subset_indices = self.subsets[i]
+                selected_indices.extend(subset_indices)
+        if selected_indices:
+            return selected_indices
+        return None
+
+    def split_into_subsets(self, thresholds):
+        df = self.dataframe.copy()  # Work on a copy to avoid modifying the original DataFrame
+        subsets = []
+        continuous_subset = []
+        for i in range(len(df)):
+            valid_subset = True
+            for col in thresholds:
+                threshold_min = float(thresholds[col][0])
+                threshold_max = float(thresholds[col][1])
+                value = df.iloc[i][col]
+                try:
+                    value = float(value)
+                except ValueError:
+                    valid_subset = False
+                    break
+                if not (threshold_min <= value <= threshold_max):
+                    valid_subset = False
+                    break
+            if valid_subset:
+                continuous_subset.append(i)
+            else:
+                if continuous_subset:
+                    subsets.append(continuous_subset)
+                    continuous_subset = []
+        if continuous_subset:
+            subsets.append(continuous_subset)
+        return subsets
+
+    def on_subset_selected(self):
+        selected_subset = self.getSelectedSubset()
+        if selected_subset is not None:
+            reply = QMessageBox.question(self, 'Confirm Subset Process',
+                                         "Subsetting Process will modify the current data. Do you want to continue?",
+                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+
+            if reply == QMessageBox.StandardButton.Yes:
+                            # Directly update the main UI with the selected subset
+             subset_dataframe = self.dataframe.iloc[selected_subset]
+             self.parent().controller.model.data_frame=subset_dataframe
+
+            # Directly update the main UI with the selected subset DataFrame
+             self.parent().display_data(subset_dataframe)
+             QMessageBox.information(self, "Subset Selected", "The dataset has been updated.")
+             self.accept()  # Close the dialog
