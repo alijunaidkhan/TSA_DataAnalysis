@@ -561,10 +561,7 @@ class View(QMainWindow):
         """
         Handles changes made to items in the QTableWidget and updates the corresponding DataFrame cell.
         """
-        row = item.row() + self.current_row
-        column = item.column()
-        new_value = item.text()
-        self.controller.model.data_frame.iloc[row, column] = new_value
+        pass
     def create_menus(self):
         """
         Creates the menu bar and adds menus to it.
@@ -741,6 +738,7 @@ class View(QMainWindow):
         QMessageBox.information(self, title, message)
 # Assume `self.table_widget` is your QTableWidget and `self.model.data_frame` is your pandas DataFrame
     def display_latest_subset(self):
+     print(self.controller.model.data_frame.dtypes)
      if hasattr(self, 'Latest_subset_dialog'):
         self.latest_subset_dialog.close()  # Close previous dialog if open
 

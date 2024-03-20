@@ -43,13 +43,15 @@ class DataLoadThread(QThread):
             #self.model.profile_load_data(self.file_path, self.file_type)
             for step in range(1, 101):  # Example loop to represent progress
              self.signals.progress.emit(step)  # Emit progress update
-             time.sleep(0.01) 
+             time.sleep(0.001) 
             # Emit signals to update GUI safely
             self.signals.data_loaded.emit(data)
             shape_message = f"Data Loaded: {data.shape[0]} rows, {data.shape[1]} columns"
             self.signals.update_status.emit(shape_message)
             if self.model.data_frame is not None:
                 columns = self.model.data_frame.columns.tolist()
+                
+
                 self.signals.update_combobox.emit(columns)
         except Exception as e:
             self.signals.loading_error.emit(str(e))
@@ -100,6 +102,7 @@ class Controller:
 
         icon_path = os.path.abspath('images/bulb_icon.png')
         self.view.setWindowIcon(QIcon(icon_path))
+    
     def update_combobox_items(self, columns):
         self.view.comboBox.clear()
         self.view.comboBox.addItems(columns)
@@ -259,7 +262,7 @@ class Controller:
             dtype_map = {
                 'int64': int,
                 'float64': float,
-                'string': str,  # Assuming 'object' dtype could contain strings, Booleans, or DateTime
+                'object': str,  # Assuming 'object' dtype could contain strings, Booleans, or DateTime
                 'bool': bool,
                 'datetime64[ns]': pd.Timestamp,  # pandas datetime
                 # Consider adding 'timedelta[ns]' if your data includes timedelta values

@@ -31,6 +31,7 @@ class Model:
         """
         self.working_directory = directory
 
+
     def load_data(self, file_path, file_type):
         """
         Loads data from the specified file into a pandas DataFrame.
@@ -41,18 +42,15 @@ class Model:
             pd.DataFrame: The loaded data.
         """
         if file_type == 'csv':
-            # Define the chunk size
-            chunk_size = 1000  # You can adjust this size based on your needs and memory limitations
-            
-            # Use a generator expression to read the CSV in chunks
-            self.data_frame = pd.concat(pd.read_csv(file_path, chunksize=chunk_size))
-            
+            # Read the entire CSV file into a DataFrame
+            self.data_frame = pd.read_csv(file_path)
         elif file_type == 'excel':
             self.data_frame = pd.read_excel(file_path)
         else:
             raise ValueError("Unsupported file type")
         
         return self.data_frame  # Return the loaded DataFrame
+    
 
     def save_data(self, data, file_path):
         """
