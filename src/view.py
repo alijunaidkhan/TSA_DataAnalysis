@@ -877,18 +877,13 @@ class View(QMainWindow):
         if column_name and hasattr(self.controller.model, 'data_frame'):
             if column_name in self.controller.model.data_frame.columns:
                 column_data = self.controller.model.data_frame[column_name]
-                
+                # Check if all values in the column are numeric
+                if column_data.apply(lambda x: isinstance(x, (int, float))).all():
+                    return True
+     except Exception as e:
+        print("An error occurred:", e)
+     return False
 
-                for dtype in [int, float]:
-                    try:
-                        column_data.astype(dtype)
-                        return True  # Column is numeric
-                    except ValueError:
-                        continue
-
-            return False  # Column is not present or not numeric
-     except AttributeError:
-        return False  # Model or DataFrame attribute is not present
 
     def onItemCheckStateChanged(self, item_text, is_checked):
     # Handle UI update here

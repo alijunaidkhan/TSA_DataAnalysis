@@ -1,10 +1,11 @@
 # main.py
 import sys
 from PyQt6.QtWidgets import QApplication
-
+from PyQt6.QtGui import QFont
 from controller import Controller
 def main():
     app = QApplication(sys.argv)
+    app.setFont(QFont("Arial", 10))
 
 
     controller = Controller()
