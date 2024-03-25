@@ -481,6 +481,8 @@ class Controller:
                 elif new_dtype == 'Date Time':
                     self.model.data_frame[col_name] = pd.to_datetime(self.model.data_frame[col_name], errors='coerce')
                 print(f"Column {col_name} converted to {new_dtype}.")
+                self.view.display_data(self.model.data_frame)
+                self.update_combobox_items(self.model.data_frame.columns)
             except Exception as e:
                 print(f"Error converting column {col_name} to {new_dtype}: {e}")
 

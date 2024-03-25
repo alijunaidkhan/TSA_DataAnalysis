@@ -976,7 +976,7 @@ class View(QMainWindow):
             self.buttons[label].setToolTip(button_info[label])
             row, col = divmod(i, 2)
             buttons_layout.addWidget(button, row, col)
-        buttons_layout.addWidget(self.subsetTableButton)
+       # buttons_layout.addWidget(self.subsetTableButton)
                 # Subset controls setup
         subset_controls_layout = QHBoxLayout()
         self.label2 = QLabel("Subsets", buttons_widget)
@@ -1006,9 +1006,10 @@ class View(QMainWindow):
         self.subset_button.setObjectName("subsetButton")
         self.subset_button.setFixedHeight(30)
        
-            #self.subset_button.setVisible(False)
-        buttons_layout.addWidget(self.subset_button)
-
+# Add a stretch to push the button to the center
+        buttons_layout.addWidget(self.subset_button, len(button_labels) // 2 + 2, 0, 1, 2)
+        buttons_layout.addWidget(self.subsetTableButton, len(button_labels) // 2 + 3, 0, 1, 2)  # Change the row index
+        buttons_layout.setVerticalSpacing(1)  # Set vertical spacing only once
         buttons_widget.setLayout(buttons_layout)
         central_layout.addWidget(buttons_widget,3)
         #$buttons_layout.addWidget(second_row_layout)
@@ -1061,23 +1062,23 @@ class View(QMainWindow):
         self.copied_data_frame = self.controller.model.data_frame.copy()
 
         self.subsetTableButton.setVisible(True)
-        self.subset_button.setVisible(False)
-        self.subset_controls_widget.setVisible(False)
-        self.comboBox2.setVisible(False)
-        self.label2.setVisible(False)
-        self.unselect_button.setVisible(False)
-        self.subsetCreated = True
+        # self.subset_button.setVisible(False)
+        # self.subset_controls_widget.setVisible(False)
+        # self.comboBox2.setVisible(False)
+        # self.label2.setVisible(False)
+        # self.unselect_button.setVisible(False)
+        # self.subsetCreated = True
         QMessageBox.information(self, "Subset Created", "Your subset has been generated. You can view it using the 'Latest Subset Table' button.")
         
     def resetLayout(self):
     # Reset visibility of widgets
      self.subsetTableButton.setVisible(False)
-     self.subset_button.setVisible(True)
-     self.subset_controls_widget.setVisible(True)
-     self.comboBox2.setVisible(True)
-     self.label2.setVisible(True)
-     self.unselect_button.setVisible(True)
-     self.subsetCreated = False
+    #  self.subset_button.setVisible(True)
+    #  self.subset_controls_widget.setVisible(True)
+    #  self.comboBox2.setVisible(True)
+    #  self.label2.setVisible(True)
+    #  self.unselect_button.setVisible(True)
+    #  self.subsetCreated = False
 
 ###########################################################################################################################################
 """ The lines below are specifically creating the UI elemnents for the Explore Menu: starting with DataInfo dialog, Setindex dialog """
@@ -1272,7 +1273,10 @@ class DataInfoDialog(QDialog):
        # New code to populate the checkable combobox
         self.column_combo.clear()
         for column in data_info['columns']:
-            self.column_combo.addItem(column,True)  # Add column name as both text and data
+            column_data = self.controller.model.data_frame[column]
+            self.column_combo.addItem(column,True,column_data.dtype) 
+           # self.refresh_data_info_tab()  # Refresh data info tab after conversion
+
         self.column_combo.check_first_item_only()
        # Refresh the DataFrame info tab
 
@@ -1291,26 +1295,22 @@ class CheckableComboBox(QComboBox):
                 item.setCheckState(Qt.CheckState.Checked)  # Check the first item
             else:
                 item.setCheckState(Qt.CheckState.Unchecked)  # Uncheck all other items
-
-    def addItem(self, text, is_numeric):
-        """
-        Adds an item to the combo box. If is_numeric is True, the item will be user-checkable and checked by default.
-        
-        :param text: The text of the item to add
-        :param is_numeric: Boolean indicating whether the item is numeric
-        """
-        # print(f"Adding item: {text}, Numeric: {is_numeric}")  # Debug print
-        item = QStandardItem(text)
-        if is_numeric:
-            item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
-            # Set numeric items to be checked by default
-            item.setData(Qt.CheckState.Checked, Qt.ItemDataRole.CheckStateRole)
-        else:
-            # Non-numeric columns are not user-checkable but are still enabled.
-            item.setFlags(Qt.ItemFlag.ItemIsEnabled)
-            item.setData(Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole)  # Ensure consistent data role
-        self.model().appendRow(item)
-
+    def addItem(self, text, is_numeric, dtype=None):
+  
+     if dtype is not None:
+        item_text = f"{text} [{dtype}]"  # Concatenate column name and dtype
+     else:
+        item_text = f"{text}"  # Use only the column name
+     item = QStandardItem(item_text)
+     if is_numeric:
+        item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
+        # Set numeric items to be checked by default
+        item.setData(Qt.CheckState.Checked, Qt.ItemDataRole.CheckStateRole)
+     else:
+        # Non-numeric columns are not user-checkable but are still enabled.
+        item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+        item.setData(Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole)  # Ensure consistent data role
+     self.model().appendRow(item)
 
     def unselect_all(self):
         for index in range(self.model().rowCount()):
@@ -1333,13 +1333,17 @@ class CheckableComboBox(QComboBox):
             if item.flags() & Qt.ItemFlag.ItemIsUserCheckable and item.checkState() == Qt.CheckState.Checked:
                 checked_items.append(item.text())
         return checked_items
-
     def get_checked_items(self):
         checked_items = []
         for index in range(self.model().rowCount()):
             item = self.model().item(index)
             if item.flags() & Qt.ItemFlag.ItemIsUserCheckable and item.checkState() == Qt.CheckState.Checked:
-                checked_items.append(item.text())
+                # If the text contains '[', split to extract only the column name
+                if '[' in item.text():
+                    column_name = item.text().split(' [')[0]
+                else:
+                    column_name = item.text()  # Otherwise, use the whole text as the column name
+                checked_items.append(column_name)
         return checked_items
 
 class SetIndexDialog(QDialog):
@@ -2253,29 +2257,31 @@ class SubsetDialog(QDialog):
     # Create the subset table within the new dialog
         self.createSubsetTable()
         self.populateTable()  # Populate the table with subset data
-        self.parent().generated_subsets = self.tableWidget
-        self.parent().checked_columns=self.column_ranges
+        if  self.subsets:
+         self.parent().generated_subsets = self.tableWidget
+         self.parent().checked_columns=self.column_ranges
         
             # Directly update the main UI with the selected subset
         # self.latest_subset_dialog = LatestSubsetDialog(selected_subset, parent=self)
         # self.latest_subset_dialog.show()
     # Show the subset dialog modally
-        self.subsetDialog.exec()
-        self.parent().subsetGenerated.emit()
+         self.subsetDialog.exec()
+         self.parent().subsetGenerated.emit()
         # In SubsetDialog, after generating subsets
 
-        self.accept()
-        self.generate_subsets_button.setEnabled(False)  # Disable the generation button
-        self.download_zip_button.setEnabled(False) 
+         self.accept()
+         self.generate_subsets_button.setEnabled(False)  # Disable the generation button
+         self.download_zip_button.setEnabled(False) 
 
 
     def populateTable(self):
+         # Check if subsets are populated
+     if not self.subsets:
+        print("No subsets to display.")  # Debug print
+        QMessageBox.information(self, "No Subsets", "No subsets were created based on the given thresholds.")
+        return
      print("Populating table with subsets...")  # Debug print
 
-    # Check if self.subsets is populated
-     if not hasattr(self, 'subsets') or not self.subsets:
-        print("No subsets to display.")  # Debug print
-        return  # Exit if there are no subsets
 
      self.tableWidget.setRowCount(len(self.subsets))
      for i, subset_indices in enumerate(self.subsets):
@@ -2444,6 +2450,7 @@ class LatestSubsetDialog(QDialog):
         self.populateTable()  # Populate the table with subset data
 
     def populateTable(self):
+
         print("Populating table with subsets...")  # Debug print
 
         # Generate subsets using the provided threshold

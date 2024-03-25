@@ -5,7 +5,7 @@ from PyQt6.QtGui import QFont
 from controller import Controller
 def main():
     app = QApplication(sys.argv)
-    app.setFont(QFont("Arial", 10))
+    app.setFont(QFont("Roboto", 10))
 
 
     controller = Controller()
