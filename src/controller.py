@@ -745,7 +745,7 @@ class Controller:
         result = self.model.perform_kpss_test(column_name)
         self.view.unit_root_test_dialog.display_test_result(result)
     def open_resample_dialog(self):
-     icon_path = os.path.abspath('images/resample_icon.svg')
+     icon_path = os.path.abspath('images/resample_icon.ico')
      self.view.setWindowIcon(QIcon(icon_path))
      if self.loaded_file_path:
         dialog = ResampleDialog(self.view)
@@ -767,7 +767,7 @@ class Controller:
      self.view.setWindowIcon(QIcon(icon_path))
     def resample_data(self, freq, agg_method):
         try:
-            icon_path = os.path.abspath('images/resample_icon.svg')
+            icon_path = os.path.abspath('images/resample_icon.ico')
             self.view.setWindowIcon(QIcon(icon_path))
             
             if self.loaded_file_path:
@@ -799,7 +799,7 @@ class Controller:
         else:
             self.view.progressBar.show()
     def save_resampled_data_as_csv(self, freq, agg_method):
-        icon_path = os.path.abspath('images/resample_icon.svg')
+        icon_path = os.path.abspath('images/resample_icon.ico')
         self.view.setWindowIcon(QIcon(icon_path))
         if self.model.data_frame is not None and not self.model.data_frame.empty:
             try:

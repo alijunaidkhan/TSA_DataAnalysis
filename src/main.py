@@ -6,8 +6,6 @@ from controller import Controller
 def main():
     app = QApplication(sys.argv)
     app.setFont(QFont("Roboto", 10))
-
-
     controller = Controller()
     controller.run()
     sys.exit(app.exec())

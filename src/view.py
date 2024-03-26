@@ -141,10 +141,12 @@ import pandas as pd
 import zipfile
 import os
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QFormLayout, QLabel, QLineEdit, QDialogButtonBox, QMessageBox, QApplication
+import sys
 
 os.environ['QT_API'] = 'pyqt6'
 matplotlib.use('QtAgg')
 
+from pmdarima import auto_arima
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from pandas.plotting import lag_plot
@@ -483,7 +485,7 @@ class View(QMainWindow):
     # Check if data is loaded in the model
      if not self.comboBox2.get_checked_items():
         # Display a warning message if no columns are selected
-        icon_path = os.path.abspath('images/subset_icon.svg')
+        icon_path = os.path.abspath('images/subset_icon.ico')
         self.setWindowIcon(QIcon(icon_path))
         QMessageBox.warning(self, "No Columns Selected", "Please select at least one column before proceeding.")
         icon_path = os.path.abspath('images/bulb_icon.png')
@@ -491,7 +493,7 @@ class View(QMainWindow):
         return
      if self.controller.model.data_frame is None:
         # Display a warning message if no data is loaded
-        icon_path = os.path.abspath('images/subset_icon.svg')
+        icon_path = os.path.abspath('images/subset_icon.ico')
         self.setWindowIcon(QIcon(icon_path))
         QMessageBox.warning(self, "Data Not Loaded", "Please load data first before accessing this feature.")
         # Optionally, set a specific icon to indicate the need for action or an error state
@@ -691,19 +693,58 @@ class View(QMainWindow):
         preprocess_menu = menu_bar.addMenu("&Preprocess")
     
     # Create Subset action with an icon and add it to the Preprocess menu
-        subset_icon = QIcon('images/subset_icon.svg')  # Ensure the icon path is correct
+        subset_icon = QIcon('images/subset_icon.ico')  # Ensure the icon path is correct
         subset_action = QAction(subset_icon, "&Subset", self)
         subset_action.triggered.connect(self.openSubsetDialog)  # Connect the action to the method
         preprocess_menu.addAction(subset_action)
 
        # Create Resample action with an icon and add it to the Preprocess menu
-        resample_icon = QIcon('images/resample_icon.svg')  # Ensure the icon path is correct
+        resample_icon = QIcon('images/resample_icon.ico')  # Ensure the icon path is correct
         resample_action = QAction(resample_icon, "&Resample", self)
         resample_action.triggered.connect(self.controller.open_resample_dialog)
         preprocess_menu.addAction(resample_action)
+# Create Model menu
+               # Create Model menu
+        model_menu = self.menuBar().addMenu("&Model")
 
+        # Submenu ARIMA
+        arima_submenu = model_menu.addMenu(QIcon('images/arima_icon.svg'), "&ARIMA")
 
+        # Submenu Grid Search Parameters
+        grid_search_action = QAction("&Grid Search Parameters", self)
+        grid_search_action.setIcon(QIcon('images/grid_search_icon.ico'))  # Replace 'images/grid_search_icon.png' with your icon path
+        grid_search_action.triggered.connect(self.grid_search_parameters)
+        arima_submenu.addAction(grid_search_action)
 
+        # Submenu Model with Parameters
+        model_with_parameters_action = QAction("&Model with Parameters", self)
+        model_with_parameters_action.setIcon(QIcon('images/model_parameters_icon.ico'))  # Replace 'images/model_parameters_icon.png' with your icon path
+        model_with_parameters_action.triggered.connect(self.model_with_parameters)
+        arima_submenu.addAction(model_with_parameters_action)
+
+        # Menu item VAR
+        var_action = QAction("&VAR", self)
+        var_action.setIcon(QIcon('images/var_icon.png'))  # Replace 'images/var_icon.png' with your icon path
+        var_action.triggered.connect(self.var_function)
+        model_menu.addAction(var_action)
+
+        # Menu item VARMA
+        varma_action = QAction("&VARMA", self)
+        varma_action.setIcon(QIcon('images/varma_icon.png'))  # Replace 'images/varma_icon.png' with your icon path
+        varma_action.triggered.connect(self.varma_function)
+        model_menu.addAction(varma_action)
+
+        # Menu item Facebook Prophet
+        prophet_action = QAction("&Facebook Prophet", self)
+        prophet_action.setIcon(QIcon('images/facebook_prophet_icon.png'))  # Replace 'images/facebook_prophet_icon.png' with your icon path
+        prophet_action.triggered.connect(self.facebook_prophect_function)
+        model_menu.addAction(prophet_action)
+    def var_function(self):
+        pass
+    def varma_function(self):
+        pass
+    def facebook_prophect_function(self):
+        pass
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     def create_status_bar(self):
@@ -859,7 +900,20 @@ class View(QMainWindow):
             self.plotting_dialog.update_combobox_items(columns)
   
 
-     
+    def grid_search_parameters(self):
+        if self.controller.model.data_frame is  None:
+         icon_path = os.path.abspath('images/grid_search_icon.ico')
+         self.setWindowIcon(QIcon(icon_path))
+         QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
+         icon_path = os.path.abspath('images/bulb_icon.svg')
+         self.setWindowIcon(QIcon(icon_path))
+         return
+
+        dialog = ArimaConfigDialog(self.controller.model.data_frame, self)
+        dialog.exec()  # Make sure this is .exec() to display the dialog window
+
+    def model_with_parameters(self):
+        pass
     def update_column_combobox(self, logical_index):
      if self.controller.model.data_frame is None:
         return
@@ -2076,7 +2130,7 @@ class ResampleDialog(QDialog):
     def __init__(self, parent=None):
         super(ResampleDialog, self).__init__(parent)
         self.setWindowTitle("Resample Data")
-        self.setWindowIcon(QIcon('images/resample_icon.svg'))  # Adjust icon path as necessary
+        self.setWindowIcon(QIcon('images/resample_icon.ico'))  # Adjust icon path as necessary
         self.setMinimumSize(500, 350)  # Adjusted size to accommodate new controls
 
         layout = QVBoxLayout(self)
@@ -2186,7 +2240,7 @@ class SubsetDisplayDialog(QDialog):
         self.parent().savedSubsets = self.tableWidget # Assume subsets is a list of DataFrame objects or similar
 
         self.setWindowTitle("Subsets Latest Table")
-        icon = QIcon('images/subset_icon.svg')
+        icon = QIcon('images/subset_icon.ico')
         self.setWindowIcon(icon)
         self.setGeometry(100, 100, 400, 300)
         self.populateTable(subsetDataFrame)
@@ -2205,7 +2259,7 @@ class SubsetDialog(QDialog):
         super().__init__(parent)
         self.column_ranges = column_ranges  # Dictionary with column names as keys and (min, max) tuples as values
         self.setWindowTitle("Subsets - Define Column Ranges")
-        icon = QIcon('images/subset_icon.svg')
+        icon = QIcon('images/subset_icon.ico')
         self.setWindowIcon(icon)
         self.setGeometry(100, 100, 400, 300)
         self.dataframe = dataframe  # The pandas DataFrame
@@ -2424,7 +2478,7 @@ class LatestSubsetDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Subset Table")
         self.setGeometry(200, 200, 600, 400)
-        icon_path = os.path.abspath('images/subset_icon.svg')
+        icon_path = os.path.abspath('images/subset_icon.ico')
         self.setWindowIcon(QIcon(icon_path))
         self.threshold = threshold
         self.column_ranges = column_ranges
@@ -2538,3 +2592,289 @@ class LatestSubsetDialog(QDialog):
              self.parent().display_data(subset_dataframe)
              QMessageBox.information(self, "Subset Selected", "The dataset has been updated.")
              self.accept()  # Close the dialog
+    
+class ArimaConfigDialog(QDialog):
+    def __init__(self, dataframe, parent=None):
+        super().__init__(parent)
+        self.dataframe = dataframe
+        self.setWindowTitle("Grid Search Parameters")
+        icon_path = os.path.abspath('images/grid_search_icon.ico')
+        self.setWindowIcon(QIcon(icon_path))
+        self.initUI()
+
+    def initUI(self):
+        self.layout = QVBoxLayout(self)
+        
+        # Column selection and train-test split size configuration
+        columnLayout = QHBoxLayout()
+        self.columnSelectorLabel = QLabel("Select Time Series Column:")
+        self.columnSelector = QComboBox()
+        self.columnSelector.addItems(self.dataframe.columns)
+        self.trainTestSplitLabel = QLabel("Train set size (%):")
+        self.trainTestSplitLineEdit = QLineEdit("80")
+        
+        columnLayout.addWidget(self.columnSelectorLabel)
+        columnLayout.addWidget(self.columnSelector)
+        columnLayout.addWidget(self.trainTestSplitLabel)
+        columnLayout.addWidget(self.trainTestSplitLineEdit)
+        self.layout.addLayout(columnLayout)
+
+        # Model Configuration Method (Manual Input or Grid Search)
+        self.configMethodLayout = QHBoxLayout()
+        self.manualInputRadio = QRadioButton("Manual Input")
+        self.gridSearchRadio = QRadioButton("Grid Search (auto_arima)")
+        self.gridSearchRadio.setChecked(True)
+        
+        self.configMethodLayout.addWidget(self.manualInputRadio)
+        self.configMethodLayout.addWidget(self.gridSearchRadio)
+        self.layout.addLayout(self.configMethodLayout)
+
+        # Manual Input GroupBox
+        self.manualInputGroup = self.createManualInputGroup()
+        
+        # Grid Search GroupBox
+        self.gridSearchGroup = self.createGridSearchGroup()
+
+        # Seasonality Checkbox
+        self.seasonalityCheckBox = QCheckBox("Enable Seasonal Adjustment")
+        
+        # Seasonal Parameters GroupBox
+        self.seasonalParamsGroup = self.createSeasonalParamsGroup()
+        self.seasonalParamsGroup.setEnabled(False)  # Disabled by default
+        
+        # Adding group boxes to layout
+        groupBoxLayout = QHBoxLayout()
+        groupBoxLayout.addWidget(self.manualInputGroup)
+        groupBoxLayout.addWidget(self.gridSearchGroup)
+        self.layout.addLayout(groupBoxLayout)
+        
+        self.layout.addWidget(self.seasonalityCheckBox)
+        self.layout.addWidget(self.seasonalParamsGroup)
+
+        # Initialize QTextEdit for displaying iteration logs and ARIMA model summary
+        self.iterationLogTextEdit = QTextEdit()
+        self.iterationLogTextEdit.setReadOnly(True)
+        self.layout.addWidget(self.iterationLogTextEdit)
+
+        # Run ARIMA Button
+        self.runButton = QPushButton("Find Best Parameters")
+        self.runButton.clicked.connect(self.findBestArimaParameters)
+        self.layout.addWidget(self.runButton)
+        
+        self.manualInputRadio.toggled.connect(self.toggleInputs)
+        self.gridSearchRadio.toggled.connect(self.toggleInputs)
+        self.seasonalityCheckBox.toggled.connect(self.seasonalParamsGroup.setEnabled)
+        
+        self.toggleInputs()
+        self.resize(800, 600)
+
+    def createSeasonalParamsGroup(self):
+        group = QGroupBox("Seasonal Parameters")
+        layout = QGridLayout()
+        
+        # Seasonal ARIMA parameters
+        layout.addWidget(QLabel("start_P:"), 0, 0)
+        self.startPLineEdit = QLineEdit("1")
+        layout.addWidget(self.startPLineEdit, 0, 1)
+
+        layout.addWidget(QLabel("start_Q:"), 1, 0)
+        self.startQLineEdit = QLineEdit("1")
+        layout.addWidget(self.startQLineEdit, 1, 1)
+
+        layout.addWidget(QLabel("max_P:"), 2, 0)
+        self.maxPLineEdit = QLineEdit("2")
+        layout.addWidget(self.maxPLineEdit, 2, 1)
+
+        layout.addWidget(QLabel("max_Q:"), 3, 0)
+        self.maxQLineEdit = QLineEdit("2")
+        layout.addWidget(self.maxQLineEdit, 3, 1)
+
+        layout.addWidget(QLabel("D:"), 4, 0)
+        self.DLineEdit = QLineEdit("1")
+        layout.addWidget(self.DLineEdit, 4, 1)
+
+        layout.addWidget(QLabel("m (Seasonal Period):"), 5, 0)
+        self.mLineEdit = QLineEdit("12")
+        layout.addWidget(self.mLineEdit, 5, 1)
+
+        group.setLayout(layout)
+        return group
+
+    def createSeasonalParamsGroup(self):
+        group = QGroupBox("Seasonal Parameters")
+        layout = QGridLayout()
+        
+        # Seasonal ARIMA parameters
+        layout.addWidget(QLabel("start_P:"), 0, 0)
+        self.startPLineEdit = QLineEdit("1")
+        layout.addWidget(self.startPLineEdit, 0, 1)
+
+        layout.addWidget(QLabel("start_Q:"), 1, 0)
+        self.startQLineEdit = QLineEdit("1")
+        layout.addWidget(self.startQLineEdit, 1, 1)
+
+        layout.addWidget(QLabel("max_P:"), 2, 0)
+        self.maxPLineEdit = QLineEdit("2")
+        layout.addWidget(self.maxPLineEdit, 2, 1)
+
+        layout.addWidget(QLabel("max_Q:"), 3, 0)
+        self.maxQLineEdit = QLineEdit("2")
+        layout.addWidget(self.maxQLineEdit, 3, 1)
+
+        layout.addWidget(QLabel("D:"), 4, 0)
+        self.DLineEdit = QLineEdit("1")
+        layout.addWidget(self.DLineEdit, 4, 1)
+
+        layout.addWidget(QLabel("m (Seasonal Period):"), 5, 0)
+        self.mLineEdit = QLineEdit("12")
+        layout.addWidget(self.mLineEdit, 5, 1)
+
+        group.setLayout(layout)
+        return group
+
+    def createManualInputGroup(self):
+        group = QGroupBox("Manual Input Parameters")
+        layout = QGridLayout()
+        
+        layout.addWidget(QLabel("p:"), 0, 0)
+        self.pLineEdit = QLineEdit()
+        layout.addWidget(self.pLineEdit, 0, 1)
+        
+        layout.addWidget(QLabel("d:"), 1, 0)
+        self.dLineEdit = QLineEdit()
+        layout.addWidget(self.dLineEdit, 1, 1)
+        
+        layout.addWidget(QLabel("q:"), 2, 0)
+        self.qLineEdit = QLineEdit()
+        layout.addWidget(self.qLineEdit, 2, 1)
+        
+        group.setLayout(layout)
+        return group
+
+    def createGridSearchGroup(self):
+        group = QGroupBox("Grid Search Parameters")
+        layout = QGridLayout()
+        
+        layout.addWidget(QLabel("start_p:"), 0, 0)
+        self.startPLineEdit = QLineEdit("1")
+        layout.addWidget(self.startPLineEdit, 0, 1)
+        
+        layout.addWidget(QLabel("start_q:"), 1, 0)
+        self.startQLineEdit = QLineEdit("1")
+        layout.addWidget(self.startQLineEdit, 1, 1)
+        
+        layout.addWidget(QLabel("max_p:"), 2, 0)
+        self.maxPLineEdit = QLineEdit("3")
+        layout.addWidget(self.maxPLineEdit, 2, 1)
+        
+        layout.addWidget(QLabel("max_q:"), 3, 0)
+        self.maxQLineEdit = QLineEdit("3")
+        layout.addWidget(self.maxQLineEdit, 3, 1)
+        
+        layout.addWidget(QLabel("d (None for auto):"), 4, 0)
+        self.dLineEditAuto = QLineEdit("None")
+        layout.addWidget(self.dLineEditAuto, 4, 1)
+        
+        self.traceCheckBox = QCheckBox("Trace")
+        layout.addWidget(self.traceCheckBox, 5, 0, 1, 2)
+        
+        group.setLayout(layout)
+        return group
+
+    def toggleInputs(self):
+        isManual = self.manualInputRadio.isChecked()
+        self.manualInputGroup.setEnabled(isManual)
+        self.gridSearchGroup.setEnabled(not isManual)
+
+
+    def findBestArimaParameters(self):
+        self.iterationLogTextEdit.clear()
+        selected_column = self.columnSelector.currentText()
+        series = self.dataframe[selected_column].dropna()  # Ensuring no NaN values
+        train_size_percent = float(self.trainTestSplitLineEdit.text()) / 100
+        train_size = int(len(series) * train_size_percent)
+        train_series = series[:train_size]
+
+        original_stdout = sys.stdout  # Save the original stdout
+        sys.stdout = EmittingStream(self.iterationLogTextEdit)  # Redirect stdout to QTextEdit
+
+        try:
+            if self.manualInputRadio.isChecked():
+                p = int(self.pLineEdit.text())
+                d = int(self.dLineEdit.text())
+                q = int(self.qLineEdit.text())
+                # Implement ARIMA fitting with specified parameters if manual mode is selected
+                # This is a placeholder for handling manual ARIMA fitting.
+                # You'll need to adapt this part based on how you intend to handle manual fitting.
+                results_text = f"Manually selected ARIMA parameters are:\n(p={p}, d={d}, q={q})."
+                self.iterationLogTextEdit.append("\n\n" + results_text)  # Display manual input results
+            else:
+                # Auto ARIMA fitting with consideration for seasonal parameters
+                self.prepareAndRunAutoArima(train_series)
+        finally:
+            sys.stdout = original_stdout  # Restore original stdout after operation
+
+    def prepareAndRunAutoArima(self, train_series):
+        start_p = int(self.startPLineEdit.text())
+        start_q = int(self.startQLineEdit.text())
+        max_p = int(self.maxPLineEdit.text())
+        max_q = int(self.maxQLineEdit.text())
+        d = None if self.dLineEditAuto.text().lower() == 'none' else int(self.dLineEditAuto.text())
+        trace = self.traceCheckBox.isChecked()
+        
+        # Seasonal parameters
+        if self.seasonalityCheckBox.isChecked():  # Check if seasonal adjustment is enabled
+            start_P = int(self.startPLineEdit.text())
+            start_Q = int(self.startQLineEdit.text())
+            max_P = int(self.maxPLineEdit.text())
+            max_Q = int(self.maxQLineEdit.text())
+            D = int(self.DLineEdit.text())
+            m = int(self.mLineEdit.text())
+        else:
+            start_P = start_Q = max_P = max_Q = D = m = None
+
+        # Fitting the ARIMA model using auto_arima with potential seasonal adjustments
+        try:
+            model = auto_arima(train_series, start_p=start_p, start_q=start_q,
+                            max_p=max_p, max_q=max_q, d=d, trace=trace,
+                            seasonal=self.seasonalityCheckBox.isChecked(), start_P=start_P, 
+                            start_Q=start_Q, max_P=max_P, max_Q=max_Q, D=D, m=m,
+                            error_action='ignore', suppress_warnings=True, stepwise=True)
+            
+            # Displaying the optimal model summary
+            model_summary = model.summary().as_text()
+            self.iterationLogTextEdit.append("\n\nOptimal model summary:\n" + model_summary)
+        except Exception as e:
+            self.iterationLogTextEdit.append(f"\n\nFailed to find optimal parameters due to an error:\n{e}")
+
+
+    def showResultsDialog(self, results_text):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("ARIMA Model Search Results")
+        layout = QVBoxLayout(dialog)
+
+        resultsTextEdit = QTextEdit()
+        resultsTextEdit.setReadOnly(True)
+        resultsTextEdit.setText(results_text)
+        layout.addWidget(resultsTextEdit)
+
+        closeButton = QPushButton("Close")
+        closeButton.clicked.connect(dialog.close)
+        layout.addWidget(closeButton)
+
+        dialog.exec()
+
+class EmittingStream(object):
+    """
+    A custom stream object that redirects writes to a QTextEdit.
+    """
+    def __init__(self, text_widget):
+        self.text_widget = text_widget
+
+    def write(self, text):
+        # Ensure thread-safety when updating the QTextEdit widget
+        QApplication.processEvents()  # Process existing events to avoid freezing the UI
+        self.text_widget.append(text)  # Append text to the QTextEdit
+
+    def flush(self):
+        pass  # Implement flush if needed
