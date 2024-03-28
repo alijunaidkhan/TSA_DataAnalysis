@@ -131,6 +131,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from PyQt6.QtCore import Qt, QUrl,QThread, pyqtSignal,QSize
+from sklearn.model_selection import TimeSeriesSplit, train_test_split
 
 from PyQt6.QtGui import QAction, QIcon,QFont,QColor,QPixmap,QStandardItem, QStandardItemModel, QDesktopServices
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget, QTabWidget, \
@@ -142,6 +143,8 @@ import zipfile
 import os
 from PyQt6.QtWidgets import QDialog, QScrollArea,QVBoxLayout, QFormLayout, QLabel, QLineEdit, QDialogButtonBox, QMessageBox, QApplication
 import sys
+
+from sklearn.metrics import mean_squared_error
 
 os.environ['QT_API'] = 'pyqt6'
 matplotlib.use('QtAgg')
@@ -913,7 +916,16 @@ class View(QMainWindow):
         dialog.exec()  # Make sure this is .exec() to display the dialog window
 
     def model_with_parameters(self):
-        pass
+        if self.controller.model.data_frame is  None:
+         icon_path = os.path.abspath('images/model_parameters_icon.ico')
+         self.setWindowIcon(QIcon(icon_path))
+         QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
+         icon_path = os.path.abspath('images/bulb_icon.png')
+         self.setWindowIcon(QIcon(icon_path))
+         return
+
+        dialog = ModelWithParameter(self.controller.model.data_frame, self)
+        dialog.exec()  #
     def update_column_combobox(self, logical_index):
      if self.controller.model.data_frame is None:
         return
@@ -2666,62 +2678,69 @@ class ArimaConfigDialog(QDialog):
         self.resize(800, 600)  # Set initial size
         self.setMinimumWidth(600)  # Set minimum width
         self.setMinimumHeight(400)  # Set minimum height
+
     def create_non_seasonal_group(self):
+        self.startPLineEdit = self.create_combobox_with_range(0, 5)
+        self.maxPLineEdit = self.create_combobox_with_range(0, 5)
+        self.dLineEdit = self.create_combobox_with_range(0, 2)
+        self.maxDLineEdit = self.create_combobox_with_range(0, 2)
+        self.startQLineEdit = self.create_combobox_with_range(0, 5)
+        self.maxQLineEdit = self.create_combobox_with_range(0, 5)
+
         group = QGroupBox("Non-Seasonal Parameters")
         layout = QGridLayout()
 
-        params = [
-            ("Start p:", "Max p:", 0, 5),
-            ("d:", "Max d:", 0, 2),
-            ("Start q:", "Max q:", 0, 5),
-        ]
+        layout.addWidget(QLabel("Start p:"), 0, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.startPLineEdit, 0, 1)
+        layout.addWidget(QLabel("Max p:"), 0, 2, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.maxPLineEdit, 0, 3)
 
-        for i, (start_label, max_label, start, end) in enumerate(params):
-            label = QLabel(start_label)
-            layout.addWidget(label, i, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(QLabel("d:"), 1, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.dLineEdit, 1, 1)
+        layout.addWidget(QLabel("Max d:"), 1, 2, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.maxDLineEdit, 1, 3)
 
-            combobox = self.create_combobox_with_range(start, end)
-            layout.addWidget(combobox, i, 1)
-
-            label_max = QLabel(max_label)
-            layout.addWidget(label_max, i, 2, Qt.AlignmentFlag.AlignRight)
-
-            combobox_max = self.create_combobox_with_range(start, end)
-            layout.addWidget(combobox_max, i, 3)
-
+        layout.addWidget(QLabel("Start q:"), 2, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.startQLineEdit, 2, 1)
+        layout.addWidget(QLabel("Max q:"), 2, 2, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.maxQLineEdit, 2, 3)
+        self.traceCheckBox = QCheckBox("Trace")
+        layout.addWidget(self.traceCheckBox, 5, 0, 1, 2)
         group.setLayout(layout)
         return group
 
     def create_seasonal_group(self):
+        self.startPSeasonalLineEdit = self.create_combobox_with_range(0, 2)
+        self.maxPSeasonalLineEdit = self.create_combobox_with_range(0, 2)
+        self.dSeasonalLineEdit = self.create_combobox_with_range(0, 1)
+        self.maxDSeasonalLineEdit = self.create_combobox_with_range(0, 1)
+        self.startQSeasonalLineEdit = self.create_combobox_with_range(0, 2)
+        self.maxQSeasonalLineEdit = self.create_combobox_with_range(0, 2)
+        self.mLineEdit = self.create_combobox_with_range(1, 12)
+
         group = QGroupBox("Seasonal Parameters")
         layout = QGridLayout()
 
-        seasonal_params = [
-            ("Start P:", "Max P:", 0, 2),
-            ("D:", "Max D:", 0, 1),
-            ("Start Q:", "Max Q:", 0, 2),
-            ("Seasonal Period (m):", None, 1, 12),
-        ]
+        layout.addWidget(QLabel("Start P:"), 0, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.startPSeasonalLineEdit, 0, 1)
+        layout.addWidget(QLabel("Max P:"), 0, 2, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.maxPSeasonalLineEdit, 0, 3)
 
-        for i, (label_text, max_label_text, start, end) in enumerate(seasonal_params, start=1):
-            label = QLabel(label_text)
-            layout.addWidget(label, i, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(QLabel("D:"), 1, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.dSeasonalLineEdit, 1, 1)
+        layout.addWidget(QLabel("Max D:"), 1, 2, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.maxDSeasonalLineEdit, 1, 3)
 
-            combobox = self.create_combobox_with_range(start, end)
-            layout.addWidget(combobox, i, 1)
+        layout.addWidget(QLabel("Start Q:"), 2, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.startQSeasonalLineEdit, 2, 1)
+        layout.addWidget(QLabel("Max Q:"), 2, 2, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.maxQSeasonalLineEdit, 2, 3)
 
-            if max_label_text:
-                label_max = QLabel(max_label_text)
-                layout.addWidget(label_max, i, 2, Qt.AlignmentFlag.AlignRight)
-
-                combobox_max = self.create_combobox_with_range(start, end)
-                layout.addWidget(combobox_max, i, 3)
-            else:
-                layout.addWidget(combobox, i, 1, 1, 3)
+        layout.addWidget(QLabel("Seasonal Period (m):"), 3, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.mLineEdit, 3, 1)
 
         group.setLayout(layout)
         return group
-
  
     def create_additional_options_group(self):
         group = QGroupBox("Additional Parameters")
@@ -2730,7 +2749,6 @@ class ArimaConfigDialog(QDialog):
         checkboxes_layout = QHBoxLayout()
         checkboxes_layout.addWidget(self.create_checkbox("Stepwise", True))
         checkboxes_layout.addWidget(self.create_checkbox("Suppress Warnings", True))
-        checkboxes_layout.addWidget(self.create_checkbox("Trace", False))
         checkboxes_layout.addWidget(self.create_checkbox("Random Search", False))
         checkboxes_layout.addWidget(self.create_checkbox("Return Valid Fits", False))
         layout.addLayout(checkboxes_layout)
@@ -2781,16 +2799,18 @@ class ArimaConfigDialog(QDialog):
         combobox.setMinimumWidth(100)  # Set minimum width
 
         return combobox
-
     def check_numeric_input(self, text):
-        try:
-            # Attempt to convert the entered text to a numeric value
-            float(text)  # Try to convert to float
-            if(text==" "):
-                return
-        except ValueError:
-            # If conversion fails, display an error message
-            QMessageBox.critical(self, "Error", "Please enter a valid numeric value.")
+     if text.strip() == "":
+        # If the entered text is empty, do nothing
+        return
+
+     try:
+        # Attempt to convert the entered text to a numeric value
+        float(text)  # Try to convert to float
+
+     except ValueError:
+        # If conversion fails, display an error message
+        QMessageBox.critical(self, "Error", "Please enter a valid numeric value.")
 
     def create_dropdown(self, options):
         dropdown = QComboBox()
@@ -2810,133 +2830,68 @@ class ArimaConfigDialog(QDialog):
         checkbox.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         return checkbox
-    def createManualInputGroup(self):
-        group = QGroupBox("Manual Input Parameters")
-        layout = QGridLayout()
-        
-        layout.addWidget(QLabel("p:"), 0, 0)
-        self.pLineEdit = QLineEdit()
-        layout.addWidget(self.pLineEdit, 0, 1)
-        
-        layout.addWidget(QLabel("d:"), 1, 0)
-        self.dLineEdit = QLineEdit()
-        layout.addWidget(self.dLineEdit, 1, 1)
-        
-        layout.addWidget(QLabel("q:"), 2, 0)
-        self.qLineEdit = QLineEdit()
-        layout.addWidget(self.qLineEdit, 2, 1)
-        
-        group.setLayout(layout)
-        return group
-
-    def createGridSearchGroup(self):
-        group = QGroupBox("Grid Search Parameters")
-        layout = QGridLayout()
-        
-        layout.addWidget(QLabel("start_p:"), 0, 0)
-        self.startPLineEdit = QLineEdit("1")
-        layout.addWidget(self.startPLineEdit, 0, 1)
-        
-        layout.addWidget(QLabel("start_q:"), 1, 0)
-        self.startQLineEdit = QLineEdit("1")
-        layout.addWidget(self.startQLineEdit, 1, 1)
-        
-        layout.addWidget(QLabel("max_p:"), 2, 0)
-        self.maxPLineEdit = QLineEdit("3")
-        layout.addWidget(self.maxPLineEdit, 2, 1)
-        
-        layout.addWidget(QLabel("max_q:"), 3, 0)
-        self.maxQLineEdit = QLineEdit("3")
-        layout.addWidget(self.maxQLineEdit, 3, 1)
-        
-        layout.addWidget(QLabel("d (None for auto):"), 4, 0)
-        self.dLineEditAuto = QLineEdit("None")
-        layout.addWidget(self.dLineEditAuto, 4, 1)
-        
-        self.traceCheckBox = QCheckBox("Trace")
-        layout.addWidget(self.traceCheckBox, 5, 0, 1, 2)
-        
-        group.setLayout(layout)
-        return group
-
-    def createSeasonalParamsGroup(self):
-        group = QGroupBox("Seasonal Parameters")
-        layout = QGridLayout()
-        
-        layout.addWidget(QLabel("start_P:"), 0, 0)
-        self.startPLineEdit = QLineEdit("1")
-        layout.addWidget(self.startPLineEdit, 0, 1)
-
-        layout.addWidget(QLabel("start_Q:"), 1, 0)
-        self.startQLineEdit = QLineEdit("1")
-        layout.addWidget(self.startQLineEdit, 1, 1)
-
-        layout.addWidget(QLabel("max_P:"), 2, 0)
-        self.maxPLineEdit = QLineEdit("2")
-        layout.addWidget(self.maxPLineEdit, 2, 1)
-
-        layout.addWidget(QLabel("max_Q:"), 3, 0)
-        self.maxQLineEdit = QLineEdit("2")
-        layout.addWidget(self.maxQLineEdit, 3, 1)
-
-        layout.addWidget(QLabel("D:"), 4, 0)
-        self.DLineEdit = QLineEdit("1")
-        layout.addWidget(self.DLineEdit, 4, 1)
-
-        layout.addWidget(QLabel("m (Seasonal Period):"), 5, 0)
-        self.mLineEdit = QLineEdit("12")
-        layout.addWidget(self.mLineEdit, 5, 1)
-
-        group.setLayout(layout)
-        return group
-
     def findBestArimaParameters(self):
         self.iterationLogTextEdit.clear()
         selected_column = self.columnSelector.currentText()
         series = self.dataframe[selected_column].dropna()
-        train_size_percent = float(self.trainTestSplitLineEdit.text()) / 100
-        train_size = int(len(series) * train_size_percent)
-        train_series = series[:train_size]
+
+        # Convert percentage to the actual size of the test set
+        test_size_percent = float(self.trainTestSplitLineEdit.text()) / 100
+        test_size = int(len(series) * test_size_percent)
+
+        # Split data into train and test sets
+        train_series, test_series = series[:-test_size], series[-test_size:]
+
+        # Convert the series to have a DateTime index
+        train_series.index = pd.date_range(start='2000-01-01', periods=len(train_series))
+        test_series.index = pd.date_range(start='2000-01-01', periods=len(test_series))
 
         original_stdout = sys.stdout
         sys.stdout = EmittingStream(self.iterationLogTextEdit)
 
         try:
-
-            self.prepareAndRunAutoArima(train_series)
+            self.prepareAndRunAutoArima(train_series, test_series)
         finally:
             sys.stdout = original_stdout
 
-    def prepareAndRunAutoArima(self, train_series):
-        start_p = int(self.startPLineEdit.text())
-        start_q = int(self.startQLineEdit.text())
-        max_p = int(self.maxPLineEdit.text())
-        max_q = int(self.maxQLineEdit.text())
-        d = None if self.dLineEditAuto.text().lower() == 'none' else int(self.dLineEditAuto.text())
+    def prepareAndRunAutoArima(self, train_series, test_series):
+        start_p = int(self.startPLineEdit.currentText())
+        start_q = int(self.startQLineEdit.currentText())
+        max_p = int(self.maxPLineEdit.currentText())
+        max_q = int(self.maxQLineEdit.currentText())
+        d_text = self.dLineEdit.currentText()
+        d = None if d_text.lower() == 'none' else int(d_text)
         trace = self.traceCheckBox.isChecked()
-        
+
         if self.seasonal_collapsible.isChecked():
-            start_P = int(self.startPLineEdit.text())
-            start_Q = int(self.startQLineEdit.text())
-            max_P = int(self.maxPLineEdit.text())
-            max_Q = int(self.maxQLineEdit.text())
-            D = int(self.DLineEdit.text())
-            m = int(self.mLineEdit.text())
+            start_P = int(self.startPSeasonalLineEdit.currentText())
+            start_Q = int(self.startQSeasonalLineEdit.currentText())
+            max_P = int(self.maxPSeasonalLineEdit.currentText())
+            max_Q = int(self.maxQSeasonalLineEdit.currentText())
+            D = int(self.dSeasonalLineEdit.currentText())
+            m = int(self.mLineEdit.currentText())
         else:
             start_P = start_Q = max_P = max_Q = D = m = None
 
         try:
+            # Fit auto ARIMA model
             model = auto_arima(train_series, start_p=start_p, start_q=start_q,
-                            max_p=max_p, max_q=max_q, d=d, trace=trace,
-                            seasonal=self.seasonal_collapsible.isChecked(), start_P=start_P, 
-                            start_Q=start_Q, max_P=max_P, max_Q=max_Q, D=D, m=m,
-                            error_action='ignore', suppress_warnings=True, stepwise=True)
-            
+                               max_p=max_p, max_q=max_q, d=d, trace=trace,
+                               seasonal=self.seasonal_collapsible.isChecked(), start_P=start_P,
+                               start_Q=start_Q, max_P=max_P, max_Q=max_Q, D=D, m=m,
+                               error_action='ignore', suppress_warnings=True, stepwise=True)
+
+            # Print model summary
             model_summary = model.summary().as_text()
             self.iterationLogTextEdit.append("\n\nOptimal model summary:\n" + model_summary)
+
+            # Evaluate model
+            forecast = model.predict(len(test_series))
+            mse = mean_squared_error(test_series, forecast)
+            self.iterationLogTextEdit.append(f"\nMean Squared Error (MSE): {mse}")
+
         except Exception as e:
             self.iterationLogTextEdit.append(f"\n\nFailed to find optimal parameters due to an error:\n{e}")
-
 class EmittingStream(object):
     def __init__(self, text_widget):
         self.text_widget = text_widget
@@ -2975,5 +2930,83 @@ class CollapsibleSection(QGroupBox):
             self.layout().setSpacing(5)
         else:
             self.layout().setSpacing(20)
+
+class ModelWithParameter(QDialog):
+    def __init__(self, dataframe, parent=None):
+        super().__init__(parent)
+        self.dataframe = dataframe
+        self.setWindowTitle("Model With Parameters")
+        self.initUI()
+
+    def initUI(self):
+        self.layout = QVBoxLayout(self)
+        
+        # Column selection and train-test split size configuration
+        columnLayout = QHBoxLayout()
+        self.columnSelectorLabel = QLabel("Select Time Series Column:")
+        self.columnSelector = QComboBox()
+        self.columnSelector.addItems(self.dataframe.columns)
+        self.trainTestSplitLabel = QLabel("Train set size (%):")
+        self.trainTestSplitLineEdit = QLineEdit("80")
+        
+        columnLayout.addWidget(self.columnSelectorLabel)
+        columnLayout.addWidget(self.columnSelector)
+        columnLayout.addWidget(self.trainTestSplitLabel)
+        columnLayout.addWidget(self.trainTestSplitLineEdit)
+        self.layout.addLayout(columnLayout)
+
+        # Manual Input GroupBox
+        self.manualInputGroup = self.createManualInputGroup()
+
+        # Adding group boxes to layout
+        self.layout.addWidget(self.manualInputGroup)
+
+        # Initialize QTextEdit for displaying iteration logs and ARIMA model summary
+        self.iterationLogTextEdit = QTextEdit()
+        self.iterationLogTextEdit.setReadOnly(True)
+        self.layout.addWidget(self.iterationLogTextEdit)
+
+        # Run ARIMA Button
+        self.runButton = QPushButton("Set Parameters")
+        self.runButton.clicked.connect(self.findBestArimaParameters)
+        self.layout.addWidget(self.runButton)
+
+        self.resize(800, 600)
+
+    def createManualInputGroup(self):
+        group = QGroupBox("Manual Input Parameters")
+        layout = QVBoxLayout()
+
+        layout.addWidget(QLabel("p:"))
+        self.pLineEdit = QLineEdit()
+        layout.addWidget(self.pLineEdit)
+        
+        layout.addWidget(QLabel("d:"))
+        self.dLineEdit = QLineEdit()
+        layout.addWidget(self.dLineEdit)
+        
+        layout.addWidget(QLabel("q:"))
+        self.qLineEdit = QLineEdit()
+        layout.addWidget(self.qLineEdit)
+        
+        group.setLayout(layout)
+        return group
+
+    def findBestArimaParameters(self):
+        self.iterationLogTextEdit.clear()
+        selected_column = self.columnSelector.currentText()
+        series = self.dataframe[selected_column].dropna()  # Ensuring no NaN values
+        train_size_percent = float(self.trainTestSplitLineEdit.text()) / 100
+        train_size = int(len(series) * train_size_percent)
+        train_series = series[:train_size]
+
+        try:
+            p = int(self.pLineEdit.text())
+            d = int(self.dLineEdit.text())
+            q = int(self.qLineEdit.text())
+            results_text = f"Manually selected ARIMA parameters are:\n(p={p}, d={d}, q={q})."
+            self.iterationLogTextEdit.append("\n\n" + results_text)  # Display manual input results
+        except Exception as e:
+            self.iterationLogTextEdit.append(f"\n\nFailed to find optimal parameters due to an error:\n{e}")
 
 
