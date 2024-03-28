@@ -130,7 +130,7 @@ import matplotlib
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
-from PyQt6.QtCore import Qt, QUrl,QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QUrl,QThread, pyqtSignal,QSize
 
 from PyQt6.QtGui import QAction, QIcon,QFont,QColor,QPixmap,QStandardItem, QStandardItemModel, QDesktopServices
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget, QTabWidget, \
@@ -140,7 +140,7 @@ import numpy as np
 import pandas as pd
 import zipfile
 import os
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QFormLayout, QLabel, QLineEdit, QDialogButtonBox, QMessageBox, QApplication
+from PyQt6.QtWidgets import QDialog, QScrollArea,QVBoxLayout, QFormLayout, QLabel, QLineEdit, QDialogButtonBox, QMessageBox, QApplication
 import sys
 
 os.environ['QT_API'] = 'pyqt6'
@@ -711,7 +711,7 @@ class View(QMainWindow):
         arima_submenu = model_menu.addMenu(QIcon('images/arima_icon.svg'), "&ARIMA")
 
         # Submenu Grid Search Parameters
-        grid_search_action = QAction("&Grid Search Parameters", self)
+        grid_search_action = QAction("&One Stop Shop", self)
         grid_search_action.setIcon(QIcon('images/grid_search_icon.ico'))  # Replace 'images/grid_search_icon.png' with your icon path
         grid_search_action.triggered.connect(self.grid_search_parameters)
         arima_submenu.addAction(grid_search_action)
@@ -905,7 +905,7 @@ class View(QMainWindow):
          icon_path = os.path.abspath('images/grid_search_icon.ico')
          self.setWindowIcon(QIcon(icon_path))
          QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
-         icon_path = os.path.abspath('images/bulb_icon.svg')
+         icon_path = os.path.abspath('images/bulb_icon.png')
          self.setWindowIcon(QIcon(icon_path))
          return
 
@@ -2592,146 +2592,224 @@ class LatestSubsetDialog(QDialog):
              self.parent().display_data(subset_dataframe)
              QMessageBox.information(self, "Subset Selected", "The dataset has been updated.")
              self.accept()  # Close the dialog
-    
+
+
+
 class ArimaConfigDialog(QDialog):
     def __init__(self, dataframe, parent=None):
         super().__init__(parent)
         self.dataframe = dataframe
-        self.setWindowTitle("Grid Search Parameters")
-        icon_path = os.path.abspath('images/grid_search_icon.ico')
-        self.setWindowIcon(QIcon(icon_path))
+        self.setWindowTitle("One Stop Search")
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
+                            Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
+                            Qt.WindowType.CustomizeWindowHint)  # Add min/max window option
+
         self.initUI()
 
     def initUI(self):
-        self.layout = QVBoxLayout(self)
-        
-        # Column selection and train-test split size configuration
-        columnLayout = QHBoxLayout()
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(20, 20, 20, 20)  # Add padding around the main layout
+
+        icon_path = os.path.abspath('images/grid_search_icon.ico')
+        self.setWindowIcon(QIcon(icon_path))
+
         self.columnSelectorLabel = QLabel("Select Time Series Column:")
         self.columnSelector = QComboBox()
         self.columnSelector.addItems(self.dataframe.columns)
+
         self.trainTestSplitLabel = QLabel("Train set size (%):")
         self.trainTestSplitLineEdit = QLineEdit("80")
-        
-        columnLayout.addWidget(self.columnSelectorLabel)
-        columnLayout.addWidget(self.columnSelector)
-        columnLayout.addWidget(self.trainTestSplitLabel)
-        columnLayout.addWidget(self.trainTestSplitLineEdit)
-        self.layout.addLayout(columnLayout)
 
-        # Model Configuration Method (Manual Input or Grid Search)
-        self.configMethodLayout = QHBoxLayout()
-        self.manualInputRadio = QRadioButton("Manual Input")
-        self.gridSearchRadio = QRadioButton("Grid Search (auto_arima)")
-        self.gridSearchRadio.setChecked(True)
-        
-        self.configMethodLayout.addWidget(self.manualInputRadio)
-        self.configMethodLayout.addWidget(self.gridSearchRadio)
-        self.layout.addLayout(self.configMethodLayout)
+        self.non_seasonal_group = self.create_non_seasonal_group()
+        self.seasonal_group = self.create_seasonal_group()
 
-        # Manual Input GroupBox
-        self.manualInputGroup = self.createManualInputGroup()
-        
-        # Grid Search GroupBox
-        self.gridSearchGroup = self.createGridSearchGroup()
+        self.non_seasonal_collapsible = CollapsibleSection("Non-Seasonal Decomposition")
+        self.non_seasonal_collapsible.content_layout.addWidget(self.non_seasonal_group)
 
-        # Seasonality Checkbox
-        self.seasonalityCheckBox = QCheckBox("Enable Seasonal Adjustment")
-        
-        # Seasonal Parameters GroupBox
-        self.seasonalParamsGroup = self.createSeasonalParamsGroup()
-        self.seasonalParamsGroup.setEnabled(False)  # Disabled by default
-        
-        # Adding group boxes to layout
-        groupBoxLayout = QHBoxLayout()
-        groupBoxLayout.addWidget(self.manualInputGroup)
-        groupBoxLayout.addWidget(self.gridSearchGroup)
-        self.layout.addLayout(groupBoxLayout)
-        
-        self.layout.addWidget(self.seasonalityCheckBox)
-        self.layout.addWidget(self.seasonalParamsGroup)
+        self.seasonal_collapsible = CollapsibleSection("Seasonal Decomposition")
+        self.seasonal_collapsible.content_layout.addWidget(self.seasonal_group)
+        self.seasonal_collapsible.setChecked(False)
 
-        # Initialize QTextEdit for displaying iteration logs and ARIMA model summary
+        self.additional_options_group = self.create_additional_options_group()
+        self.additional_options_collapsible = CollapsibleSection("Additional Options")
+        self.additional_options_collapsible.content_layout.addWidget(self.additional_options_group)
+        self.additional_options_collapsible.setChecked(False)
+
         self.iterationLogTextEdit = QTextEdit()
         self.iterationLogTextEdit.setReadOnly(True)
-        self.layout.addWidget(self.iterationLogTextEdit)
 
-        # Run ARIMA Button
         self.runButton = QPushButton("Find Best Parameters")
         self.runButton.clicked.connect(self.findBestArimaParameters)
-        self.layout.addWidget(self.runButton)
-        
-        self.manualInputRadio.toggled.connect(self.toggleInputs)
-        self.gridSearchRadio.toggled.connect(self.toggleInputs)
-        self.seasonalityCheckBox.toggled.connect(self.seasonalParamsGroup.setEnabled)
-        
-        self.toggleInputs()
-        self.resize(800, 600)
 
-    def createSeasonalParamsGroup(self):
-        group = QGroupBox("Seasonal Parameters")
+        # Add widgets to the layout
+        self.main_layout.addWidget(self.columnSelectorLabel)
+        self.main_layout.addWidget(self.columnSelector)
+        self.main_layout.addWidget(self.trainTestSplitLabel)
+        self.main_layout.addWidget(self.trainTestSplitLineEdit)
+        self.main_layout.addWidget(self.non_seasonal_collapsible)
+        self.main_layout.addWidget(self.seasonal_collapsible)
+        self.main_layout.addWidget(self.additional_options_collapsible)
+        self.main_layout.addWidget(self.iterationLogTextEdit)
+        self.main_layout.addWidget(self.runButton)
+
+        # Set main layout to a scrollable area
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        content_widget = QWidget()
+        content_widget.setLayout(self.main_layout)
+        scroll_area.setWidget(content_widget)
+
+        self.setLayout(QVBoxLayout())
+        self.layout().addWidget(scroll_area)
+        # Adjust window size
+        self.resize(800, 600)  # Set initial size
+        self.setMinimumWidth(600)  # Set minimum width
+        self.setMinimumHeight(400)  # Set minimum height
+    def create_non_seasonal_group(self):
+        group = QGroupBox("Non-Seasonal Parameters")
         layout = QGridLayout()
-        
-        # Seasonal ARIMA parameters
-        layout.addWidget(QLabel("start_P:"), 0, 0)
-        self.startPLineEdit = QLineEdit("1")
-        layout.addWidget(self.startPLineEdit, 0, 1)
 
-        layout.addWidget(QLabel("start_Q:"), 1, 0)
-        self.startQLineEdit = QLineEdit("1")
-        layout.addWidget(self.startQLineEdit, 1, 1)
+        params = [
+            ("Start p:", "Max p:", 0, 5),
+            ("d:", "Max d:", 0, 2),
+            ("Start q:", "Max q:", 0, 5),
+        ]
 
-        layout.addWidget(QLabel("max_P:"), 2, 0)
-        self.maxPLineEdit = QLineEdit("2")
-        layout.addWidget(self.maxPLineEdit, 2, 1)
+        for i, (start_label, max_label, start, end) in enumerate(params):
+            label = QLabel(start_label)
+            layout.addWidget(label, i, 0, Qt.AlignmentFlag.AlignRight)
 
-        layout.addWidget(QLabel("max_Q:"), 3, 0)
-        self.maxQLineEdit = QLineEdit("2")
-        layout.addWidget(self.maxQLineEdit, 3, 1)
+            combobox = self.create_combobox_with_range(start, end)
+            layout.addWidget(combobox, i, 1)
 
-        layout.addWidget(QLabel("D:"), 4, 0)
-        self.DLineEdit = QLineEdit("1")
-        layout.addWidget(self.DLineEdit, 4, 1)
+            label_max = QLabel(max_label)
+            layout.addWidget(label_max, i, 2, Qt.AlignmentFlag.AlignRight)
 
-        layout.addWidget(QLabel("m (Seasonal Period):"), 5, 0)
-        self.mLineEdit = QLineEdit("12")
-        layout.addWidget(self.mLineEdit, 5, 1)
+            combobox_max = self.create_combobox_with_range(start, end)
+            layout.addWidget(combobox_max, i, 3)
 
         group.setLayout(layout)
         return group
 
-    def createSeasonalParamsGroup(self):
+    def create_seasonal_group(self):
         group = QGroupBox("Seasonal Parameters")
         layout = QGridLayout()
-        
-        # Seasonal ARIMA parameters
-        layout.addWidget(QLabel("start_P:"), 0, 0)
-        self.startPLineEdit = QLineEdit("1")
-        layout.addWidget(self.startPLineEdit, 0, 1)
 
-        layout.addWidget(QLabel("start_Q:"), 1, 0)
-        self.startQLineEdit = QLineEdit("1")
-        layout.addWidget(self.startQLineEdit, 1, 1)
+        seasonal_params = [
+            ("Start P:", "Max P:", 0, 2),
+            ("D:", "Max D:", 0, 1),
+            ("Start Q:", "Max Q:", 0, 2),
+            ("Seasonal Period (m):", None, 1, 12),
+        ]
 
-        layout.addWidget(QLabel("max_P:"), 2, 0)
-        self.maxPLineEdit = QLineEdit("2")
-        layout.addWidget(self.maxPLineEdit, 2, 1)
+        for i, (label_text, max_label_text, start, end) in enumerate(seasonal_params, start=1):
+            label = QLabel(label_text)
+            layout.addWidget(label, i, 0, Qt.AlignmentFlag.AlignRight)
 
-        layout.addWidget(QLabel("max_Q:"), 3, 0)
-        self.maxQLineEdit = QLineEdit("2")
-        layout.addWidget(self.maxQLineEdit, 3, 1)
+            combobox = self.create_combobox_with_range(start, end)
+            layout.addWidget(combobox, i, 1)
 
-        layout.addWidget(QLabel("D:"), 4, 0)
-        self.DLineEdit = QLineEdit("1")
-        layout.addWidget(self.DLineEdit, 4, 1)
+            if max_label_text:
+                label_max = QLabel(max_label_text)
+                layout.addWidget(label_max, i, 2, Qt.AlignmentFlag.AlignRight)
 
-        layout.addWidget(QLabel("m (Seasonal Period):"), 5, 0)
-        self.mLineEdit = QLineEdit("12")
-        layout.addWidget(self.mLineEdit, 5, 1)
+                combobox_max = self.create_combobox_with_range(start, end)
+                layout.addWidget(combobox_max, i, 3)
+            else:
+                layout.addWidget(combobox, i, 1, 1, 3)
 
         group.setLayout(layout)
         return group
 
+ 
+    def create_additional_options_group(self):
+        group = QGroupBox("Additional Parameters")
+        layout = QVBoxLayout()
+
+        checkboxes_layout = QHBoxLayout()
+        checkboxes_layout.addWidget(self.create_checkbox("Stepwise", True))
+        checkboxes_layout.addWidget(self.create_checkbox("Suppress Warnings", True))
+        checkboxes_layout.addWidget(self.create_checkbox("Trace", False))
+        checkboxes_layout.addWidget(self.create_checkbox("Random Search", False))
+        checkboxes_layout.addWidget(self.create_checkbox("Return Valid Fits", False))
+        layout.addLayout(checkboxes_layout)
+        layout.addSpacing(5)  # Adjusted margin
+
+        grid_layout = QGridLayout()
+
+        parameters = [
+            ("Max Order:", self.create_combobox_with_range(1, 10)),
+            ("Information Criterion:", self.create_dropdown(['aic', 'bic', 'hqic', 'oob'])),
+            ("Alpha:", QLineEdit("0.05")),
+            ("Test:", self.create_dropdown(['kpss', 'adf', 'pp'])),
+            ("Seasonal Test:", self.create_dropdown(['ocsb', 'ch'])),
+            ("N Jobs:", self.create_dropdown([str(i) for i in range(1, 5)])),
+            ("Method:", self.create_dropdown(['lbfgs', 'newton', 'nm', 'bfgs', 'cg', 'ncg', 'powell', 'basinhopping'])),
+            ("Max Iter:", self.create_combobox_with_range(50, 500)),
+            ("Error Action:", self.create_dropdown(['warn', 'raise', 'ignore', 'trace'])),
+            ("Random State:", QLineEdit("None")),
+            ("N Fits:", self.create_combobox_with_range(10, 100)),
+            ("Out of Sample Size:", QLineEdit("0")),
+            ("Scoring:", self.create_dropdown(['mse', 'mae'])),
+            ("With Intercept:", self.create_dropdown(['auto', 'True', 'False'])),
+        ]
+
+        for i, (label, widget) in enumerate(parameters):
+            if i < 7:  # First column for non-seasonal parameters
+                grid_layout.addWidget(QLabel(label), i, 0, 1, 1, Qt.AlignmentFlag.AlignRight)
+                grid_layout.addWidget(widget, i, 1, 1, 1)
+            else:  # Second column for seasonal parameters
+                grid_layout.addWidget(QLabel(label), i - 7, 2, 1, 1, Qt.AlignmentFlag.AlignLeft)
+                grid_layout.addWidget(widget, i - 7, 3, 1, 1)
+
+        layout.addLayout(grid_layout)
+        group.setLayout(layout)
+        return group
+ 
+    def create_combobox_with_range(self, start, end):
+        combobox = QComboBox()
+        combobox.setEditable(True)
+        for i in range(start, end + 1):
+            combobox.addItem(str(i))
+
+        # Connect the currentTextChanged signal to the custom slot
+        combobox.currentTextChanged.connect(self.check_numeric_input)
+
+        # Set size policy to expand horizontally and have a fixed vertical size
+        combobox.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        combobox.setMinimumWidth(100)  # Set minimum width
+
+        return combobox
+
+    def check_numeric_input(self, text):
+        try:
+            # Attempt to convert the entered text to a numeric value
+            float(text)  # Try to convert to float
+            if(text==" "):
+                return
+        except ValueError:
+            # If conversion fails, display an error message
+            QMessageBox.critical(self, "Error", "Please enter a valid numeric value.")
+
+    def create_dropdown(self, options):
+        dropdown = QComboBox()
+        dropdown.addItems(options)
+
+        # Set size policy to expand horizontally and have a fixed vertical size
+        dropdown.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        dropdown.setMinimumWidth(100)  # Set minimum width
+
+        return dropdown
+
+    def create_checkbox(self, text, checked=False):
+        checkbox = QCheckBox(text)
+        checkbox.setChecked(checked)
+
+        # Set size policy to expand horizontally and have a fixed vertical size
+        checkbox.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+        return checkbox
     def createManualInputGroup(self):
         group = QGroupBox("Manual Input Parameters")
         layout = QGridLayout()
@@ -2781,38 +2859,53 @@ class ArimaConfigDialog(QDialog):
         group.setLayout(layout)
         return group
 
-    def toggleInputs(self):
-        isManual = self.manualInputRadio.isChecked()
-        self.manualInputGroup.setEnabled(isManual)
-        self.gridSearchGroup.setEnabled(not isManual)
+    def createSeasonalParamsGroup(self):
+        group = QGroupBox("Seasonal Parameters")
+        layout = QGridLayout()
+        
+        layout.addWidget(QLabel("start_P:"), 0, 0)
+        self.startPLineEdit = QLineEdit("1")
+        layout.addWidget(self.startPLineEdit, 0, 1)
 
+        layout.addWidget(QLabel("start_Q:"), 1, 0)
+        self.startQLineEdit = QLineEdit("1")
+        layout.addWidget(self.startQLineEdit, 1, 1)
+
+        layout.addWidget(QLabel("max_P:"), 2, 0)
+        self.maxPLineEdit = QLineEdit("2")
+        layout.addWidget(self.maxPLineEdit, 2, 1)
+
+        layout.addWidget(QLabel("max_Q:"), 3, 0)
+        self.maxQLineEdit = QLineEdit("2")
+        layout.addWidget(self.maxQLineEdit, 3, 1)
+
+        layout.addWidget(QLabel("D:"), 4, 0)
+        self.DLineEdit = QLineEdit("1")
+        layout.addWidget(self.DLineEdit, 4, 1)
+
+        layout.addWidget(QLabel("m (Seasonal Period):"), 5, 0)
+        self.mLineEdit = QLineEdit("12")
+        layout.addWidget(self.mLineEdit, 5, 1)
+
+        group.setLayout(layout)
+        return group
 
     def findBestArimaParameters(self):
         self.iterationLogTextEdit.clear()
         selected_column = self.columnSelector.currentText()
-        series = self.dataframe[selected_column].dropna()  # Ensuring no NaN values
+        series = self.dataframe[selected_column].dropna()
         train_size_percent = float(self.trainTestSplitLineEdit.text()) / 100
         train_size = int(len(series) * train_size_percent)
         train_series = series[:train_size]
 
-        original_stdout = sys.stdout  # Save the original stdout
-        sys.stdout = EmittingStream(self.iterationLogTextEdit)  # Redirect stdout to QTextEdit
+        original_stdout = sys.stdout
+        sys.stdout = EmittingStream(self.iterationLogTextEdit)
 
         try:
-            if self.manualInputRadio.isChecked():
-                p = int(self.pLineEdit.text())
-                d = int(self.dLineEdit.text())
-                q = int(self.qLineEdit.text())
-                # Implement ARIMA fitting with specified parameters if manual mode is selected
-                # This is a placeholder for handling manual ARIMA fitting.
-                # You'll need to adapt this part based on how you intend to handle manual fitting.
-                results_text = f"Manually selected ARIMA parameters are:\n(p={p}, d={d}, q={q})."
-                self.iterationLogTextEdit.append("\n\n" + results_text)  # Display manual input results
-            else:
-                # Auto ARIMA fitting with consideration for seasonal parameters
-                self.prepareAndRunAutoArima(train_series)
+
+            self.prepareAndRunAutoArima(train_series)
         finally:
-            sys.stdout = original_stdout  # Restore original stdout after operation
+            sys.stdout = original_stdout
 
     def prepareAndRunAutoArima(self, train_series):
         start_p = int(self.startPLineEdit.text())
@@ -2822,8 +2915,7 @@ class ArimaConfigDialog(QDialog):
         d = None if self.dLineEditAuto.text().lower() == 'none' else int(self.dLineEditAuto.text())
         trace = self.traceCheckBox.isChecked()
         
-        # Seasonal parameters
-        if self.seasonalityCheckBox.isChecked():  # Check if seasonal adjustment is enabled
+        if self.seasonal_collapsible.isChecked():
             start_P = int(self.startPLineEdit.text())
             start_Q = int(self.startQLineEdit.text())
             max_P = int(self.maxPLineEdit.text())
@@ -2833,48 +2925,55 @@ class ArimaConfigDialog(QDialog):
         else:
             start_P = start_Q = max_P = max_Q = D = m = None
 
-        # Fitting the ARIMA model using auto_arima with potential seasonal adjustments
         try:
             model = auto_arima(train_series, start_p=start_p, start_q=start_q,
                             max_p=max_p, max_q=max_q, d=d, trace=trace,
-                            seasonal=self.seasonalityCheckBox.isChecked(), start_P=start_P, 
+                            seasonal=self.seasonal_collapsible.isChecked(), start_P=start_P, 
                             start_Q=start_Q, max_P=max_P, max_Q=max_Q, D=D, m=m,
                             error_action='ignore', suppress_warnings=True, stepwise=True)
             
-            # Displaying the optimal model summary
             model_summary = model.summary().as_text()
             self.iterationLogTextEdit.append("\n\nOptimal model summary:\n" + model_summary)
         except Exception as e:
             self.iterationLogTextEdit.append(f"\n\nFailed to find optimal parameters due to an error:\n{e}")
 
-
-    def showResultsDialog(self, results_text):
-        dialog = QDialog(self)
-        dialog.setWindowTitle("ARIMA Model Search Results")
-        layout = QVBoxLayout(dialog)
-
-        resultsTextEdit = QTextEdit()
-        resultsTextEdit.setReadOnly(True)
-        resultsTextEdit.setText(results_text)
-        layout.addWidget(resultsTextEdit)
-
-        closeButton = QPushButton("Close")
-        closeButton.clicked.connect(dialog.close)
-        layout.addWidget(closeButton)
-
-        dialog.exec()
-
 class EmittingStream(object):
-    """
-    A custom stream object that redirects writes to a QTextEdit.
-    """
     def __init__(self, text_widget):
         self.text_widget = text_widget
 
     def write(self, text):
-        # Ensure thread-safety when updating the QTextEdit widget
-        QApplication.processEvents()  # Process existing events to avoid freezing the UI
-        self.text_widget.append(text)  # Append text to the QTextEdit
+        QApplication.processEvents()
+        self.text_widget.append(text)
 
     def flush(self):
-        pass  # Implement flush if needed
+        pass
+
+
+class CollapsibleSection(QGroupBox):
+    def __init__(self, title="", parent=None):
+        super().__init__(title, parent)
+        self.setCheckable(True)
+        self.setChecked(True)  # Default state: expanded
+        self.setStyleSheet("QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; padding: 5px; }")
+        self.content_layout = QVBoxLayout()
+        self.content_layout.setContentsMargins(5, 5, 5, 5)  # Adjust margin for better spacing
+        self.content_layout.addStretch()
+        self.setLayout(self.content_layout)
+        self.toggled.connect(self.on_toggled)
+
+
+    def on_toggled(self, checked):
+        for i in range(1, self.content_layout.count()):
+            widget = self.content_layout.itemAt(i).widget()
+            widget.setVisible(checked)
+            if not checked:
+                widget.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred))
+            else:
+                widget.setSizePolicy(QSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Preferred))
+        # Adjust layout spacing when collapsible section is collapsed
+        if not checked:
+            self.layout().setSpacing(5)
+        else:
+            self.layout().setSpacing(20)
+
+
