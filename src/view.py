@@ -183,6 +183,8 @@ class View(QMainWindow):
 
 
         super().__init__()
+        self.best_params = {}  # Define global variable to store best parameters
+
         self.subsetCreated = False  # Track whether a subset has been created
         self.savedSubsets = None  # Initialize the data_frame attribute
         self.thresholds_layout = QVBoxLayout()  # Initialize the layout
@@ -914,7 +916,7 @@ class View(QMainWindow):
 
         dialog = ArimaConfigDialog(self.controller.model.data_frame, self)
         dialog.exec()  # Make sure this is .exec() to display the dialog window
-
+        print(self.best_params)
     def model_with_parameters(self):
         if self.controller.model.data_frame is  None:
          icon_path = os.path.abspath('images/model_parameters_icon.ico')
@@ -924,7 +926,7 @@ class View(QMainWindow):
          self.setWindowIcon(QIcon(icon_path))
          return
 
-        dialog = ModelWithParameter(self.controller.model.data_frame, self)
+        dialog = ModelWithParameter(self)
         dialog.exec()  #
     def update_column_combobox(self, logical_index):
      if self.controller.model.data_frame is None:
@@ -2830,10 +2832,24 @@ class ArimaConfigDialog(QDialog):
         checkbox.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         return checkbox
+
     def findBestArimaParameters(self):
         self.iterationLogTextEdit.clear()
         selected_column = self.columnSelector.currentText()
-        series = self.dataframe[selected_column].dropna()
+        series = self.dataframe[selected_column]
+
+        # Handle missing values
+        series.dropna(inplace=True)  # Drop rows with missing values
+
+        # Check if there are missing values after dropping
+        if series.isnull().any():
+            QMessageBox.critical(self, "Error", "Missing values still exist in the time series data after preprocessing.")
+            return
+
+        # Ensure the series is in datetime format
+        if not np.issubdtype(series.index.dtype, np.datetime64):
+            QMessageBox.critical(self, "Error", "The index of the time series data must be in datetime format.")
+            return
 
         # Convert percentage to the actual size of the test set
         test_size_percent = float(self.trainTestSplitLineEdit.text()) / 100
@@ -2857,8 +2873,8 @@ class ArimaConfigDialog(QDialog):
     def prepareAndRunAutoArima(self, train_series, test_series):
         start_p = int(self.startPLineEdit.currentText())
         start_q = int(self.startQLineEdit.currentText())
-        max_p = int(self.maxPLineEdit.currentText())
-        max_q = int(self.maxQLineEdit.currentText())
+        max_p = min(int(self.maxPLineEdit.currentText()), 3)  # Limit maximum p to 3
+        max_q = min(int(self.maxQLineEdit.currentText()), 3)  # Limit maximum q to 3
         d_text = self.dLineEdit.currentText()
         d = None if d_text.lower() == 'none' else int(d_text)
         trace = self.traceCheckBox.isChecked()
@@ -2866,13 +2882,12 @@ class ArimaConfigDialog(QDialog):
         if self.seasonal_collapsible.isChecked():
             start_P = int(self.startPSeasonalLineEdit.currentText())
             start_Q = int(self.startQSeasonalLineEdit.currentText())
-            max_P = int(self.maxPSeasonalLineEdit.currentText())
-            max_Q = int(self.maxQSeasonalLineEdit.currentText())
+            max_P = min(int(self.maxPSeasonalLineEdit.currentText()), 2)  # Limit maximum P to 2
+            max_Q = min(int(self.maxQSeasonalLineEdit.currentText()), 2)  # Limit maximum Q to 2
             D = int(self.dSeasonalLineEdit.currentText())
             m = int(self.mLineEdit.currentText())
         else:
             start_P = start_Q = max_P = max_Q = D = m = None
-
         try:
             # Fit auto ARIMA model
             model = auto_arima(train_series, start_p=start_p, start_q=start_q,
@@ -2880,6 +2895,17 @@ class ArimaConfigDialog(QDialog):
                                seasonal=self.seasonal_collapsible.isChecked(), start_P=start_P,
                                start_Q=start_Q, max_P=max_P, max_Q=max_Q, D=D, m=m,
                                error_action='ignore', suppress_warnings=True, stepwise=True)
+
+            # Store best parameters in global variable
+            self.parent().best_params = {
+                'p': model.order[0],
+                'd': model.order[1],
+                'q': model.order[2],
+                'P': model.seasonal_order[0],
+                'D': model.seasonal_order[1],
+                'Q': model.seasonal_order[2],
+                'm': model.seasonal_order[3]
+            }
 
             # Print model summary
             model_summary = model.summary().as_text()
@@ -2930,35 +2956,28 @@ class CollapsibleSection(QGroupBox):
             self.layout().setSpacing(5)
         else:
             self.layout().setSpacing(20)
-
 class ModelWithParameter(QDialog):
-    def __init__(self, dataframe, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.dataframe = dataframe
         self.setWindowTitle("Model With Parameters")
+        self.setWindowIcon(QIcon('images/model_parameters_icon.ico'))  # Setting window icon
         self.initUI()
 
     def initUI(self):
         self.layout = QVBoxLayout(self)
+
+        # Import Best Parameters Button
+        self.importBestParamsButton = QPushButton(" Import Recommended Parameters")
         
-        # Column selection and train-test split size configuration
-        columnLayout = QHBoxLayout()
-        self.columnSelectorLabel = QLabel("Select Time Series Column:")
-        self.columnSelector = QComboBox()
-        self.columnSelector.addItems(self.dataframe.columns)
-        self.trainTestSplitLabel = QLabel("Train set size (%):")
-        self.trainTestSplitLineEdit = QLineEdit("80")
-        
-        columnLayout.addWidget(self.columnSelectorLabel)
-        columnLayout.addWidget(self.columnSelector)
-        columnLayout.addWidget(self.trainTestSplitLabel)
-        columnLayout.addWidget(self.trainTestSplitLineEdit)
-        self.layout.addLayout(columnLayout)
+        self.importBestParamsButton.setIcon(QIcon('images/import.ico'))  # Setting button icon
+        self.importBestParamsButton.setToolTip("Click to import best parameters from ARIMA model")  # Tooltip for button
+        self.importBestParamsButton.clicked.connect(self.importBestParameters)
+        self.layout.addWidget(self.importBestParamsButton)
+
+        # Add suggestion label
 
         # Manual Input GroupBox
         self.manualInputGroup = self.createManualInputGroup()
-
-        # Adding group boxes to layout
         self.layout.addWidget(self.manualInputGroup)
 
         # Initialize QTextEdit for displaying iteration logs and ARIMA model summary
@@ -2971,34 +2990,27 @@ class ModelWithParameter(QDialog):
         self.runButton.clicked.connect(self.findBestArimaParameters)
         self.layout.addWidget(self.runButton)
 
-        self.resize(800, 600)
+        self.resize(600, 400)
 
     def createManualInputGroup(self):
         group = QGroupBox("Manual Input Parameters")
         layout = QVBoxLayout()
+        self.pLineEdit = QLineEdit()
+        self.dLineEdit = QLineEdit()
+        self.qLineEdit = QLineEdit()
 
         layout.addWidget(QLabel("p:"))
-        self.pLineEdit = QLineEdit()
         layout.addWidget(self.pLineEdit)
-        
         layout.addWidget(QLabel("d:"))
-        self.dLineEdit = QLineEdit()
         layout.addWidget(self.dLineEdit)
-        
         layout.addWidget(QLabel("q:"))
-        self.qLineEdit = QLineEdit()
         layout.addWidget(self.qLineEdit)
-        
+
         group.setLayout(layout)
         return group
 
     def findBestArimaParameters(self):
         self.iterationLogTextEdit.clear()
-        selected_column = self.columnSelector.currentText()
-        series = self.dataframe[selected_column].dropna()  # Ensuring no NaN values
-        train_size_percent = float(self.trainTestSplitLineEdit.text()) / 100
-        train_size = int(len(series) * train_size_percent)
-        train_series = series[:train_size]
 
         try:
             p = int(self.pLineEdit.text())
@@ -3006,7 +3018,15 @@ class ModelWithParameter(QDialog):
             q = int(self.qLineEdit.text())
             results_text = f"Manually selected ARIMA parameters are:\n(p={p}, d={d}, q={q})."
             self.iterationLogTextEdit.append("\n\n" + results_text)  # Display manual input results
-        except Exception as e:
-            self.iterationLogTextEdit.append(f"\n\nFailed to find optimal parameters due to an error:\n{e}")
+        except ValueError:
+            self.iterationLogTextEdit.append("\n\nPlease enter valid integer values for p, d, and q.")
 
+    def importBestParameters(self):
+        if not self.parent().best_params:
+            QMessageBox.information(self, "Import Recommended Parameters", 
+                        'No Recommended parameters available. Please go to the ARIMA -> "One Stop Search" menu to generate recommended parameters.')
+            return
 
+        self.pLineEdit.setText(str(self.parent().best_params.get('p', '')))
+        self.dLineEdit.setText(str(self.parent().best_params.get('d', '')))
+        self.qLineEdit.setText(str(self.parent().best_params.get('q', '')))
