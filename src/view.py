@@ -153,6 +153,7 @@ from pmdarima import auto_arima
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from pandas.plotting import lag_plot
+from statsmodels.tsa.arima.model import ARIMA
 
 class View(QWidget):
     def __init__(self, parent=None):
@@ -184,7 +185,8 @@ class View(QMainWindow):
 
         super().__init__()
         self.best_params = {}  # Define global variable to store best parameters
-
+        self.model_dataframe = None
+        self.columnSelector = None
         self.subsetCreated = False  # Track whether a subset has been created
         self.savedSubsets = None  # Initialize the data_frame attribute
         self.thresholds_layout = QVBoxLayout()  # Initialize the layout
@@ -926,7 +928,7 @@ class View(QMainWindow):
          self.setWindowIcon(QIcon(icon_path))
          return
 
-        dialog = ModelWithParameter(self)
+        dialog = ModelWithParameter(self.controller.model.data_frame,self)
         dialog.exec()  #
     def update_column_combobox(self, logical_index):
      if self.controller.model.data_frame is None:
@@ -2837,7 +2839,8 @@ class ArimaConfigDialog(QDialog):
         self.iterationLogTextEdit.clear()
         selected_column = self.columnSelector.currentText()
         series = self.dataframe[selected_column]
-
+        self.parent().columnSelector=self.columnSelector.currentText()
+        self.parent().model_dataframe=self.dataframe
         # Handle missing values
         series.dropna(inplace=True)  # Drop rows with missing values
 
@@ -2933,6 +2936,7 @@ class EmittingStream(object):
 class CollapsibleSection(QGroupBox):
     def __init__(self, title="", parent=None):
         super().__init__(title, parent)
+        
         self.setCheckable(True)
         self.setChecked(True)  # Default state: expanded
         self.setStyleSheet("QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; padding: 5px; }")
@@ -2957,28 +2961,29 @@ class CollapsibleSection(QGroupBox):
         else:
             self.layout().setSpacing(20)
 class ModelWithParameter(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, dataframe, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Model With Parameters")
         self.setWindowIcon(QIcon('images/model_parameters_icon.ico'))  # Setting window icon
+        self.dataframe = dataframe
         self.initUI()
 
     def initUI(self):
         self.layout = QVBoxLayout(self)
 
-        # Import Best Parameters Button
-        self.importBestParamsButton = QPushButton(" Import Recommended Parameters")
-        
-        self.importBestParamsButton.setIcon(QIcon('images/import.ico'))  # Setting button icon
-        self.importBestParamsButton.setToolTip("Click to import best parameters from ARIMA model")  # Tooltip for button
-        self.importBestParamsButton.clicked.connect(self.importBestParameters)
-        self.layout.addWidget(self.importBestParamsButton)
+        # Create tabs for manual input and import
+        self.tabWidget = QTabWidget()
+        self.manualTab = QWidget()
+        self.importTab = QWidget()
+        self.tabWidget.addTab(self.manualTab, "Manual Input")
+        self.tabWidget.addTab(self.importTab, "Import Parameters")
+        self.layout.addWidget(self.tabWidget)
 
-        # Add suggestion label
+        # Create widgets for manual input tab
+        self.createManualInputGroup()
 
-        # Manual Input GroupBox
-        self.manualInputGroup = self.createManualInputGroup()
-        self.layout.addWidget(self.manualInputGroup)
+        # Create widgets for import tab
+        self.createImportInputGroup()
 
         # Initialize QTextEdit for displaying iteration logs and ARIMA model summary
         self.iterationLogTextEdit = QTextEdit()
@@ -2990,43 +2995,172 @@ class ModelWithParameter(QDialog):
         self.runButton.clicked.connect(self.findBestArimaParameters)
         self.layout.addWidget(self.runButton)
 
+        # Generate ARIMA Model Button
+        self.generateModelButton = QPushButton("Generate ARIMA Model")
+        self.generateModelButton.clicked.connect(self.generateArimaModel)
+        self.layout.addWidget(self.generateModelButton)
+
         self.resize(600, 400)
 
     def createManualInputGroup(self):
+        layout = QVBoxLayout(self.manualTab)
         group = QGroupBox("Manual Input Parameters")
-        layout = QVBoxLayout()
-        self.pLineEdit = QLineEdit()
-        self.dLineEdit = QLineEdit()
-        self.qLineEdit = QLineEdit()
+        layout.addWidget(group)
+        vbox = QVBoxLayout(group)
+        self.columnSelector = QComboBox()
+        vbox.addWidget(QLabel("Select Time Series Column:"))
+        vbox.addWidget(self.columnSelector)
+        self.columnSelector.addItems(self.dataframe.columns)
+        self.pLineEditM = self.create_combobox_with_range(0, 5)
+        self.dLineEditM = self.create_combobox_with_range(0, 2)
+        self.qLineEditM = self.create_combobox_with_range(0, 5)
+        vbox.addWidget(QLabel("p:"))
+        vbox.addWidget(self.pLineEditM)
+        vbox.addWidget(QLabel("d:"))
+        vbox.addWidget(self.dLineEditM)
+        vbox.addWidget(QLabel("q:"))
+        vbox.addWidget(self.qLineEditM)
 
-        layout.addWidget(QLabel("p:"))
-        layout.addWidget(self.pLineEdit)
-        layout.addWidget(QLabel("d:"))
-        layout.addWidget(self.dLineEdit)
-        layout.addWidget(QLabel("q:"))
-        layout.addWidget(self.qLineEdit)
+    def createImportInputGroup(self):
+        layout = QVBoxLayout(self.importTab)
+        group = QGroupBox("Import Parameters")
+        layout.addWidget(group)
+        vbox = QVBoxLayout(group)
+        self.importBestParamsButton = QPushButton("Import Recommended Parameters")
+        self.importBestParamsButton.setIcon(QIcon('images/import.ico'))  # Setting button icon
+        self.importBestParamsButton.setToolTip(
+            "Click to import best parameters from ARIMA model")  # Tooltip for button
+        self.importBestParamsButton.clicked.connect(self.importBestParameters)
+        vbox.addWidget(self.importBestParamsButton)
+        self.pLineEdit_import = self.create_combobox_with_range(0, 5)
+        self.dLineEdit_import = self.create_combobox_with_range(0, 2)
+        self.qLineEdit_import = self.create_combobox_with_range(0, 5)
+        vbox.addWidget(QLabel("p:"))
+        vbox.addWidget(self.pLineEdit_import)
+        vbox.addWidget(QLabel("d:"))
+        vbox.addWidget(self.dLineEdit_import)
+        vbox.addWidget(QLabel("q:"))
+        vbox.addWidget(self.qLineEdit_import)
 
-        group.setLayout(layout)
-        return group
+    def importBestParameters(self):
+        if not self.parent().best_params:
+            QMessageBox.information(self, "Import Recommended Parameters",
+                                    'No Recommended parameters available. Please go to the ARIMA -> "One Stop Search" menu to generate recommended parameters.')
+            return
+
+
+        self.pLineEdit_import.setCurrentText(str(self.parent().best_params.get('p', '')))
+        self.dLineEdit_import.setCurrentText(str(self.parent().best_params.get('d', '')))
+        self.qLineEdit_import.setCurrentText(str(self.parent().best_params.get('q', '')))
+
+    def create_combobox_with_range(self, start, end):
+        combobox = QComboBox()
+        combobox.setEditable(True)
+        for i in range(start, end + 1):
+            combobox.addItem(str(i))
+
+        # Connect the currentTextChanged signal to the custom slot
+        combobox.currentTextChanged.connect(self.check_numeric_input)
+
+        # Set size policy to expand horizontally and have a fixed vertical size
+        combobox.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        combobox.setMinimumWidth(100)  # Set minimum width
+
+        return combobox
+
+    def check_numeric_input(self, text):
+        if text.strip() == "":
+            # If the entered text is empty, do nothing
+            return
+
+        try:
+            # Attempt to convert the entered text to a numeric value
+            float(text)  # Try to convert to float
+
+        except ValueError:
+            # If conversion fails, display an error message
+            QMessageBox.critical(self, "Error", "Please enter a valid numeric value.")
 
     def findBestArimaParameters(self):
         self.iterationLogTextEdit.clear()
 
         try:
-            p = int(self.pLineEdit.text())
-            d = int(self.dLineEdit.text())
-            q = int(self.qLineEdit.text())
-            results_text = f"Manually selected ARIMA parameters are:\n(p={p}, d={d}, q={q})."
-            self.iterationLogTextEdit.append("\n\n" + results_text)  # Display manual input results
-        except ValueError:
-            self.iterationLogTextEdit.append("\n\nPlease enter valid integer values for p, d, and q.")
+            current_index = self.tabWidget.currentIndex()
 
-    def importBestParameters(self):
-        if not self.parent().best_params:
-            QMessageBox.information(self, "Import Recommended Parameters", 
-                        'No Recommended parameters available. Please go to the ARIMA -> "One Stop Search" menu to generate recommended parameters.')
-            return
+            if current_index == 0:  # Manual Input Tab
+                p_text = self.pLineEditM.currentText()
+                d_text = self.dLineEditM.currentText()
+                q_text = self.qLineEditM.currentText()
 
-        self.pLineEdit.setText(str(self.parent().best_params.get('p', '')))
-        self.dLineEdit.setText(str(self.parent().best_params.get('d', '')))
-        self.qLineEdit.setText(str(self.parent().best_params.get('q', '')))
+                if not p_text or not d_text or not q_text:
+                    QMessageBox.warning(self, "Input Error", "Please fill in all manual input parameters.")
+                    return
+
+                p = int(p_text)
+                d = int(d_text)
+                q = int(q_text)
+                results_text = f"Manually selected ARIMA parameters are:\n(p={p}, d={d}, q={q})."
+                self.iterationLogTextEdit.append("\n\n" + results_text)  # Display manual input results
+
+            elif current_index == 1:  # Import Parameters Tab
+                p_text = self.pLineEdit_import.currentText()
+                d_text = self.dLineEdit_import.currentText()
+                q_text = self.qLineEdit_import.currentText()
+
+                if not p_text or not d_text or not q_text:
+                    QMessageBox.warning(self, "Input Error", "Please fill in all imported parameters.")
+                    return
+
+                p = int(p_text)
+                d = int(d_text)
+                q = int(q_text)
+                results_text = f"Selected ARIMA parameters from(One Stop Shop) are:\n(p={p}, d={d}, q={q})."
+                self.iterationLogTextEdit.append("\n\n" + results_text)  # Display import input results
+        except Exception as e:
+            print("An error occurred:", e)
+
+    def generateArimaModel(self):
+        self.iterationLogTextEdit.clear()
+
+        try:
+            current_index = self.tabWidget.currentIndex()
+
+            if current_index == 0:
+                p_text = self.pLineEditM.currentText()
+                d_text = self.dLineEditM.currentText()
+                q_text = self.qLineEditM.currentText()
+
+                if not p_text or not d_text or not q_text:
+                    QMessageBox.warning(self, "Input Error", "Please fill in all manual input parameters.")
+                    return
+
+                p = int(p_text)
+                d = int(d_text)
+                q = int(q_text)
+                selected_column = self.columnSelector.currentText()
+                series = self.dataframe[selected_column]
+
+            elif current_index == 1:
+                p_text = self.pLineEdit_import.currentText()
+                d_text = self.dLineEdit_import.currentText()
+                q_text = self.qLineEdit_import.currentText()
+
+                if not p_text or not d_text or not q_text:
+                    QMessageBox.warning(self, "Input Error", "Please fill in all imported parameters.")
+                    return
+
+                p = int(p_text)
+                d = int(d_text)
+                q = int(q_text)
+                selected_column = self.parent().columnSelector
+                series = self.parent().model_dataframe[selected_column]
+
+            # Fit ARIMA model
+            model = ARIMA(series, order=(p, d, q))
+            fitted_model = model.fit()
+
+            # Display model summary
+            self.iterationLogTextEdit.append("\n\nARIMA Model Summary:\n")
+            self.iterationLogTextEdit.append(fitted_model.summary().as_text())
+        except Exception as e:
+            print("An error occurred:", e)
