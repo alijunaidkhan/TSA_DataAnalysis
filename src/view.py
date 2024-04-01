@@ -2681,17 +2681,20 @@ class ArimaConfigDialog(QDialog):
         scroll_area.setWidget(content_widget)
 
         self.setLayout(QVBoxLayout())
+
         self.layout().addWidget(scroll_area)
         # Adjust window size
         self.resize(800, 600)  # Set initial size
         self.setMinimumWidth(600)  # Set minimum width
         self.setMinimumHeight(400)  # Set minimum height
-
+        self.traceCheckBox = QCheckBox("Trace")
+        self.traceCheckBox.setChecked(True)
+        self.layout().addWidget(self.traceCheckBox)
     def create_non_seasonal_group(self):
         self.startPLineEdit = self.create_combobox_with_range(0, 5)
         self.maxPLineEdit = self.create_combobox_with_range(0, 5)
         self.dLineEdit = self.create_combobox_with_range(0, 2)
-        self.maxDLineEdit = self.create_combobox_with_range(0, 2)
+        self.maxdLineEdit = self.create_combobox_with_range(0, 2)
         self.startQLineEdit = self.create_combobox_with_range(0, 5)
         self.maxQLineEdit = self.create_combobox_with_range(0, 5)
 
@@ -2706,15 +2709,13 @@ class ArimaConfigDialog(QDialog):
         layout.addWidget(QLabel("d:"), 1, 0, Qt.AlignmentFlag.AlignRight)
         layout.addWidget(self.dLineEdit, 1, 1)
         layout.addWidget(QLabel("Max d:"), 1, 2, Qt.AlignmentFlag.AlignRight)
-        layout.addWidget(self.maxDLineEdit, 1, 3)
+        layout.addWidget(self.maxdLineEdit, 1, 3)
 
         layout.addWidget(QLabel("Start q:"), 2, 0, Qt.AlignmentFlag.AlignRight)
         layout.addWidget(self.startQLineEdit, 2, 1)
         layout.addWidget(QLabel("Max q:"), 2, 2, Qt.AlignmentFlag.AlignRight)
         layout.addWidget(self.maxQLineEdit, 2, 3)
-        self.traceCheckBox = QCheckBox("Trace")
-        self.traceCheckBox.setChecked
-        layout.addWidget(self.traceCheckBox, 5, 0, 1, 2)
+
         group.setLayout(layout)
         return group
 
@@ -2924,57 +2925,95 @@ class ArimaConfigDialog(QDialog):
             sys.stdout = original_stdout
 
     def prepareAndRunAutoArima(self, train_series, test_series):
-        start_p = int(self.startPLineEdit.currentText())
-        start_q = int(self.startQLineEdit.currentText())
-        max_p = min(int(self.maxPLineEdit.currentText()), 3)  # Limit maximum p to 3
-        max_q = min(int(self.maxQLineEdit.currentText()), 3)  # Limit maximum q to 3
-        d_text = self.dLineEdit.currentText()
-        d = None if d_text.lower() == 'none' else int(d_text)
         trace = self.traceCheckBox.isChecked()
+        if self.non_seasonal_collapsible.isChecked():
+         start_p = int(self.startPLineEdit.currentText())
+         start_q = int(self.startQLineEdit.currentText())
+         max_p = min(int(self.maxPLineEdit.currentText()), 3)  # Limit maximum p to 3
+         max_q = min(int(self.maxQLineEdit.currentText()), 3)  # Limit maximum q to 3
+         d_text = self.dLineEdit.currentText()
+         max_d=int(self.maxdLineEdit.currentText())
+         
+         error_action ='warn'
 
+
+         d = None if d_text.lower() == 'none' else int(d_text)
+         
+        if self.non_seasonal_collapsible.isChecked()==False:
+         start_p = 2
+         start_q = 2
+         d=None
+         max_p =5
+         max_d=2
+         max_q=5
+         error_action ='warn'
         if self.seasonal_collapsible.isChecked():
             start_P = int(self.startPSeasonalLineEdit.currentText())
             start_Q = int(self.startQSeasonalLineEdit.currentText())
             max_P = min(int(self.maxPSeasonalLineEdit.currentText()), 2)  # Limit maximum P to 2
+            max_D=int(self.maxDSeasonalLineEdit.currentText())
             max_Q = min(int(self.maxQSeasonalLineEdit.currentText()), 2)  # Limit maximum Q to 2
             D = int(self.dSeasonalLineEdit.currentText())
             m = int(self.mLineEdit.currentText())
-            
-        else:
-            start_P = start_Q = max_P = max_Q = D = m = None
-        
+            error_action ='warn'
+
+        if self.seasonal_collapsible.isChecked()==False:
+            start_P =1
+            start_Q =1
+            max_P =2
+            max_Q = 2
+            max_D = 1
+            D=None
+            m = 1
+            error_action ='warn'
         if self.additional_options_collapsible.isChecked():
-            
-          max_order=self.max_order 
-          info_criterion= self.info_criterion
-          alpha= self.alpha 
-          test=self.test 
-          seasonal_test=self.seasonal_test 
-          n_jobs=self.n_jobs 
-          method=self.method 
-          max_iter=self.max_iter 
-          error_action=self.error_action 
+            # Assign values from additional options collapsible
+            max_order = self.max_order
+            info_criterion = self.info_criterion
+            alpha = self.alpha
+            test = self.test
+            seasonal_test = self.seasonal_test
+            n_jobs = self.n_jobs
+            method = self.method
+            max_iter = self.max_iter
+            error_action = self.error_action
+            random_state = self.random_state
+            n_fits = self.n_fits
+            oos_size = self.oos_size
+            scoring = self.scoring
+            with_intercept = self.with_intercept
+        if self.additional_options_collapsible.isChecked()==False:
+            # Set default values if additional options collapsible is unchecked
+            max_order = None
+            info_criterion = 'aic'
+            alpha = 0.05
+            test = 'kpss'
+            seasonal_test = 'ocsb'
+            n_jobs = 1
+            method = 'lbfgs'
+            max_iter = 50
+            error_action = 'warn'
+            random_state = None
+            n_fits = 10
+            oos_size = 0
+            scoring = 'mse'
+            with_intercept = 'auto'
 
-          random_state=self.random_state 
-          n_fits=self.n_fits 
-          oos_size=self.oos_size 
-          scoring=self.scoring
-          with_intercept=self.with_intercept
-        else:
-
-         max_order = info_criterion = alpha = test = seasonal_test = n_jobs = method = max_iter =  error_action =random_state = n_fits = oos_size =  scoring =with_intercept =None
-         info_criterion='aic'
         try:
-            
-            # Fit auto ARIMA model
-
-            print(info_criterion)
-            model = auto_arima(train_series, start_p=start_p, start_q=start_q, max_p=max_p, max_q=max_q, d=d, 
-                           start_P=start_P, start_Q=start_Q,max_Q=max_Q,max_P=max_P,m=m,seasonal=self.seasonal_collapsible.isChecked(),D=D, trace=trace, 
-                           error_action='trace', suppress_warnings=self.suppress_warnings_checkbox.isChecked(),random_search=self.random_search_checkbox.isChecked(),return_valid_fits=self.return_valid_fits_checkbox.isChecked(), stepwise=self.stepwise_checkbox.isChecked(), 
-                           information_criterion=info_criterion, alpha=alpha, test=test, seasonal_test=seasonal_test, 
-                           n_jobs=n_jobs, method=method, max_iter=max_iter, random_state=random_state, 
-                           n_fits=n_fits, out_of_sample_size=oos_size, scoring=scoring, with_intercept=with_intercept)           # Store best parameters in global variable
+            # Fit auto ARIMA model based on the combinations of parameter checkboxes
+            model = auto_arima(train_series, start_p=start_p, start_q=start_q, max_p=max_p, max_q=max_q, d=d,
+                           start_P=start_P, start_Q=start_Q, max_Q=max_Q, max_P=max_P, m=m,
+                           seasonal=self.seasonal_collapsible.isChecked(), D=D, trace=trace,
+                           error_action=error_action, suppress_warnings=self.suppress_warnings_checkbox.isChecked(),
+                           random_search=self.random_search_checkbox.isChecked(),
+                           return_valid_fits=self.return_valid_fits_checkbox.isChecked(),
+                           stepwise=self.stepwise_checkbox.isChecked(),
+                           information_criterion=info_criterion, alpha=alpha, test=test,
+                           seasonal_test=seasonal_test,max_D=max_D,
+                           n_jobs=n_jobs, method=method, max_iter=max_iter, max_order=max_order,
+                           random_state=random_state, max_d=max_d,n_fits=n_fits,
+                           out_of_sample_size=oos_size, scoring=scoring, with_intercept=with_intercept)
+            print(type(model))
             self.parent().best_params = {
                 'p': model.order[0],
                 'd': model.order[1],
@@ -3092,6 +3131,10 @@ class ModelWithParameter(QDialog):
         vbox.addWidget(QLabel("Select Time Series Column:"))
         vbox.addWidget(self.columnSelector)
         self.columnSelector.addItems(self.dataframe.columns)
+        self.trainTestSplitLabel = QLabel("Train set size (%):")
+        self.trainTestSplitLineEdit = QLineEdit("80")
+        vbox.addWidget(self.trainTestSplitLabel)
+        vbox.addWidget(self.trainTestSplitLineEdit)
         self.pLineEditM = self.create_combobox_with_range(0, 5)
         self.dLineEditM = self.create_combobox_with_range(0, 2)
         self.qLineEditM = self.create_combobox_with_range(0, 5)
@@ -3107,6 +3150,15 @@ class ModelWithParameter(QDialog):
         group = QGroupBox("Import Parameters")
         layout.addWidget(group)
         vbox = QVBoxLayout(group)
+        self.columnSelector = QComboBox()
+        vbox.addWidget(QLabel("Select Time Series Column:"))
+        
+        vbox.addWidget(self.columnSelector)
+        self.columnSelector.addItems(self.dataframe.columns)
+        self.trainTestSplitLabel = QLabel("Train set size (%):")
+        self.trainTestSplitLineEdit = QLineEdit("80")
+        vbox.addWidget(self.trainTestSplitLabel)
+        vbox.addWidget(self.trainTestSplitLineEdit)
         self.importBestParamsButton = QPushButton("Import Recommended Parameters")
         self.importBestParamsButton.setIcon(QIcon('images/import.ico'))  # Setting button icon
         self.importBestParamsButton.setToolTip(
