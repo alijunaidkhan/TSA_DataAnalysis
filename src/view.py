@@ -718,7 +718,7 @@ class View(QMainWindow):
         arima_submenu = model_menu.addMenu(QIcon('images/arima_icon.svg'), "&ARIMA")
 
         # Submenu Grid Search Parameters
-        grid_search_action = QAction("&One Stop Shop", self)
+        grid_search_action = QAction("&Grid Search", self)
         grid_search_action.setIcon(QIcon('images/grid_search_icon.ico'))  # Replace 'images/grid_search_icon.png' with your icon path
         grid_search_action.triggered.connect(self.grid_search_parameters)
         arima_submenu.addAction(grid_search_action)
@@ -2615,7 +2615,7 @@ class ArimaConfigDialog(QDialog):
     def __init__(self, dataframe, parent=None):
         super().__init__(parent)
         self.dataframe = dataframe
-        self.setWindowTitle("One Stop Search")
+        self.setWindowTitle("Grid Search")
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
                             Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
                             Qt.WindowType.CustomizeWindowHint)  # Add min/max window option
@@ -2639,10 +2639,10 @@ class ArimaConfigDialog(QDialog):
         self.non_seasonal_group = self.create_non_seasonal_group()
         self.seasonal_group = self.create_seasonal_group()
 
-        self.non_seasonal_collapsible = CollapsibleSection("Non-Seasonal Decomposition")
+        self.non_seasonal_collapsible = CollapsibleSection("Non-Seasonal")
         self.non_seasonal_collapsible.content_layout.addWidget(self.non_seasonal_group)
 
-        self.seasonal_collapsible = CollapsibleSection("Seasonal Decomposition")
+        self.seasonal_collapsible = CollapsibleSection("Seasonal")
         self.seasonal_collapsible.content_layout.addWidget(self.seasonal_group)
         self.seasonal_collapsible.setChecked(False)
 
@@ -2650,9 +2650,13 @@ class ArimaConfigDialog(QDialog):
         self.additional_options_collapsible = CollapsibleSection("Additional Options")
         self.additional_options_collapsible.content_layout.addWidget(self.additional_options_group)
         self.additional_options_collapsible.setChecked(False)
+      
+  
 
         self.iterationLogTextEdit = QTextEdit()
         self.iterationLogTextEdit.setReadOnly(True)
+        self.iterationLogTextEdit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.iterationLogTextEdit.setMinimumHeight(400)  # Set minimum height
 
         self.runButton = QPushButton("Find Best Parameters")
         self.runButton.clicked.connect(self.findBestArimaParameters)
@@ -2709,6 +2713,7 @@ class ArimaConfigDialog(QDialog):
         layout.addWidget(QLabel("Max q:"), 2, 2, Qt.AlignmentFlag.AlignRight)
         layout.addWidget(self.maxQLineEdit, 2, 3)
         self.traceCheckBox = QCheckBox("Trace")
+        self.traceCheckBox.setChecked
         layout.addWidget(self.traceCheckBox, 5, 0, 1, 2)
         group.setLayout(layout)
         return group
@@ -2751,10 +2756,26 @@ class ArimaConfigDialog(QDialog):
         layout = QVBoxLayout()
 
         checkboxes_layout = QHBoxLayout()
-        checkboxes_layout.addWidget(self.create_checkbox("Stepwise", True))
-        checkboxes_layout.addWidget(self.create_checkbox("Suppress Warnings", True))
-        checkboxes_layout.addWidget(self.create_checkbox("Random Search", False))
-        checkboxes_layout.addWidget(self.create_checkbox("Return Valid Fits", False))
+
+        # Checkbox for Stepwise
+        self.stepwise_checkbox = self.create_checkbox("Stepwise", True)
+        self.stepwise_checkbox.stateChanged.connect(self.on_stepwise_checkbox_state_changed)
+        checkboxes_layout.addWidget(self.stepwise_checkbox)
+
+        # Checkbox for Suppress Warnings
+        self.suppress_warnings_checkbox = self.create_checkbox("Suppress Warnings", True)
+        checkboxes_layout.addWidget(self.suppress_warnings_checkbox)
+
+        # Checkbox for Random Search
+        self.random_search_checkbox = self.create_checkbox("Random Search", False)
+        self.random_search_checkbox.stateChanged.connect(self.on_random_search_checkbox_state_changed)
+        checkboxes_layout.addWidget(self.random_search_checkbox)
+
+        # Checkbox for Return Valid Fits
+        self.return_valid_fits_checkbox = self.create_checkbox("Return Valid Fits", False)
+        self.return_valid_fits_checkbox.stateChanged.connect(self.on_return_valid_fits_checkbox_state_changed)
+        checkboxes_layout.addWidget(self.return_valid_fits_checkbox)
+
         layout.addLayout(checkboxes_layout)
         layout.addSpacing(5)  # Adjusted margin
 
@@ -2777,6 +2798,20 @@ class ArimaConfigDialog(QDialog):
             ("With Intercept:", self.create_dropdown(['auto', 'True', 'False'])),
         ]
 
+        self.max_order = int(parameters[0][1].currentText())
+        self.info_criterion = parameters[1][1].currentText()
+        self.alpha = float(parameters[2][1].text())
+        self.test = parameters[3][1].currentText()
+        self.seasonal_test = parameters[4][1].currentText()
+        self.n_jobs = int(parameters[5][1].currentText())
+        self.method = parameters[6][1].currentText()
+        self.max_iter = int(parameters[7][1].currentText())
+        self.error_action = parameters[8][1].currentText()
+        self.random_state = parameters[9][1].text()
+        self.n_fits = int(parameters[10][1].currentText())
+        self.oos_size = int(parameters[11][1].text())
+        self.scoring = parameters[12][1].currentText()
+        self.with_intercept = parameters[13][1].currentText()
         for i, (label, widget) in enumerate(parameters):
             if i < 7:  # First column for non-seasonal parameters
                 grid_layout.addWidget(QLabel(label), i, 0, 1, 1, Qt.AlignmentFlag.AlignRight)
@@ -2788,7 +2823,22 @@ class ArimaConfigDialog(QDialog):
         layout.addLayout(grid_layout)
         group.setLayout(layout)
         return group
- 
+
+    def on_stepwise_checkbox_state_changed(self, state):
+        if state == Qt.CheckState.Checked:
+            self.random_search_checkbox.setChecked(False)
+            self.return_valid_fits_checkbox.setChecked(False)
+
+    def on_random_search_checkbox_state_changed(self, state):
+        if state == Qt.CheckState.Checked:
+            self.stepwise_checkbox.setChecked(False)
+            self.return_valid_fits_checkbox.setChecked(False)
+
+    def on_return_valid_fits_checkbox_state_changed(self, state):
+        if state == Qt.CheckState.Checked:
+            self.stepwise_checkbox.setChecked(False)
+            self.random_search_checkbox.setChecked(False)
+
     def create_combobox_with_range(self, start, end):
         combobox = QComboBox()
         combobox.setEditable(True)
@@ -2889,17 +2939,40 @@ class ArimaConfigDialog(QDialog):
             max_Q = min(int(self.maxQSeasonalLineEdit.currentText()), 2)  # Limit maximum Q to 2
             D = int(self.dSeasonalLineEdit.currentText())
             m = int(self.mLineEdit.currentText())
+            
         else:
             start_P = start_Q = max_P = max_Q = D = m = None
-        try:
-            # Fit auto ARIMA model
-            model = auto_arima(train_series, start_p=start_p, start_q=start_q,
-                               max_p=max_p, max_q=max_q, d=d, trace=trace,
-                               seasonal=self.seasonal_collapsible.isChecked(), start_P=start_P,
-                               start_Q=start_Q, max_P=max_P, max_Q=max_Q, D=D, m=m,
-                               error_action='ignore', suppress_warnings=True, stepwise=True)
+        
+        if self.additional_options_collapsible.isChecked():
+            
+          max_order=self.max_order 
+          info_criterion= self.info_criterion
+          alpha= self.alpha 
+          test=self.test 
+          seasonal_test=self.seasonal_test 
+          n_jobs=self.n_jobs 
+          method=self.method 
+          max_iter=self.max_iter 
+          error_action=self.error_action 
+          random_state=self.random_state 
+          n_fits=self.n_fits 
+          oos_size=self.oos_size 
+          scoring=self.scoring
+          with_intercept=self.with_intercept
+        else:
 
-            # Store best parameters in global variable
+         self.max_order = self.info_criterion = self.alpha = self.test = self.seasonal_test = self.n_jobs = self.method = self.max_iter =  self.error_action =self.random_state = self.n_fits = self.oos_size =  self.scoring = self.with_intercept =None
+        try:
+            
+            # Fit auto ARIMA model
+
+            print(self.info_criterion)
+            model = auto_arima(train_series, start_p=start_p, start_q=start_q, max_p=max_p, max_q=max_q, d=d, 
+                           start_P=start_P, start_Q=start_Q,max_Q=max_Q,max_P=max_P,m=m,seasonal=self.seasonal_collapsible.isChecked(),D=D, trace=trace, 
+                           error_action='trace', suppress_warnings=self.suppress_warnings_checkbox.isChecked(),random_search=self.random_search_checkbox.isChecked(),return_valid_fits=self.return_valid_fits_checkbox.isChecked(), stepwise=self.stepwise_checkbox.isChecked(), 
+                           information_criterion=info_criterion, alpha=alpha, test=test, seasonal_test=seasonal_test, 
+                           n_jobs=n_jobs, method=method, max_iter=max_iter, random_state=random_state, 
+                           n_fits=n_fits, out_of_sample_size=oos_size, scoring=scoring, with_intercept=with_intercept)           # Store best parameters in global variable
             self.parent().best_params = {
                 'p': model.order[0],
                 'd': model.order[1],
@@ -2910,17 +2983,21 @@ class ArimaConfigDialog(QDialog):
                 'm': model.seasonal_order[3]
             }
 
-            # Print model summary
-            model_summary = model.summary().as_text()
-            self.iterationLogTextEdit.append("\n\nOptimal model summary:\n" + model_summary)
+            # # Print model summary
+            # model_summary = model.summary().as_text()
+            # self.iterationLogTextEdit.append("\n\nOptimal model summary:\n" + model_summary)
 
             # Evaluate model
             forecast = model.predict(len(test_series))
             mse = mean_squared_error(test_series, forecast)
             self.iterationLogTextEdit.append(f"\nMean Squared Error (MSE): {mse}")
+            if not self.traceCheckBox.isChecked():
+                self.iterationLogTextEdit.append("\nPlease check the trace to get the best model parameters.")
+           
 
         except Exception as e:
             self.iterationLogTextEdit.append(f"\n\nFailed to find optimal parameters due to an error:\n{e}")
+            return
 class EmittingStream(object):
     def __init__(self, text_widget):
         self.text_widget = text_widget
@@ -2988,6 +3065,8 @@ class ModelWithParameter(QDialog):
         # Initialize QTextEdit for displaying iteration logs and ARIMA model summary
         self.iterationLogTextEdit = QTextEdit()
         self.iterationLogTextEdit.setReadOnly(True)
+        self.iterationLogTextEdit.setMinimumSize(400, 300)  # Adjust the width and height as needed
+        self.iterationLogTextEdit.setMaximumSize(500, 500) 
         self.layout.addWidget(self.iterationLogTextEdit)
 
         # Run ARIMA Button
@@ -3000,7 +3079,7 @@ class ModelWithParameter(QDialog):
         self.generateModelButton.clicked.connect(self.generateArimaModel)
         self.layout.addWidget(self.generateModelButton)
 
-        self.resize(600, 400)
+        self.resize(500, 500)
 
     def createManualInputGroup(self):
         layout = QVBoxLayout(self.manualTab)
@@ -3045,7 +3124,7 @@ class ModelWithParameter(QDialog):
     def importBestParameters(self):
         if not self.parent().best_params:
             QMessageBox.information(self, "Import Recommended Parameters",
-                                    'No Recommended parameters available. Please go to the ARIMA -> "One Stop Search" menu to generate recommended parameters.')
+                                    'No Recommended parameters available. Please go to the ARIMA -> "Grid Search" menu to generate recommended parameters.')
             return
 
 
@@ -3114,7 +3193,7 @@ class ModelWithParameter(QDialog):
                 p = int(p_text)
                 d = int(d_text)
                 q = int(q_text)
-                results_text = f"Selected ARIMA parameters from(One Stop Shop) are:\n(p={p}, d={d}, q={q})."
+                results_text = f"Selected ARIMA parameters from(Grid Search) are:\n(p={p}, d={d}, q={q})."
                 self.iterationLogTextEdit.append("\n\n" + results_text)  # Display import input results
         except Exception as e:
             print("An error occurred:", e)
