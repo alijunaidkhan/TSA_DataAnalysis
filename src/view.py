@@ -2954,6 +2954,7 @@ class ArimaConfigDialog(QDialog):
           method=self.method 
           max_iter=self.max_iter 
           error_action=self.error_action 
+
           random_state=self.random_state 
           n_fits=self.n_fits 
           oos_size=self.oos_size 
@@ -2961,12 +2962,13 @@ class ArimaConfigDialog(QDialog):
           with_intercept=self.with_intercept
         else:
 
-         self.max_order = self.info_criterion = self.alpha = self.test = self.seasonal_test = self.n_jobs = self.method = self.max_iter =  self.error_action =self.random_state = self.n_fits = self.oos_size =  self.scoring = self.with_intercept =None
+         max_order = info_criterion = alpha = test = seasonal_test = n_jobs = method = max_iter =  error_action =random_state = n_fits = oos_size =  scoring =with_intercept =None
+         info_criterion='aic'
         try:
             
             # Fit auto ARIMA model
 
-            print(self.info_criterion)
+            print(info_criterion)
             model = auto_arima(train_series, start_p=start_p, start_q=start_q, max_p=max_p, max_q=max_q, d=d, 
                            start_P=start_P, start_Q=start_Q,max_Q=max_Q,max_P=max_P,m=m,seasonal=self.seasonal_collapsible.isChecked(),D=D, trace=trace, 
                            error_action='trace', suppress_warnings=self.suppress_warnings_checkbox.isChecked(),random_search=self.random_search_checkbox.isChecked(),return_valid_fits=self.return_valid_fits_checkbox.isChecked(), stepwise=self.stepwise_checkbox.isChecked(), 
