@@ -3078,6 +3078,7 @@ class CollapsibleSection(QGroupBox):
             self.layout().setSpacing(5)
         else:
             self.layout().setSpacing(20)
+
 class ModelWithParameter(QDialog):
     def __init__(self, dataframe, parent=None):
         super().__init__(parent)
@@ -3087,7 +3088,20 @@ class ModelWithParameter(QDialog):
         self.initUI()
 
     def initUI(self):
+        # Creating a scroll area to make the dialog scrollable
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
         self.layout = QVBoxLayout(self)
+        self.setContentsMargins(20,20,20,20)
+        self.layout.addWidget(scroll_area)
+        self.columnSelector = QComboBox()
+        self.columnSelector.addItems(self.dataframe.columns)
+        # Creating the content widget for the scroll area
+        content_widget = QWidget()
+        scroll_area.setWidget(content_widget)
+
+        # Using a QVBoxLayout for the content widget
+        content_layout = QVBoxLayout(content_widget)
 
         # Create tabs for manual input and import
         self.tabWidget = QTabWidget()
@@ -3095,55 +3109,155 @@ class ModelWithParameter(QDialog):
         self.importTab = QWidget()
         self.tabWidget.addTab(self.manualTab, "Manual Input")
         self.tabWidget.addTab(self.importTab, "Import Parameters")
-        self.layout.addWidget(self.tabWidget)
+        content_layout.addWidget(self.tabWidget)
 
         # Create widgets for manual input tab
         self.createManualInputGroup()
 
         # Create widgets for import tab
         self.createImportInputGroup()
-
+        
         # Initialize QTextEdit for displaying iteration logs and ARIMA model summary
+
         self.iterationLogTextEdit = QTextEdit()
         self.iterationLogTextEdit.setReadOnly(True)
-        self.iterationLogTextEdit.setMinimumSize(400, 300)  # Adjust the width and height as needed
-        self.iterationLogTextEdit.setMaximumSize(500, 500) 
-        self.layout.addWidget(self.iterationLogTextEdit)
+        self.iterationLogTextEdit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.iterationLogTextEdit.setMinimumHeight(400)  # Set minimum height
+        content_layout.addWidget(self.iterationLogTextEdit)
 
         # Run ARIMA Button
         self.runButton = QPushButton("Set Parameters")
         self.runButton.clicked.connect(self.findBestArimaParameters)
-        self.layout.addWidget(self.runButton)
+        content_layout.addWidget(self.runButton)
 
         # Generate ARIMA Model Button
         self.generateModelButton = QPushButton("Generate ARIMA Model")
         self.generateModelButton.clicked.connect(self.generateArimaModel)
-        self.layout.addWidget(self.generateModelButton)
+        content_layout.addWidget(self.generateModelButton)
 
-        self.resize(500, 500)
+        self.resize(800, 600)  # Set initial size
+        self.setMinimumWidth(600)  # Set minimum width
+        self.setMinimumHeight(400)  # Set minimum height
 
     def createManualInputGroup(self):
         layout = QVBoxLayout(self.manualTab)
-        group = QGroupBox("Manual Input Parameters")
-        layout.addWidget(group)
-        vbox = QVBoxLayout(group)
+  
+
+        self.non_seasonal_group = self.create_non_seasonal_group()
+        self.seasonal_group = self.create_seasonal_group()
+        self.non_seasonal_collapsible = CollapsibleSection("Non-Seasonal")
+        self.non_seasonal_collapsible.content_layout.addWidget(self.non_seasonal_group)
+        self.non_seasonal_collapsible.setChecked(True)
+        self.seasonal_collapsible = CollapsibleSection("Seasonal")
+        self.seasonal_collapsible.content_layout.addWidget(self.seasonal_group)
+        self.seasonal_collapsible.setChecked(False)
+
+        self.additional_options_group = self.create_additional_options_group()
+        self.additional_options_collapsible = CollapsibleSection("Additional Options")
+        self.additional_options_collapsible.content_layout.addWidget(self.additional_options_group)
+        self.additional_options_collapsible.setChecked(False)
         self.columnSelector = QComboBox()
-        vbox.addWidget(QLabel("Select Time Series Column:"))
-        vbox.addWidget(self.columnSelector)
+        layout.addWidget(QLabel("Select Time Series Column:"))
+        layout.addWidget(self.columnSelector)
         self.columnSelector.addItems(self.dataframe.columns)
         self.trainTestSplitLabel = QLabel("Train set size (%):")
         self.trainTestSplitLineEdit = QLineEdit("80")
-        vbox.addWidget(self.trainTestSplitLabel)
-        vbox.addWidget(self.trainTestSplitLineEdit)
+        layout.addWidget(self.trainTestSplitLabel)
+        layout.addWidget(self.trainTestSplitLineEdit)
+        layout.addWidget(self.non_seasonal_collapsible)
+        layout.addWidget(self.seasonal_collapsible)
+        layout.addWidget(self.additional_options_collapsible)
+
+    def create_non_seasonal_group(self):
+        group = QGroupBox("Non-Seasonal Parameters")
+        layout = QGridLayout(group)
+
         self.pLineEditM = self.create_combobox_with_range(0, 5)
         self.dLineEditM = self.create_combobox_with_range(0, 2)
         self.qLineEditM = self.create_combobox_with_range(0, 5)
-        vbox.addWidget(QLabel("p:"))
-        vbox.addWidget(self.pLineEditM)
-        vbox.addWidget(QLabel("d:"))
-        vbox.addWidget(self.dLineEditM)
-        vbox.addWidget(QLabel("q:"))
-        vbox.addWidget(self.qLineEditM)
+        layout.addWidget(QLabel("p:"), 0, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.pLineEditM,0,1)
+        layout.addWidget(QLabel("d:") ,1, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.dLineEditM,1, 1)
+        layout.addWidget(QLabel("q:"), 2, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.qLineEditM,2,1)
+
+        group.setLayout(layout)
+        return group
+
+    def create_seasonal_group(self):
+        self.startPSeasonalLineEdit = self.create_combobox_with_range(0, 2)
+        self.maxPSeasonalLineEdit = self.create_combobox_with_range(0, 2)
+        self.dSeasonalLineEdit = self.create_combobox_with_range(0, 1)
+        self.maxDSeasonalLineEdit = self.create_combobox_with_range(0, 1)
+        self.startQSeasonalLineEdit = self.create_combobox_with_range(0, 2)
+        self.maxQSeasonalLineEdit = self.create_combobox_with_range(0, 2)
+        self.mLineEdit = self.create_combobox_with_range(1, 12)
+
+        group = QGroupBox("Seasonal Parameters")
+        layout = QGridLayout()
+
+        layout.addWidget(QLabel("P:"), 0, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.startPSeasonalLineEdit, 0, 1)
+
+        layout.addWidget(QLabel("D:"), 1, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.dSeasonalLineEdit, 1, 1)
+  
+
+        layout.addWidget(QLabel("Q:"), 2, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.startQSeasonalLineEdit, 2, 1)
+
+
+        layout.addWidget(QLabel("Seasonal Period (m):"), 3, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.mLineEdit, 3, 1)
+
+        group.setLayout(layout)
+        return group
+ 
+        
+    def create_additional_options_group(self):
+        group = QGroupBox("Additional Options")
+        layout = QFormLayout(group)
+
+        # Create widgets for additional options
+        checkbox_labels = ["Measurement Error", "Time-Varying Regression", "MLE Regression",
+                   "Simple Differencing", "Enforce Stationarity", "Enforce Invertibility",
+                   "Hamilton Representation", "Concentrate Scale", "Use Exact Diffuse"]
+
+        checkboxes = [QCheckBox(label) for label in checkbox_labels]
+        for checkbox in checkboxes:
+          layout.addRow(checkbox)
+            # Trend options as QComboBox
+        self.trendComboBox = QComboBox()
+        self.trendComboBox.addItems(['n', 'c', 't', 'ct'])
+        layout.addRow("Trend:", self.trendComboBox)
+        self.trendOffsetLineEdit = QLineEdit("1")
+        layout.addRow("Trend Offset:", self.trendOffsetLineEdit)
+
+    # # Dates, Frequency, and Missing
+    #     selected_column_name = self.columnSelector.currentText()
+    #     selected_column = self.dataframe[selected_column_name]
+    #     if isinstance(selected_column.index, pd.DatetimeIndex):
+    #      layout.addWidget(QLabel("Dates:"), 2, 0)
+    #      self.datesLineEdit = QLineEdit(selected_column.index[0].strftime('%Y-%m-%d'))
+    #      layout.addWidget(self.datesLineEdit, 2, 1)
+
+    #     # Infer frequency
+    #      freq = selected_column.index.inferred_freq
+    #      if freq:
+    #         layout.addWidget(QLabel("Frequency:"), 2, 2)
+    #         self.freqLineEdit = QLineEdit(freq)
+    #         layout.addWidget(self.freqLineEdit, 2, 3)
+    #     else:
+    #      layout.addWidget(QLabel("No Dates Available"), 2, 0)
+
+    #     layout.addWidget(QLabel("Missing:"), 2, 4)
+    #     self.missingLineEdit = QLineEdit(str(selected_column.isna().sum()))  # Convert to str to display
+    #     layout.addWidget(self.missingLineEdit, 2, 5)
+
+
+        group.setLayout(layout)
+        return group
 
     def createImportInputGroup(self):
         layout = QVBoxLayout(self.importTab)
@@ -3297,3 +3411,22 @@ class ModelWithParameter(QDialog):
             self.iterationLogTextEdit.append(fitted_model.summary().as_text())
         except Exception as e:
             print("An error occurred:", e)
+
+    def create_dropdown(self, options):
+        dropdown = QComboBox()
+        dropdown.addItems(options)
+
+        # Set size policy to expand horizontally and have a fixed vertical size
+        dropdown.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        dropdown.setMinimumWidth(100)  # Set minimum width
+
+        return dropdown
+
+    def create_checkbox(self, text, checked=False):
+        checkbox = QCheckBox(text)
+        checkbox.setChecked(checked)
+
+        # Set size policy to expand horizontally and have a fixed vertical size
+        checkbox.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+        return checkbox
