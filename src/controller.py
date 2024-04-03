@@ -40,6 +40,7 @@ class DataLoadThread(QThread):
     def run(self):
         try:
             data = self.model.load_data(self.file_path, self.file_type)
+
             #self.model.profile_load_data(self.file_path, self.file_type)
             for step in range(1, 101):  # Example loop to represent progress
              self.signals.progress.emit(step)  # Emit progress update
@@ -47,6 +48,7 @@ class DataLoadThread(QThread):
             # Emit signals to update GUI safely
             self.signals.data_loaded.emit(data)
             shape_message = f"Data Loaded: {data.shape[0]} rows, {data.shape[1]} columns"
+
             self.signals.update_status.emit(shape_message)
             if self.model.data_frame is not None:
                 columns = self.model.data_frame.columns.tolist()
@@ -88,7 +90,12 @@ class Controller:
             else:
                 self.view.show_message("Unsupported file format")
                 return
+            self.view.copy_data_frame=None
+            self.view.train_data=None
+            self.view.test_data=None
+            self.view.actual_data=self.model.data_frame
 
+            self.view.getValuesthreshold={}
             # Create and start the data loading thread
             self.thread = DataLoadThread(file_path, file_type, self.model)
             self.thread.signals.data_loaded.connect(self.view.display_data)
@@ -127,6 +134,7 @@ class Controller:
         self.view.label2.setVisible(True)
         self.view.unselect_button.setVisible(True)
         self.view.subsetCreated = False
+
         #QMessageBox.information(self, "Subset Created", "Your subset has been generated. You can view it using the 'Latest Subset Table' button.")
         
     def save_as(self):

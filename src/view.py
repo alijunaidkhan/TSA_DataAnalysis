@@ -202,7 +202,10 @@ class View(QMainWindow):
         self.rows_per_page = 1000
         self.generated_subsets = []
         self.copy_data_frame=None
-        
+        self.actual_data=self.controller.model.data_frame
+
+        self.train_data=None
+        self.test_data=None
         # Initialize the plotting dialog
     
         self.lineplotting_dialog = PlottingDialog(controller=self.controller)
@@ -803,7 +806,6 @@ class View(QMainWindow):
         QMessageBox.information(self, title, message)
 # Assume `self.table_widget` is your QTableWidget and `self.model.data_frame` is your pandas DataFrame
     def display_latest_subset(self):
-     print(self.controller.model.data_frame.dtypes)
      if hasattr(self, 'Latest_subset_dialog'):
         self.latest_subset_dialog.close()  # Close previous dialog if open
 
@@ -820,10 +822,10 @@ class View(QMainWindow):
     Args:
         data_frame (pd.DataFrame): The data to display.
      """
+
      if not hasattr(self, 'table_widget'):
         self.table_widget = QTableWidget()
         self.central_layout.addWidget(self.table_widget)
-
      self.table_widget.setUpdatesEnabled(False)  # Disable updates for batch processing
      self.table_widget.clear()
      self.table_widget.setRowCount(min(self.rows_per_page, data_frame.shape[0]))
@@ -2648,10 +2650,25 @@ class ArimaConfigDialog(QDialog):
 
         self.columnSelectorLabel = QLabel("Select Time Series Column:")
         self.columnSelector = QComboBox()
-        self.columnSelector.addItems(self.dataframe.columns)
+        if self.dataframe is not None:
+            self.columnSelector.addItems(self.dataframe.columns)
+        elif self.parent().train_data is not None:
+            self.columnSelector.addItems(self.parent().train_data.columns)
+        elif self.parent().test_data is not None:
+            self.columnSelector.addItems(self.parent().test_data.columns)
+     
 
-        self.trainTestSplitLabel = QLabel("Train set size (%):")
-        self.trainTestSplitLineEdit = QLineEdit("80")
+
+        self.datasetSelectorLabel = QLabel("Select Dataset:")
+        self.datasetSelector = QComboBox()
+        if self.dataframe is not None:
+            self.datasetSelector.addItem("Actual Set")
+        if self.parent().train_data is not None:
+            self.datasetSelector.addItem("Train Set")
+        if self.parent().test_data is not None:
+            self.datasetSelector.addItem("Test Set")
+
+
 
         self.non_seasonal_group = self.create_non_seasonal_group()
         self.seasonal_group = self.create_seasonal_group()
@@ -2681,8 +2698,8 @@ class ArimaConfigDialog(QDialog):
         # Add widgets to the layout
         self.main_layout.addWidget(self.columnSelectorLabel)
         self.main_layout.addWidget(self.columnSelector)
-        self.main_layout.addWidget(self.trainTestSplitLabel)
-        self.main_layout.addWidget(self.trainTestSplitLineEdit)
+        self.main_layout.addWidget(self.datasetSelectorLabel)
+        self.main_layout.addWidget(self.datasetSelector)
         self.main_layout.addWidget(self.non_seasonal_collapsible)
         self.main_layout.addWidget(self.seasonal_collapsible)
         self.main_layout.addWidget(self.additional_options_collapsible)
@@ -2707,6 +2724,8 @@ class ArimaConfigDialog(QDialog):
         self.traceCheckBox = QCheckBox("Trace")
         self.traceCheckBox.setChecked(True)
         self.layout().addWidget(self.traceCheckBox)
+
+    
     def create_non_seasonal_group(self):
         self.startPLineEdit = self.create_combobox_with_range(0, 5)
         self.maxPLineEdit = self.create_combobox_with_range(0, 5)
@@ -2906,42 +2925,37 @@ class ArimaConfigDialog(QDialog):
     def findBestArimaParameters(self):
         self.iterationLogTextEdit.clear()
         selected_column = self.columnSelector.currentText()
-        series = self.dataframe[selected_column]
-        self.parent().columnSelector=self.columnSelector.currentText()
-        self.parent().model_dataframe=self.dataframe
-        # Handle missing values
+        series = None
+
+        if self.datasetSelector.currentText() == "Actual Set":
+         series = self.dataframe[selected_column]
+        elif self.datasetSelector.currentText() == "Train Set":
+         series = self.parent().train_data[selected_column]
+        elif self.datasetSelector.currentText() == "Test Set":
+         series = self.parent().test_data[selected_column]
+
+    # Handle missing values
         series.dropna(inplace=True)  # Drop rows with missing values
 
-        # Check if there are missing values after dropping
+    # Check if there are missing values after dropping
         if series.isnull().any():
-            QMessageBox.critical(self, "Error", "Missing values still exist in the time series data after preprocessing.")
-            return
+         QMessageBox.critical(self, "Error", "Missing values still exist in the time series data after preprocessing.")
+         return
 
-        # Ensure the series is in datetime format
+    # Ensure the series is in datetime format
         if not np.issubdtype(series.index.dtype, np.datetime64):
-            QMessageBox.critical(self, "Error", "The index of the time series data must be in datetime format.")
-            return
-
-        # Convert percentage to the actual size of the test set
-        test_size_percent = float(self.trainTestSplitLineEdit.text()) / 100
-        test_size = int(len(series) * test_size_percent)
-
-        # Split data into train and test sets
-        train_series, test_series = series[:-test_size], series[-test_size:]
-
-        # Convert the series to have a DateTime index
-        train_series.index = pd.date_range(start='2000-01-01', periods=len(train_series))
-        test_series.index = pd.date_range(start='2000-01-01', periods=len(test_series))
+         QMessageBox.critical(self, "Error", "The index of the time series data must be in datetime format.")
+         return
 
         original_stdout = sys.stdout
         sys.stdout = EmittingStream(self.iterationLogTextEdit)
 
         try:
-            self.prepareAndRunAutoArima(train_series, test_series)
+            self.prepareAndRunAutoArima(series)
         finally:
             sys.stdout = original_stdout
 
-    def prepareAndRunAutoArima(self, train_series, test_series):
+    def prepareAndRunAutoArima(self, series):
         trace = self.traceCheckBox.isChecked()
         if self.non_seasonal_collapsible.isChecked():
          start_p = int(self.startPLineEdit.currentText())
@@ -3030,7 +3044,7 @@ class ArimaConfigDialog(QDialog):
 
         try:
             # Fit auto ARIMA model based on the combinations of parameter checkboxes
-            model = auto_arima(train_series, start_p=start_p, start_q=start_q, max_p=max_p, max_q=max_q, d=d,
+            model = auto_arima(series, start_p=start_p, start_q=start_q, max_p=max_p, max_q=max_q, d=d,
                            start_P=start_P, start_Q=start_Q, max_Q=max_Q, max_P=max_P, m=m,
                            seasonal=self.seasonal_collapsible.isChecked(), D=D, trace=trace,
                            error_action=error_action, suppress_warnings=self.suppress_warnings_checkbox.isChecked(),
@@ -3055,8 +3069,8 @@ class ArimaConfigDialog(QDialog):
 
 
             # Evaluate model
-            forecast = model.predict(len(test_series))
-            mse = mean_squared_error(test_series, forecast)
+            forecast = model.predict(len(series))
+            mse = mean_squared_error(series, forecast)
             self.iterationLogTextEdit.append(f"\nMean Squared Error (MSE): {mse}")
             if not self.traceCheckBox.isChecked():
                 self.iterationLogTextEdit.append("\nPlease check the trace to get the best model parameters.")
@@ -3178,20 +3192,36 @@ class ModelWithParameter(QDialog):
         self.additional_options_collapsible = CollapsibleSection("Additional Options")
         self.additional_options_collapsible.content_layout.addWidget(self.additional_options_group)
         self.additional_options_collapsible.setChecked(False)
+        self.columnSelectorLabel = QLabel("Select Time Series Column:")
         self.columnSelector = QComboBox()
-        layout.addWidget(QLabel("Select Time Series Column:"))
-        layout.addWidget(self.columnSelector)
-        self.columnSelector.addItems(self.dataframe.columns)
-        self.trainTestSplitLabel = QLabel("Train set size (%):")
-        self.trainTestSplitLineEdit = QLineEdit("80")
+        if self.dataframe is not None:
+            self.columnSelector.addItems(self.dataframe.columns)
+        elif self.parent().train_data is not None:
+            self.columnSelector.addItems(self.parent().train_data.columns)
+        elif self.parent().test_data is not None:
+            self.columnSelector.addItems(self.parent().test_data.columns)
+     
+
+
+        self.datasetSelectorLabel = QLabel("Select Dataset:")
+        self.datasetSelector = QComboBox()
+        if self.dataframe is not None:
+            self.datasetSelector.addItem("Actual Set")
+        if self.parent().train_data is not None:
+            self.datasetSelector.addItem("Train Set")
+        if self.parent().test_data is not None:
+            self.datasetSelector.addItem("Test Set")
+
         self.importBestParamsButton = QPushButton("Import Recommended Parameters")
         self.importBestParamsButton.setIcon(QIcon('images/import.ico'))  # Setting button icon
         self.importBestParamsButton.setToolTip(
             "Click to import best parameters from ARIMA model")  # Tooltip for button
         self.importBestParamsButton.clicked.connect(self.importBestParameters)
         layout.addWidget(self.importBestParamsButton)  
-        layout.addWidget(self.trainTestSplitLabel)
-        layout.addWidget(self.trainTestSplitLineEdit)
+        layout.addWidget(self.columnSelectorLabel)  
+        layout.addWidget(self.columnSelector)  
+        layout.addWidget(self.datasetSelectorLabel)
+        layout.addWidget(self.datasetSelector)
         layout.addWidget(self.non_seasonal_collapsible)
         layout.addWidget(self.seasonal_collapsible)
         layout.addWidget(self.additional_options_collapsible)
@@ -3396,12 +3426,36 @@ class ModelWithParameter(QDialog):
         self.iterationLogTextEdit.append("\n" + results_text) 
     def generateArimaModel(self):
         self.iterationLogTextEdit.clear()
-        selected_column = self.columnSelector.currentText()
-        series = self.dataframe[selected_column]
-        endog = series.values
-        train_size_percentage = float(self.trainTestSplitLineEdit.text()) / 100
-        train_endog, test_endog = train_test_split(endog, train_size=train_size_percentage, shuffle=False)
+        trend=None
+        trend_offset=1
+        measurement_error = False
+        time_varying_regression = False
+        mle_regression = True
+        simple_differencing = False
+        enforce_stationarity = True
+        enforce_invertibility = True
+        hamilton_representation = False
+        concentrate_scale = False
+        trend_offset = 1
+        use_exact_diffuse = False
 
+    # Get the selected column
+        selected_column = self.columnSelector.currentText()
+    
+    # Get the selected dataset
+        selected_dataset = self.datasetSelector.currentText()
+    
+    # Determine the dataset based on the selected option
+        if selected_dataset == "Actual Set":
+         dataset = self.dataframe[selected_column].values
+        elif selected_dataset == "Train Set":
+         dataset = self.parent().train_data[selected_column].values
+        elif selected_dataset == "Test Set":
+         dataset = self.parent().test_data[selected_column].values
+        else:
+         QMessageBox.warning(self, "Input Error", "Please select a dataset.")
+         return
+    
         try:
             current_index = self.tabWidget.currentIndex()
 
@@ -3467,12 +3521,8 @@ class ModelWithParameter(QDialog):
                  D = 0
                  Q = 0
                  m=3
-            endog = series.values
-
-            train_size_percentage = float(self.trainTestSplitLineEdit.text()) / 100
-
-            train_endog, test_endog = train_test_split(endog, train_size=train_size_percentage, shuffle=False)
-            model = SARIMAX(endog=train_endog, order=(p, d, q),seasonal_order=(P,D,Q,m),trend=trend,
+            endog = dataset
+            model = SARIMAX(endog=endog, order=(p, d, q),seasonal_order=(P,D,Q,m),trend=trend,
                             trend_offset=trend_offset, measurement_error=measurement_error,
                         time_varying_regression=time_varying_regression, mle_regression=mle_regression,
                         simple_differencing=simple_differencing, enforce_stationarity=enforce_stationarity,
@@ -3533,22 +3583,23 @@ class SplitDatasetDialog(QDialog):
         layout = QVBoxLayout()
 
         # Prompt labels
-        self.training_set_label = QLabel("Select Training Set Size:")
+        self.training_set_label = QLabel("Train Set Size(%):")
         layout.addWidget(self.training_set_label)
 
         # Combo boxes for selecting training set size
         self.training_set_combobox = self.create_combobox_with_range(25, 100, 25)
-        self.training_set_combobox.currentIndexChanged.connect(self.update_test_set_combobox)
         layout.addWidget(self.training_set_combobox)
 
         # Radio buttons for selecting test set size option
-        self.test_set_label = QLabel("Test Dataset:")
+        self.test_set_label = QLabel("Test Dataset(%):")
         layout.addWidget(self.test_set_label)
 
 
 
         # Combo box for test set size (read-only)
-        self.test_set_combobox = self.create_combobox_with_range(0, 100, 25)
+        self.test_set_combobox = self.create_combobox_with_range(75, 100, 25)
+        self.training_set_combobox.currentTextChanged.connect(self.update_test_set_combobox)
+
         self.test_set_combobox.setEnabled(False)
         layout.addWidget(self.test_set_combobox)
         self.radio_layout = QVBoxLayout()
@@ -3575,7 +3626,7 @@ class SplitDatasetDialog(QDialog):
 
     def create_combobox_with_range(self, start, end, step):
         combobox = QComboBox()
-        combobox.setEditable(False)
+        combobox.setEditable(True)
         for i in range(start, end + 1, step):
             combobox.addItem(str(i))
 
@@ -3588,12 +3639,19 @@ class SplitDatasetDialog(QDialog):
     def set_test_input_editable(self):
         # Set test set input field editable based on selected option
         self.test_set_combobox.setDisabled(self.radio_percentage.isChecked())
-
     def update_test_set_combobox(self):
-        # Update the test set combo box based on the selected training set size
-        training_set_size = int(self.training_set_combobox.currentText())
+     # Update the test set combo box based on the selected training set size
+      training_set_text = self.training_set_combobox.currentText()
+      if not training_set_text:  # Check if the text is empty
+        return  # Do nothing if the text is empty
+
+      try:
+        training_set_size = int(training_set_text)
         test_set_size = 100 - training_set_size
         self.test_set_combobox.setCurrentText(str(test_set_size))
+      except ValueError:
+        QMessageBox.critical(self, "Error", "Please enter a valid numeric value for training set size.")
+
 
     def split_dataset(self):
         # Retrieve user input
@@ -3607,7 +3665,10 @@ class SplitDatasetDialog(QDialog):
         train_data, test_data = self.split_dataframe(training_set_size)
         self.train_data = train_data
         self.test_data = test_data
-
+        self.actual_data=self.dataframe
+        self.parent().train_data= self.train_data 
+        self.parent().test_data=self.test_data 
+        self.parent().actual_data=self.actual_data
         # Display successful message
         QMessageBox.information(self, "Success", f"Dataset split successful!\nTrain Data: {training_set_size}%\nTest Data: {test_set_size}%")
 
