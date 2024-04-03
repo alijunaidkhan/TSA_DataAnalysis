@@ -146,7 +146,6 @@ import sys
 
 from sklearn.metrics import mean_squared_error
 
-
 os.environ['QT_API'] = 'pyqt6'
 matplotlib.use('QtAgg')
 
@@ -715,11 +714,7 @@ class View(QMainWindow):
 # Create Model menu
                # Create Model menu
         model_menu = self.menuBar().addMenu("&Model")
-# Add Split Dataset action with an icon to the Model menu
-        split_dataset_icon = QIcon('images/split_dataset.ico')  # Update the icon path as necessary
-        split_dataset_action = QAction(split_dataset_icon, "&Split Dataset", self)
-        split_dataset_action.triggered.connect(self.split_dataset_function)
-        model_menu.addAction(split_dataset_action)
+
         # Submenu ARIMA
         arima_submenu = model_menu.addMenu(QIcon('images/arima_icon.svg'), "&ARIMA")
 
@@ -759,18 +754,7 @@ class View(QMainWindow):
     def facebook_prophect_function(self):
         pass
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    def split_dataset_function(self):
 
-        if self.controller.model.data_frame is  None:
-         icon_path = os.path.abspath('images/split_dataset.ico')
-         self.setWindowIcon(QIcon(icon_path))
-         QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
-         icon_path = os.path.abspath('images/bulb_icon.png')
-         self.setWindowIcon(QIcon(icon_path))
-         return
-
-        dialog = SplitDatasetDialog(self.controller.model.data_frame,self)
-        dialog.exec()
     def create_status_bar(self):
         """
         Create the status bar with a custom style.
@@ -2964,13 +2948,7 @@ class ArimaConfigDialog(QDialog):
          max_d=2
          max_q=5
          error_action ='warn'
-        elif self.seasonal_collapsible.isChecked and self.non_seasonal_collapsible.isChecked:
-            start_p = int(self.startPLineEdit.currentText())
-            start_q = int(self.startQLineEdit.currentText())
-            max_p = min(int(self.maxPLineEdit.currentText()), 3)  # Limit maximum p to 3
-            max_q = min(int(self.maxQLineEdit.currentText()), 3)  # Limit maximum q to 3
-            d_text = self.dLineEdit.currentText()
-            max_d=int(self.maxdLineEdit.currentText())
+        if self.seasonal_collapsible.isChecked():
             start_P = int(self.startPSeasonalLineEdit.currentText())
             start_Q = int(self.startQSeasonalLineEdit.currentText())
             max_P = min(int(self.maxPSeasonalLineEdit.currentText()), 2)  # Limit maximum P to 2
@@ -2980,13 +2958,7 @@ class ArimaConfigDialog(QDialog):
             m = int(self.mLineEdit.currentText())
             error_action ='warn'
 
-        elif self.non_seasonal_collapsible.isChecked() and self.seasonal_collapsible.isChecked()==False:
-            start_p = int(self.startPLineEdit.currentText())
-            start_q = int(self.startQLineEdit.currentText())
-            max_p = min(int(self.maxPLineEdit.currentText()), 3)  # Limit maximum p to 3
-            max_q = min(int(self.maxQLineEdit.currentText()), 3)  # Limit maximum q to 3
-            d_text = self.dLineEdit.currentText()
-            max_d=int(self.maxdLineEdit.currentText())
+        if self.seasonal_collapsible.isChecked()==False:
             start_P =1
             start_Q =1
             max_P =2
@@ -3053,6 +3025,9 @@ class ArimaConfigDialog(QDialog):
                 'm': model.seasonal_order[3]
             }
 
+            # # Print model summary
+            # model_summary = model.summary().as_text()
+            # self.iterationLogTextEdit.append("\n\nOptimal model summary:\n" + model_summary)
 
             # Evaluate model
             forecast = model.predict(len(test_series))
@@ -3419,8 +3394,11 @@ class ModelWithParameter(QDialog):
                  p, d, q = int(p_text), int(d_text), int(q_text)
                  P, D, Q, m = int(P_text), int(D_text), int(Q_text), int(m_text)
 
-       
-                elif not p_text or not d_text or not q_text or not P_text or not Q_text or not m_text or not D_text:
+            # Check for conflicts between non-seasonal and seasonal AR components
+                if any(lag in [p, d, q] for lag in [P, D, Q]):
+                  raise ValueError("Invalid model: autoregressive lag(s) are in both the seasonal and non-seasonal autoregressive components.")
+
+                if not p_text or not d_text or not q_text or not P_text or not Q_text or not m_text or not D_text:
                     QMessageBox.warning(self, "Input Error", "Please fill in all manual input parameters.")
                     return
 
@@ -3520,102 +3498,3 @@ class ModelWithParameter(QDialog):
         checkbox.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         return checkbox
-
-class SplitDatasetDialog(QDialog):
-    def __init__(self, dataframe, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Split Dataset")
-        self.setWindowIcon(QIcon('images/split_dataset.ico'))
-        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
-        self.resize(500, 300)
-        self.dataframe = dataframe
-
-        layout = QVBoxLayout()
-
-        # Prompt labels
-        self.training_set_label = QLabel("Select Training Set Size:")
-        layout.addWidget(self.training_set_label)
-
-        # Combo boxes for selecting training set size
-        self.training_set_combobox = self.create_combobox_with_range(25, 100, 25)
-        self.training_set_combobox.currentIndexChanged.connect(self.update_test_set_combobox)
-        layout.addWidget(self.training_set_combobox)
-
-        # Radio buttons for selecting test set size option
-        self.test_set_label = QLabel("Test Dataset:")
-        layout.addWidget(self.test_set_label)
-
-
-
-        # Combo box for test set size (read-only)
-        self.test_set_combobox = self.create_combobox_with_range(0, 100, 25)
-        self.test_set_combobox.setEnabled(False)
-        layout.addWidget(self.test_set_combobox)
-        self.radio_layout = QVBoxLayout()
-
-        self.radio_percentage = QRadioButton("Percentage")
-        self.radio_rows = QRadioButton("Number of Rows")
-        self.radio_percentage.setChecked(True)
-        self.radio_percentage.toggled.connect(self.set_test_input_editable)
-        self.radio_rows.toggled.connect(self.set_test_input_editable)
-
-        self.radio_layout.addWidget(self.radio_percentage)
-        self.radio_layout.addWidget(self.radio_rows)
-        layout.addLayout(self.radio_layout)
-        # Buttons
-        self.split_button = QPushButton("Split Dataset")
-        self.split_button.clicked.connect(self.split_dataset)
-        layout.addWidget(self.split_button)
-
-        self.setLayout(layout)
-
-        # Variables to store split datasets
-        self.train_data = None
-        self.test_data = None
-
-    def create_combobox_with_range(self, start, end, step):
-        combobox = QComboBox()
-        combobox.setEditable(False)
-        for i in range(start, end + 1, step):
-            combobox.addItem(str(i))
-
-        # Set size policy to expand horizontally and have a fixed vertical size
-        combobox.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        combobox.setMinimumWidth(100)  # Set minimum width
-
-        return combobox
-
-    def set_test_input_editable(self):
-        # Set test set input field editable based on selected option
-        self.test_set_combobox.setDisabled(self.radio_percentage.isChecked())
-
-    def update_test_set_combobox(self):
-        # Update the test set combo box based on the selected training set size
-        training_set_size = int(self.training_set_combobox.currentText())
-        test_set_size = 100 - training_set_size
-        self.test_set_combobox.setCurrentText(str(test_set_size))
-
-    def split_dataset(self):
-        # Retrieve user input
-        training_set_size = int(self.training_set_combobox.currentText())
-        test_set_size = int(self.test_set_combobox.currentText())
-
-        # Process training and test set sizes (you can add your processing logic here)
-        # For example, you can pass these sizes to your ARIMA/SARIMA modeling functions
-
-        # Split the dataset
-        train_data, test_data = self.split_dataframe(training_set_size)
-        self.train_data = train_data
-        self.test_data = test_data
-
-        # Display successful message
-        QMessageBox.information(self, "Success", f"Dataset split successful!\nTrain Data: {training_set_size}%\nTest Data: {test_set_size}%")
-
-        # Close the dialog
-        self.accept()
-
-    def split_dataframe(self, training_set_size):
-        num_rows = int(len(self.dataframe) * (training_set_size / 100))
-        train_data = self.dataframe.head(num_rows)
-        test_data = self.dataframe.tail(len(self.dataframe) - num_rows)
-        return train_data, test_data
