@@ -127,6 +127,7 @@ QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
 from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget,QCheckBox
 import os
 import matplotlib
+from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
@@ -141,10 +142,10 @@ import numpy as np
 import pandas as pd
 import zipfile
 import os
-from PyQt6.QtWidgets import QDialog, QScrollArea,QVBoxLayout, QFormLayout, QLabel, QLineEdit, QDialogButtonBox, QMessageBox, QApplication
+from PyQt6.QtWidgets import QDialog, QFileDialog,QScrollArea,QVBoxLayout, QFormLayout, QLabel, QLineEdit, QDialogButtonBox, QMessageBox, QApplication
 import sys
 
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 
 os.environ['QT_API'] = 'pyqt6'
@@ -156,7 +157,9 @@ from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from pandas.plotting import lag_plot
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.statespace.sarimax import SARIMAX
-
+import os
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 class View(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -3170,10 +3173,198 @@ class ModelWithParameter(QDialog):
         self.generateModelButton = QPushButton("Generate ARIMA Model")
         self.generateModelButton.clicked.connect(self.generateArimaModel)
         content_layout.addWidget(self.generateModelButton)
-
+        self.reportButton = QPushButton("Report Aima Model")
+        self.reportButton.clicked.connect(self.generateReport)  # Connect to report function
+        self.reportButton.setEnabled(False)  # Initially disabled until "Train Set" is selected
+        content_layout.addWidget(self.reportButton)
         self.resize(800, 600)  # Set initial size
         self.setMinimumWidth(600)  # Set minimum width
         self.setMinimumHeight(400)  # Set minimum height
+
+    def fit_arima_model(self, train, column_name, order):
+        """
+        Fits an ARIMA model to the specified column of the training dataset and prints the model summary.
+
+        This function is tailored for training the model on a specific column of a pandas DataFrame or Series.
+        It prints out the summary of the fitted model, providing insights into the performance and characteristics 
+        of the model.
+
+        Parameters:
+        - train: The training dataset (pandas DataFrame or Series).
+        - column_name: The name of the column to be modeled (string).
+        - order: A tuple specifying the (p,d,q) order of the model.
+
+        Returns:
+        - results: The results of the fitted model, which include the model summary and coefficients.
+        """
+        # Check if the train data is a DataFrame and the specified column exists
+        if isinstance(train, pd.DataFrame) and column_name in train.columns:
+            model_data = train[column_name]
+        elif isinstance(train, pd.Series):
+            model_data = train
+        else:
+            raise ValueError("The training data should be a pandas DataFrame or Series.")
+
+        model = ARIMA(model_data, order=order)
+        results = model.fit()
+        print(results.summary())
+        return results
+
+    def plot_train_predictions(self, train_data, fitted_model, differencing_order):
+        """
+        Generates and plots predictions from the fitted ARIMA model on the training dataset
+        alongside the actual training data, excluding the first 'differencing_order' observations
+        affected by differencing.
+
+        Parameters:
+        - train_data: The training dataset (pandas DataFrame or Series).
+        - fitted_model: The results object from the fitted ARIMA model.
+        - differencing_order: The differencing order of the ARIMA model.
+        """
+        # Generate predictions starting from the point that accounts for differencing
+        train_predictions = fitted_model.predict(start=train_data.index[differencing_order], 
+                                                 end=train_data.index[-1], typ='levels')
+        # Plotting
+        plt.figure(figsize=(10, 5))
+        plt.plot(train_data.index[differencing_order:], train_data.values[differencing_order:], 
+                 label='Actual Training Data', color='blue')
+        plt.plot(train_predictions.index, train_predictions, label='Training Model Predictions', 
+                 alpha=0.75, color='red')
+        plt.title('Training Data vs. Training Model Predictions')
+        plt.legend()
+        plt.xlabel('Time')
+        plt.ylabel('Values')
+        plt.grid()
+        plt.show()
+
+    def plot_train_model_diagnostics(self, fitted_model):
+        """
+        Plots diagnostic plots for the ARIMA model fitted to the training dataset. These diagnostics 
+        are crucial for evaluating the model's residuals and underlying assumptions, such as normality, 
+        homoscedasticity, and the absence of autocorrelation.
+
+        Parameters:
+        - fitted_model: The results object from the fitted ARIMA model on the training data.
+        """
+        fitted_model.plot_diagnostics(figsize=(15, 8))
+        plt.grid(True, which='major', axis='y', color='green', alpha=0.75, linestyle='--')
+        plt.grid(True, which='major', axis='x', color='blue', alpha=0.5, linestyle=':')
+        plt.suptitle('Training Model Diagnostics')
+        plt.show()
+
+    def evaluate_training_model_performance(self, train_data, train_predictions, differencing_order):
+        """
+        Evaluates the performance of the ARIMA model's predictions on the training dataset using 
+        mean absolute error (MAE), mean squared error (MSE), root mean squared error (RMSE), 
+        and mean absolute percentage error (MAPE), excluding the initial observations affected 
+        by differencing specified by 'differencing_order'.
+
+        Parameters:
+        - train_data: The actual training dataset (pandas DataFrame or Series).
+        - train_predictions: The predictions made by the model on the training dataset.
+        - differencing_order: The number of initial observations to exclude due to differencing.
+        """
+        # Ensure actual and predicted values are aligned properly
+        actual = train_data.values[differencing_order:]
+        pred = train_predictions
+        mae = mean_absolute_error(actual, pred)
+        mse = mean_squared_error(actual, pred)
+        rmse = np.sqrt(mse)
+        mape = np.mean(np.abs((actual - pred) / actual)) * 100
+
+        print("Mean Absolute Error (MAE):", mae)
+        print("Mean Squared Error (MSE):", mse)
+        print("Root Mean Squared Error (RMSE):", rmse)
+        print("Mean Absolute Percentage Error (MAPE):", mape)
+
+
+    def generateReport(self):
+            # Placeholder for generating and displaying report
+            if self.parent().train_data is None:
+                QMessageBox.warning(self, "Split Dataset First", "Please split the dataset into train and test sets first.")
+                return
+            selected_column = self.columnSelector.currentText()
+            
+            # Ensure train_data contains only numeric values
+            train_data_numeric = self.parent().train_data[selected_column].astype(float)
+            
+            # Fit ARIMA model
+            fitted_model = self.fit_arima_model(train_data_numeric, selected_column, self.order)
+            
+            # Create a new window for the report
+            report_window = QDialog(self)
+            report_window.setWindowTitle("ARIMA Model Report")
+            
+            # Set a fixed size for the window
+            report_window.setFixedSize(800, 600)
+            
+            # Create a layout for the report window
+            report_layout = QVBoxLayout(report_window)
+            
+            # Create a scroll area to contain the contents
+            scroll_area = QScrollArea()
+            
+            # Create a widget to hold the contents of the scroll area
+            scroll_contents = QWidget()
+            scroll_layout = QVBoxLayout(scroll_contents)
+            
+            # Add summary text
+            summary_text = QTextEdit()
+            summary_text.setText(fitted_model.summary().as_text())  # Add model summary text here
+            summary_text.setReadOnly(True)
+            scroll_layout.addWidget(summary_text)
+
+            # Plot training predictions
+            self.plot_train_predictions(train_data_numeric, fitted_model, self.differencing_order)
+            train_pred_plot = plt.gcf().canvas
+            
+            # Plot model diagnostics
+            self.plot_train_model_diagnostics(fitted_model)
+            diagnostics_plot = plt.gcf().canvas
+
+            # Add plots to the scroll layout
+            scroll_layout.addWidget(train_pred_plot)
+            scroll_layout.addWidget(diagnostics_plot)
+
+            # Set the scroll area widget
+            scroll_area.setWidget(scroll_contents)
+            scroll_area.setWidgetResizable(True)
+            
+            # Add the scroll area to the report layout
+            report_layout.addWidget(scroll_area)
+
+            # Create buttons to save report as PDF and to predict on test set
+            save_pdf_button = QPushButton("Save Report as PDF")
+            save_pdf_button.clicked.connect(lambda: self.saveReportAsPDF(report_window, fitted_model))
+            predict_test_button = QPushButton("Predict on Test Set")
+            #predict_test_button.clicked.connect(self.predictOnTestSet)
+
+            # Add buttons to layout
+            button_layout = QHBoxLayout()
+            button_layout.addWidget(save_pdf_button)
+            button_layout.addWidget(predict_test_button)
+            report_layout.addLayout(button_layout)
+
+            # Show the report window
+            report_window.exec()
+
+    def saveReportAsPDF(self, parent_window, fitted_model):
+            # Get the file path for saving
+            file_path, _ = QFileDialog.getSaveFileName(parent_window, "Save PDF", "", "PDF Files (*.pdf)")
+
+            if file_path:
+                # Create a PDF canvas
+                c = canvas.Canvas(file_path, pagesize=letter)
+                
+                # Add model summary text to PDF
+                text = fitted_model.summary().as_text()
+                c.drawString(100, 750, text)
+                
+                # Draw the canvas
+                c.save()
+                
+                # Show notification
+                QMessageBox.information(parent_window, "PDF Saved Successfully", f"PDF saved successfully at: {file_path}")
 
     def createManualInputGroup(self):
         layout = QVBoxLayout(self.manualTab)
@@ -3529,12 +3720,14 @@ class ModelWithParameter(QDialog):
                         enforce_invertibility=enforce_invertibility, hamilton_representation=hamilton_representation,
                         concentrate_scale=concentrate_scale, use_exact_diffuse=use_exact_diffuse)
             fitted_model = model.fit()
-
+            self.order=(p, d, q)
+            self.differencing_order=d
 # Display model summary
             summary_text = fitted_model.summary().as_text()
+            self.summary_text=summary_text
             self.iterationLogTextEdit.append("\n\nSARIMA Model Summary:\n")
             self.iterationLogTextEdit.append(summary_text)
-
+            self.reportButton.setEnabled(True)
 # Print forecasts
             forecast = fitted_model.forecast(steps=10)  # Change steps as needed
             self.iterationLogTextEdit.append("\n\nForecasts:\n")
@@ -3552,6 +3745,7 @@ class ModelWithParameter(QDialog):
         except Exception as e:
             self.iterationLogTextEdit.append(f"\n\nFailed to find SARIMA due to an error:\n{e}")
             return
+        
     def create_dropdown(self, options):
         dropdown = QComboBox()
         dropdown.addItems(options)
