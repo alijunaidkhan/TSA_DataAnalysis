@@ -131,13 +131,14 @@ from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
-from PyQt6.QtCore import Qt, QUrl,QThread, pyqtSignal,QSize
-from sklearn.model_selection import TimeSeriesSplit, train_test_split
-
+from PyQt6.QtCore import Qt, QUrl,pyqtSignal,QSize
+from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 from PyQt6.QtGui import QAction, QIcon,QFont,QColor,QPixmap,QStandardItem, QStandardItemModel, QDesktopServices
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget, QTabWidget, \
     QTableWidget,QMenu, QTableWidgetItem, QHBoxLayout, QLabel, QLineEdit, QGridLayout, QDialog, QGroupBox,\
-    QRadioButton, QComboBox,QDialogButtonBox, QProgressBar,QFormLayout,QTextEdit,QAbstractItemView, QMessageBox, QButtonGroup, QDockWidget,QSpinBox, QSpacerItem, QSizePolicy
+    QRadioButton, QComboBox,QProgressBar,QFormLayout,QTextEdit,QAbstractItemView, QMessageBox, QButtonGroup, QDockWidget,QSpinBox, QSpacerItem, QSizePolicy
 import numpy as np
 import pandas as pd
 import zipfile
@@ -146,6 +147,7 @@ from PyQt6.QtWidgets import QDialog, QFileDialog,QScrollArea,QVBoxLayout, QFormL
 import sys
 
 from sklearn.metrics import mean_absolute_error, mean_squared_error
+import subprocess
 
 
 os.environ['QT_API'] = 'pyqt6'
@@ -160,6 +162,7 @@ from statsmodels.tsa.statespace.sarimax import SARIMAX
 import os
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+
 class View(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -191,6 +194,8 @@ class View(QMainWindow):
         super().__init__()
         self.best_params = {}  # Define global variable to store best parameters
         self.model_dataframe = None
+        self.file_path = None
+
         self.columnSelector = None
         self.subsetCreated = False  # Track whether a subset has been created
         self.savedSubsets = None  # Initialize the data_frame attribute
@@ -3277,94 +3282,118 @@ class ModelWithParameter(QDialog):
         print("Root Mean Squared Error (RMSE):", rmse)
         print("Mean Absolute Percentage Error (MAPE):", mape)
 
-
     def generateReport(self):
-            # Placeholder for generating and displaying report
-            if self.parent().train_data is None:
-                QMessageBox.warning(self, "Split Dataset First", "Please split the dataset into train and test sets first.")
-                return
-            selected_column = self.columnSelector.currentText()
-            
-            # Ensure train_data contains only numeric values
-            train_data_numeric = self.parent().train_data[selected_column].astype(float)
-            
-            # Fit ARIMA model
-            fitted_model = self.fit_arima_model(train_data_numeric, selected_column, self.order)
-            
-            # Create a new window for the report
-            report_window = QDialog(self)
-            report_window.setWindowTitle("ARIMA Model Report")
-            
-            # Set a fixed size for the window
-            report_window.setFixedSize(800, 600)
-            
-            # Create a layout for the report window
-            report_layout = QVBoxLayout(report_window)
-            
-            # Create a scroll area to contain the contents
-            scroll_area = QScrollArea()
-            
-            # Create a widget to hold the contents of the scroll area
-            scroll_contents = QWidget()
-            scroll_layout = QVBoxLayout(scroll_contents)
-            
-            # Add summary text
-            summary_text = QTextEdit()
-            summary_text.setText(fitted_model.summary().as_text())  # Add model summary text here
-            summary_text.setReadOnly(True)
-            scroll_layout.addWidget(summary_text)
+        if self.parent().train_data is None:
+            QMessageBox.warning(self, "Split Dataset First", "Please split the dataset into train and test sets first.")
+            return
+        selected_column = self.columnSelector.currentText()
+
+        # Ensure train_data contains only numeric values
+        train_data_numeric = self.parent().train_data[selected_column].astype(float)
+
+        # Fit ARIMA model
+        fitted_model = self.fit_arima_model(train_data_numeric, selected_column, self.order)
+
+        # Create a new window for the report
+        report_window = QDialog(self)
+        report_window.setWindowTitle("ARIMA Model Report")
+
+        # Set a fixed size for the window
+        report_window.setFixedSize(800, 600)
+
+        # Create a layout for the report window
+        report_layout = QVBoxLayout(report_window)
+
+        # Create a scroll area to contain the contents
+        scroll_area = QScrollArea()
+
+        # Create a widget to hold the contents of the scroll area
+        scroll_contents = QWidget()
+        scroll_layout = QVBoxLayout(scroll_contents)
+
+        # Add summary text
+        summary_text = QTextEdit()
+        summary_text.setMinimumSize(600, 400)
+        summary_text.setText(fitted_model.summary().as_text())  # Add model summary text here
+        summary_text.setReadOnly(True)
+        scroll_layout.addWidget(summary_text)
+
+        # Plot training predictions
+        self.plot_train_predictions(train_data_numeric, fitted_model, self.differencing_order)
+        train_pred_plot = plt.gcf().canvas
+        train_pred_plot.setMinimumSize(600, 400)  # Set minimum size for the plot canvas
+
+        # Plot model diagnostics
+        self.plot_train_model_diagnostics(fitted_model)
+        diagnostics_plot = plt.gcf().canvas
+        diagnostics_plot.setMinimumSize(600, 700)  # Set minimum size for the plot canvas
+
+        # Add plots to the scroll layout
+        scroll_layout.addWidget(train_pred_plot)
+        scroll_layout.addWidget(diagnostics_plot)
+
+        # Set the scroll area widget
+        scroll_area.setWidget(scroll_contents)
+        scroll_area.setWidgetResizable(True)
+
+        # Add the scroll area to the report layout
+        report_layout.addWidget(scroll_area)
+
+        # Create buttons to save report as PDF and to predict on test set
+        save_pdf_button = QPushButton("Save Report as PDF")
+        save_pdf_button.clicked.connect(lambda:self.saveReportAsPDF(self, fitted_model, train_data_numeric, selected_column))
+        predict_test_button = QPushButton("Predict on Test Set")
+        # predict_test_button.clicked.connect(self.predictOnTestSet)
+
+        # Add buttons to layout
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(save_pdf_button)
+        button_layout.addWidget(predict_test_button)
+        report_layout.addLayout(button_layout)
+
+        # Show the report window
+        report_window.exec()
+
+
+    def saveReportAsPDF(self, parent_window, fitted_model, train_data, selected_column):
+        # Get the file path for saving
+        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_ARIMA_Report.pdf"
+        file_path = os.path.join(os.getcwd(), filename)
+
+        # Create a PDF canvas
+        with PdfPages(file_path) as pdf:
+            # Add model summary text to PDF
+            text = fitted_model.summary().as_text()
+            pdf.savefig()
+            plt.close()  # Close the figure after saving
 
             # Plot training predictions
-            self.plot_train_predictions(train_data_numeric, fitted_model, self.differencing_order)
-            train_pred_plot = plt.gcf().canvas
-            
+            self.plot_train_predictions(train_data, fitted_model, self.differencing_order)
+            pdf.savefig()
+            plt.close()  # Close the figure after saving
+
             # Plot model diagnostics
             self.plot_train_model_diagnostics(fitted_model)
-            diagnostics_plot = plt.gcf().canvas
+            pdf.savefig()
+            plt.close()  # Close the figure after saving
 
-            # Add plots to the scroll layout
-            scroll_layout.addWidget(train_pred_plot)
-            scroll_layout.addWidget(diagnostics_plot)
+            # Add model summary text to PDF again (if needed)
+            pdf.savefig()  # Add an empty page
+            plt.clf()  # Clear the current figure
+            plt.text(0.5, 0.5, text, ha='center', va='center')  # Add text to the new page
+            pdf.savefig()  # Save the page with summary text
 
-            # Set the scroll area widget
-            scroll_area.setWidget(scroll_contents)
-            scroll_area.setWidgetResizable(True)
-            
-            # Add the scroll area to the report layout
-            report_layout.addWidget(scroll_area)
+        # Show notification
+        QMessageBox.information(parent_window, "PDF Saved Successfully", f"PDF saved successfully at: {file_path}")
 
-            # Create buttons to save report as PDF and to predict on test set
-            save_pdf_button = QPushButton("Save Report as PDF")
-            save_pdf_button.clicked.connect(lambda: self.saveReportAsPDF(report_window, fitted_model))
-            predict_test_button = QPushButton("Predict on Test Set")
-            #predict_test_button.clicked.connect(self.predictOnTestSet)
-
-            # Add buttons to layout
-            button_layout = QHBoxLayout()
-            button_layout.addWidget(save_pdf_button)
-            button_layout.addWidget(predict_test_button)
-            report_layout.addLayout(button_layout)
-
-            # Show the report window
-            report_window.exec()
-
-    def saveReportAsPDF(self, parent_window, fitted_model):
-            # Get the file path for saving
-            file_path, _ = QFileDialog.getSaveFileName(parent_window, "Save PDF", "", "PDF Files (*.pdf)")
-
-            if file_path:
-                # Create a PDF canvas
-                c = canvas.Canvas(file_path, pagesize=letter)
-                
-                # Add model summary text to PDF
-                text = fitted_model.summary().as_text()
-                c.drawString(100, 750, text)
-                
-                # Draw the canvas
-                c.save()
-                
-                # Show notification
-                QMessageBox.information(parent_window, "PDF Saved Successfully", f"PDF saved successfully at: {file_path}")
+        # Open the saved PDF file
+        try:
+            subprocess.Popen(["xdg-open", file_path])  # Linux
+        except:
+            try:
+                subprocess.Popen(["open", file_path])  # macOS
+            except:
+                subprocess.Popen(["start", "", file_path], shell=True)  # Windows
 
     def createManualInputGroup(self):
         layout = QVBoxLayout(self.manualTab)

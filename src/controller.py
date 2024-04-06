@@ -91,6 +91,8 @@ class Controller:
                 self.view.show_message("Unsupported file format")
                 return
             self.view.copy_data_frame=None
+            self.view.file_path = file_path
+
             self.view.train_data=None
             self.view.test_data=None
             self.view.actual_data=self.model.data_frame
