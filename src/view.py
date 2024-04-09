@@ -124,6 +124,7 @@ QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
 }
 """
 
+import datetime
 from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget,QCheckBox
 import os
 import matplotlib
@@ -131,13 +132,13 @@ from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
-from PyQt6.QtCore import Qt, QUrl,pyqtSignal,QSize
+from PyQt6.QtCore import Qt, QUrl,pyqtSignal,QDateTime
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from PyQt6.QtGui import QAction, QIcon,QFont,QColor,QPixmap,QStandardItem, QStandardItemModel, QDesktopServices
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget, QTabWidget, \
-    QTableWidget,QMenu, QTableWidgetItem, QHBoxLayout, QLabel, QLineEdit, QGridLayout, QDialog, QGroupBox,\
+    QTableWidget,QMenu, QTableWidgetItem, QHBoxLayout, QLabel, QLineEdit,QDateTimeEdit, QGridLayout, QDialog, QGroupBox,\
     QRadioButton, QComboBox,QProgressBar,QFormLayout,QTextEdit,QAbstractItemView, QMessageBox, QButtonGroup, QDockWidget,QSpinBox, QSpacerItem, QSizePolicy
 import numpy as np
 import pandas as pd
@@ -772,17 +773,25 @@ class View(QMainWindow):
         pass
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     def split_dataset_function(self):
+        if self.controller.model.data_frame is None:
+            icon_path = os.path.abspath('images/split_dataset.ico')
+            self.setWindowIcon(QIcon(icon_path))
+            QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
+            icon_path = os.path.abspath('images/bulb_icon.png')
+            self.setWindowIcon(QIcon(icon_path))
+            return
 
-        if self.controller.model.data_frame is  None:
-         icon_path = os.path.abspath('images/split_dataset.ico')
-         self.setWindowIcon(QIcon(icon_path))
-         QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
-         icon_path = os.path.abspath('images/bulb_icon.png')
-         self.setWindowIcon(QIcon(icon_path))
-         return
+        if not isinstance(self.controller.model.data_frame.index, pd.DatetimeIndex):
+            icon_path = os.path.abspath('images/split_dataset.ico')
+            self.setWindowIcon(QIcon(icon_path))
+            QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
+            icon_path = os.path.abspath('images/bulb_icon.png')
+            self.setWindowIcon(QIcon(icon_path))
+            return
 
-        dialog = SplitDatasetDialog(self.controller.model.data_frame,self)
+        dialog = SplitDatasetDialog(self.controller.model.data_frame, self)
         dialog.exec()
+
     def create_status_bar(self):
         """
         Create the status bar with a custom style.
@@ -943,7 +952,17 @@ class View(QMainWindow):
          icon_path = os.path.abspath('images/bulb_icon.png')
          self.setWindowIcon(QIcon(icon_path))
          return
+        
+        if not isinstance(self.controller.model.data_frame.index, pd.DatetimeIndex):
+         icon_path = os.path.abspath('images/grid_search_icon.ico')
+         self.setWindowIcon(QIcon(icon_path))
 
+         QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
+            
+
+         icon_path = os.path.abspath('images/bulb_icon.png')
+         self.setWindowIcon(QIcon(icon_path))
+         return
         dialog = ArimaConfigDialog(self.controller.model.data_frame, self)
         dialog.exec()  # Make sure this is .exec() to display the dialog window
         print(self.best_params)
@@ -955,6 +974,15 @@ class View(QMainWindow):
          icon_path = os.path.abspath('images/bulb_icon.png')
          self.setWindowIcon(QIcon(icon_path))
          return
+        
+        if not isinstance(self.controller.model.data_frame.index, pd.DatetimeIndex):
+         icon_path = os.path.abspath('images/model_parameters_icon.ico')
+         self.setWindowIcon(QIcon(icon_path))
+         QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
+         icon_path = os.path.abspath('images/bulb_icon.png')
+         self.setWindowIcon(QIcon(icon_path))
+         return
+
 
         dialog = ModelWithParameter(self.controller.model.data_frame,self)
         dialog.exec()  #
@@ -3127,7 +3155,6 @@ class CollapsibleSection(QGroupBox):
             self.layout().setSpacing(5)
         else:
             self.layout().setSpacing(20)
-
 class ModelWithParameter(QDialog):
     def __init__(self, dataframe, parent=None):
         super().__init__(parent)
@@ -3155,21 +3182,23 @@ class ModelWithParameter(QDialog):
         # Create tabs for manual input and import
         self.tabWidget = QTabWidget()
         self.manualTab = QWidget()
+        self.reportTab = QWidget()
+        self.plotTab = QWidget()
         self.tabWidget.addTab(self.manualTab, "Model With Parameters")
+        self.tabWidget.addTab(self.reportTab, "Report")
+        self.tabWidget.addTab(self.plotTab, "Plots")
         content_layout.addWidget(self.tabWidget)
 
         # Create widgets for manual input tab
         self.createManualInputGroup()
 
-        
         # Initialize QTextEdit for displaying iteration logs and ARIMA model summary
-
         self.iterationLogTextEdit = QTextEdit()
         self.iterationLogTextEdit.setReadOnly(True)
         self.iterationLogTextEdit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.iterationLogTextEdit.setMinimumHeight(400)  # Set minimum height
         content_layout.addWidget(self.iterationLogTextEdit)
-        
+            # Call a function when the "Plots" tab is selected
 
         # Run ARIMA Button
         self.runButton = QPushButton("Set Parameters")
@@ -3180,13 +3209,308 @@ class ModelWithParameter(QDialog):
         self.generateModelButton = QPushButton("Generate ARIMA Model")
         self.generateModelButton.clicked.connect(self.generateArimaModel)
         content_layout.addWidget(self.generateModelButton)
-        self.reportButton = QPushButton("Report Aima Model")
-        self.reportButton.clicked.connect(self.generateReport)  # Connect to report function
-        self.reportButton.setEnabled(False)  # Initially disabled until "Train Set" is selected
-        content_layout.addWidget(self.reportButton)
+
+
+
+        # Set initial tab states
+        self.tabWidget.setTabEnabled(1, False)  # Report tab initially disabled
+        self.tabWidget.setTabEnabled(2, False)  # Plots tab initially disabled
+
         self.resize(800, 600)  # Set initial size
         self.setMinimumWidth(600)  # Set minimum width
         self.setMinimumHeight(400)  # Set minimum height
+        self.tabWidget.currentChanged.connect(self.handleTabChange)
+
+    def handleTabChange(self, index):
+        if index == 1:
+            self.iterationLogTextEdit.setEnabled(False)
+            self.iterationLogTextEdit.setVisible(False)
+            self.runButton.setVisible(False)
+            self.generateModelButton.setVisible(False)
+
+            # Call a function when the "Report" tab is selected
+            self.addReportTab()
+        elif index == 2:
+
+            self.iterationLogTextEdit.setEnabled(False)
+            self.iterationLogTextEdit.setVisible(False)
+            self.runButton.setVisible(False)
+            self.generateModelButton.setVisible(False)
+            self.addPlotsTab()
+    def addReportTab(self):
+        selected_column = self.columnSelector.currentText()
+        train_data = self.parent().train_data
+        test_data = self.parent().test_data
+        if selected_column not in self.parent().train_data.columns:
+            QMessageBox.warning(self, "Column Not Found", "Selected column not found in the dataset.")
+            return
+        
+            # Ensure train_data and test_data contain only numeric values (float or int)
+        if train_data[selected_column].dtype not in ['float64', 'int64'] or test_data[selected_column].dtype not in ['float64', 'int64']:
+            return
+        else:
+            self.report_tab()
+    def report_tab(self):
+        self.iterationLogTextEdit.setEnabled(False)
+        self.iterationLogTextEdit.setVisible(False)
+        self.runButton.setVisible(False)
+        self.generateModelButton.setVisible(False)
+        selected_column = self.columnSelector.currentText()
+
+        # Ensure train_data contains only numeric values
+        train_data_numeric = self.parent().train_data[selected_column].astype(float)
+
+        fitted_model = self.fit_arima_model(train_data_numeric, selected_column, self.order)
+        summary_text = fitted_model.summary().as_text()
+        self.summary_text=summary_text
+
+        self.reportSummaryTextEdit = QTextEdit()
+        self.reportSummaryTextEdit.append("\n\nSARIMA Model Summary:\n")
+        self.reportSummaryTextEdit.append(summary_text)      
+        self.reportSummaryTextEdit.setReadOnly(True)
+        
+        forecast = fitted_model.forecast(steps=10)  # Change steps as needed
+        self.reportSummaryTextEdit.append("\n\nForecasts:\n")
+        self.reportSummaryTextEdit.append(str(forecast))
+
+# Print residuals
+        residuals = fitted_model.resid
+        self.reportSummaryTextEdit.append("\n\nResiduals:\n")
+        self.reportSummaryTextEdit.append(str(residuals))
+
+# Print diagnostic plots (example: ACF and PACF)
+        fig = fitted_model.plot_diagnostics(figsize=(10, 8))
+        self.reportSummaryTextEdit.append("\n\nDiagnostic Plots:\n")
+        self.reportSummaryTextEdit.append("ACF and PACF plots displayed in a separate window.")
+        self.reportSummaryTextEdit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.reportSavePDFButton = QPushButton("Save PDF")
+        self.reportSavePDFButton.clicked.connect(lambda: self.saveReportAsPDF(fitted_model, train_data_numeric, selected_column))
+
+        layout = QVBoxLayout()
+        
+        layout.addWidget(self.reportSummaryTextEdit)
+        layout.addWidget(self.reportSavePDFButton)
+
+        self.reportTab.setLayout(layout)
+    def saveReportAsPDF(self, fitted_model, train_data, selected_column):
+        # Get the file path for saving
+        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_ARIMA_Report.pdf"
+        file_path = os.path.join(os.getcwd(), filename)
+
+        # Create a PDF canvas
+        with PdfPages(file_path) as pdf:
+            # Add model summary text to PDF
+            text = fitted_model.summary().as_text()
+            pdf.savefig()
+            plt.close()  # Close the figure after saving
+
+            # Add model summary text to PDF again (if needed)
+            pdf.savefig()  # Add an empty page
+            plt.clf()  # Clear the current figure
+            plt.text(0.5, 0.5, text, ha='center', va='center')  # Add text to the new page
+            pdf.savefig()  # Save the page with summary text
+
+        # Show notification
+        QMessageBox.information(self, "PDF Saved Successfully", f"PDF saved successfully at: {file_path}")
+
+        # Open the saved PDF file
+        try:
+            subprocess.Popen(["xdg-open", file_path])  # Linux
+        except:
+            try:
+                subprocess.Popen(["open", file_path])  # macOS
+            except:
+                subprocess.Popen(["start", "", file_path], shell=True)  # Windows
+    
+
+    def addPlotsTab(self):
+        selected_column = self.columnSelector.currentText()
+        train_data = self.parent().train_data
+        test_data = self.parent().test_data
+        if selected_column not in self.parent().train_data.columns:
+            QMessageBox.warning(self, "Column Not Found", "Selected column not found in the dataset.")
+            return
+        # Ensure train_data and test_data contain only numeric values (float or int)
+        if train_data[selected_column].dtype not in ['float64', 'int64'] or test_data[selected_column].dtype not in ['float64', 'int64']:
+            return
+
+        # Convert data to numeric
+        train_data_numeric = train_data[selected_column].astype(float)
+        test_data_numeric = test_data[selected_column].astype(float)
+
+        # Fit ARIMA model
+        fitted_model = self.fit_arima_model(train_data_numeric, selected_column, self.order)
+
+        # Plot training predictions
+        self.plot_train_predictions(train_data_numeric, fitted_model, self.differencing_order)
+        train_pred_plot = plt.gcf().canvas
+        train_pred_plot.setMinimumSize(600, 400)  # Set minimum size for the plot canvas
+        blank_widget = QWidget()
+        blank_widget.setFixedHeight(50)  # Adjust the height as needed
+
+        # Plot model diagnostics
+        self.plot_train_model_diagnostics(fitted_model)
+        diagnostics_plot = plt.gcf().canvas
+        diagnostics_plot.setMinimumSize(600, 700)  # Set minimum size for the plot canvas
+
+        # Create buttons
+        self.plotPredictButton = QPushButton("Predict")
+        self.plotPredictButton.clicked.connect(lambda: self.generate_test_prediction_report(fitted_model, test_data_numeric, selected_column))
+
+        self.plotSavePDFButton = QPushButton("Save PDF")
+        self.plotSavePDFButton.clicked.connect(lambda: self.savePlotAsPDF(fitted_model, train_data_numeric, selected_column))
+
+        # Create button layout
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(self.plotPredictButton)
+        button_layout.addWidget(self.plotSavePDFButton)
+
+        # Set up the main layout for the plot tab
+        layout = QVBoxLayout()
+        layout.addWidget(train_pred_plot)
+        layout.addWidget(blank_widget)
+        layout.addWidget(diagnostics_plot)
+        layout.addLayout(button_layout)  # Add button layout
+        self.plotTab.setLayout(layout)
+
+    def generateArimaModel(self):
+        self.iterationLogTextEdit.clear()
+        trend=None
+        trend_offset=1
+        measurement_error = False
+        time_varying_regression = False
+        mle_regression = True
+        simple_differencing = False
+        enforce_stationarity = True
+        enforce_invertibility = True
+        hamilton_representation = False
+        concentrate_scale = False
+        trend_offset = 1
+        use_exact_diffuse = False
+
+    # Get the selected column
+        selected_column = self.columnSelector.currentText()
+    
+    # Get the selected dataset
+        selected_dataset = self.datasetSelector.currentText()
+    
+    # Determine the dataset based on the selected option
+        if selected_dataset == "Actual Set":
+         dataset = self.dataframe[selected_column].values
+        elif selected_dataset == "Train Set":
+         dataset = self.parent().train_data[selected_column].values
+        elif selected_dataset == "Test Set":
+         dataset = self.parent().test_data[selected_column].values
+        else:
+         QMessageBox.warning(self, "Input Error", "Please select a dataset.")
+         return
+    
+        try:
+            current_index = self.tabWidget.currentIndex()
+
+            if current_index == 0:
+                p_text = self.pLineEdiM.currentText()
+                d_text = self.dLineEditM.currentText()
+                q_text = self.qLineEditM.currentText()
+                P_text = self.startPSeasonalLineEdit.currentText()
+                D_text = self.dSeasonalLineEdit.currentText()
+                Q_text = self.startQSeasonalLineEdit.currentText()
+                m_text=self.mLineEdit.currentText()
+                if self.seasonal_collapsible.isChecked and self.non_seasonal_collapsible.isChecked:
+ 
+                            # Convert parameters to integers
+                 p, d, q = int(p_text), int(d_text), int(q_text)
+                 P, D, Q, m = int(P_text), int(D_text), int(Q_text), int(m_text)
+
+       
+                elif not p_text or not d_text or not q_text or not P_text or not Q_text or not m_text or not D_text:
+                    QMessageBox.warning(self, "Input Error", "Please fill in all manual input parameters.")
+                    return
+
+
+                elif(self.non_seasonal_collapsible.isChecked and self.seasonal_collapsible.isChecked==False):
+                  p = int(p_text)
+                  d = int(d_text)
+                  q = int(q_text)
+                  P = 0
+                  D = 0
+                  Q = 0
+                  m=3
+                elif(self.non_seasonal_collapsible.isChecked==False and self.seasonal_collapsible.isChecked):
+                  p = 1
+                  d = 0
+                  q = 0
+                  P = int(P_text)
+                  D = int(D_text)
+                  Q = int(Q_text)
+                  m=int(m_text)
+
+                elif self.additional_options_collapsible.isChecked:
+                 trend=self.trendComboBox.currentText()
+                 trend_offset=int(self.trendOffsetLineEdit.text())
+                 measurement_error = self.measurement_error
+                 time_varying_regression = self.time_varying_regression
+                 mle_regression = self.mle_regression
+                 simple_differencing = self.simple_differencing
+                 enforce_stationarity = self.enforce_stationarity
+                 enforce_invertibility = self.enforce_invertibility
+                 hamilton_representation = self.hamilton_representation
+                 concentrate_scale = self.concentrate_scale
+                 use_exact_diffuse = self.use_exact_diffuse
+                elif self.additional_options_collapsible.isChecked == False:
+                 trend=None
+                 trend_offset=1
+                else:
+                 trend=None
+                 trend_offset=1
+                 p = 1
+                 d = 0
+                 q = 0
+                 P = 0
+                 D = 0
+                 Q = 0
+                 m=3
+            endog = dataset
+            model = SARIMAX(endog=endog, order=(p, d, q),seasonal_order=(P,D,Q,m),trend=trend,
+                            trend_offset=trend_offset, measurement_error=measurement_error,
+                        time_varying_regression=time_varying_regression, mle_regression=mle_regression,
+                        simple_differencing=simple_differencing, enforce_stationarity=enforce_stationarity,
+                        enforce_invertibility=enforce_invertibility, hamilton_representation=hamilton_representation,
+                        concentrate_scale=concentrate_scale, use_exact_diffuse=use_exact_diffuse)
+            fitted_model = model.fit()
+            self.order=(p, d, q)
+            self.differencing_order=d
+# Display model summary
+            summary_text = fitted_model.summary().as_text()
+            self.summary_text=summary_text
+            self.iterationLogTextEdit.append("\n\nSARIMA Model Summary:\n")
+            self.iterationLogTextEdit.append(summary_text)
+            self.tabWidget.setTabEnabled(1, True)  # Report tab initially disabled
+            self.tabWidget.setTabEnabled(2, True)  
+
+            forecast = fitted_model.forecast(steps=10)  # Change steps as needed
+            self.iterationLogTextEdit.append("\n\nForecasts:\n")
+            self.iterationLogTextEdit.append(str(forecast))
+
+# Print residuals
+            residuals = fitted_model.resid
+            self.iterationLogTextEdit.append("\n\nResiduals:\n")
+            self.iterationLogTextEdit.append(str(residuals))
+
+# Print diagnostic plots (example: ACF and PACF)
+            fig = fitted_model.plot_diagnostics(figsize=(10, 8))
+            self.iterationLogTextEdit.append("\n\nDiagnostic Plots:\n")
+            self.iterationLogTextEdit.append("ACF and PACF plots displayed in a separate window.")
+        except Exception as e:
+            self.iterationLogTextEdit.append(f"\n\nFailed to find SARIMA due to an error:\n{e}")
+            return
+
+        # Once the model is generated, enable the report and plots tabs
+        self.tabWidget.setTabEnabled(1, True)  # Enable report tab
+        self.tabWidget.setTabEnabled(2, True)  # Enable plots tab
+
+        # Switch to the report tab
+        self.tabWidget.setCurrentIndex(1)
 
     def fit_arima_model(self, train, column_name, order):
         """
@@ -3235,6 +3559,7 @@ class ModelWithParameter(QDialog):
         plt.figure(figsize=(10, 5))
         plt.plot(train_data.index[differencing_order:], train_data.values[differencing_order:], 
                  label='Actual Training Data', color='blue')
+        
         plt.plot(train_predictions.index, train_predictions, label='Training Model Predictions', 
                  alpha=0.75, color='red')
         plt.title('Training Data vs. Training Model Predictions')
@@ -3242,7 +3567,6 @@ class ModelWithParameter(QDialog):
         plt.xlabel('Time')
         plt.ylabel('Values')
         plt.grid()
-       
 
     def plot_train_model_diagnostics(self, fitted_model):
         """
@@ -3253,125 +3577,24 @@ class ModelWithParameter(QDialog):
         Parameters:
         - fitted_model: The results object from the fitted ARIMA model on the training data.
         """
-        fitted_model.plot_diagnostics(figsize=(15, 8))
-        plt.grid(True, which='major', axis='y', color='green', alpha=0.75, linestyle='--')
-        plt.grid(True, which='major', axis='x', color='blue', alpha=0.5, linestyle=':')
-        plt.suptitle('Training Model Diagnostics')
-      
+        fig, axes = plt.subplots(2, 2, figsize=(15, 8))
 
-    def evaluate_training_model_performance(self, train_data, train_predictions, differencing_order):
-        """
-        Evaluates the performance of the ARIMA model's predictions on the training dataset using 
-        mean absolute error (MAE), mean squared error (MSE), root mean squared error (RMSE), 
-        and mean absolute percentage error (MAPE), excluding the initial observations affected 
-        by differencing specified by 'differencing_order'.
+        # Plotting individual diagnostic plots
+        fitted_model.plot_diagnostics().suptitle('Diagnostic Plot 1', fontsize=14, fontweight='bold', y=1.05, ha='center')
+        fitted_model.plot_diagnostics().suptitle('Diagnostic Plot 2', fontsize=14, fontweight='bold', y=1.05, ha='center')
 
-        Parameters:
-        - train_data: The actual training dataset (pandas DataFrame or Series).
-        - train_predictions: The predictions made by the model on the training dataset.
-        - differencing_order: The number of initial observations to exclude due to differencing.
-        """
-        # Ensure actual and predicted values are aligned properly
-        actual = train_data.values[differencing_order:]
-        pred = train_predictions
-        mae = mean_absolute_error(actual, pred)
-        mse = mean_squared_error(actual, pred)
-        rmse = np.sqrt(mse)
-        mape = np.mean(np.abs((actual - pred) / actual)) * 100
-
-        print("Mean Absolute Error (MAE):", mae)
-        print("Mean Squared Error (MSE):", mse)
-        print("Root Mean Squared Error (RMSE):", rmse)
-        print("Mean Absolute Percentage Error (MAPE):", mape)
-
-    def generateReport(self):
-        if self.parent().train_data is None:
-            QMessageBox.warning(self, "Split Dataset First", "Please split the dataset into train and test sets first.")
-            return
-        selected_column = self.columnSelector.currentText()
-
-        # Ensure train_data contains only numeric values
-        train_data_numeric = self.parent().train_data[selected_column].astype(float)
-        test_data_numeric = self.parent().test_data[selected_column].astype(float)
-
-        # Fit ARIMA model
-        fitted_model = self.fit_arima_model(train_data_numeric, selected_column, self.order)
-
-        # Create a new window for the report
-        report_window = QDialog(self)
-        report_window.setWindowTitle("ARIMA Model Report")
-
-        # Set a fixed size for the window
-        report_window.setFixedSize(800, 600)
-
-        # Create a layout for the report window
-        report_layout = QVBoxLayout(report_window)
-        heading_label = QLabel("======== ARIMA Model Report ===========")
-        heading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        report_layout.addWidget(heading_label)
-        # Create a scroll area to contain the contents
-        scroll_area = QScrollArea()
-
-        # Create a widget to hold the contents of the scroll area
-        scroll_contents = QWidget()
-        scroll_layout = QVBoxLayout(scroll_contents)
-
-        # Add summary text
-        summary_text = QTextEdit()
-        summary_text.setMinimumSize(600, 400)
-        summary_text.setText(fitted_model.summary().as_text())  # Add model summary text here
-        summary_text.setReadOnly(True)
-        scroll_layout.addWidget(summary_text)
-
-        # Plot training predictions
-        self.plot_train_predictions(train_data_numeric, fitted_model, self.differencing_order)
-        train_pred_plot = plt.gcf().canvas
-        train_pred_plot.setMinimumSize(600, 400)  # Set minimum size for the plot canvas
-
-        # Plot model diagnostics
-        self.plot_train_model_diagnostics(fitted_model)
-        diagnostics_plot = plt.gcf().canvas
-        diagnostics_plot.setMinimumSize(600, 700)  # Set minimum size for the plot canvas
-
-        # Add plots to the scroll layout
-        scroll_layout.addWidget(train_pred_plot)
-        scroll_layout.addWidget(diagnostics_plot)
-
-        # Set the scroll area widget
-        scroll_area.setWidget(scroll_contents)
-        scroll_area.setWidgetResizable(True)
-
-        # Add the scroll area to the report layout
-        report_layout.addWidget(scroll_area)
-
-        # Create buttons to save report as PDF and to predict on test set
-        save_pdf_button = QPushButton("Save Report as PDF")
-        save_pdf_button.clicked.connect(lambda:self.saveReportAsPDF(self, fitted_model, train_data_numeric, selected_column))
-        predict_test_button = QPushButton("Predict on Test Set")
-        predict_test_button.clicked.connect(lambda:self.generate_test_prediction_report(self, fitted_model, test_data_numeric, selected_column))
-
-        # Add buttons to layout
-        button_layout = QHBoxLayout()
-        button_layout.addWidget(save_pdf_button)
-        button_layout.addWidget(predict_test_button)
-        report_layout.addLayout(button_layout)
-
-        # Show the report window
-        report_window.exec()
+        # Adjusting layout
+        fig.suptitle('Training Model Diagnostics')
+        plt.tight_layout()
 
 
-    def saveReportAsPDF(self, parent_window, fitted_model, train_data, selected_column):
+    def savePlotAsPDF(self, fitted_model, train_data, selected_column):
         # Get the file path for saving
         filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_ARIMA_Report.pdf"
         file_path = os.path.join(os.getcwd(), filename)
 
         # Create a PDF canvas
         with PdfPages(file_path) as pdf:
-            # Add model summary text to PDF
-            text = fitted_model.summary().as_text()
-            pdf.savefig()
-            plt.close()  # Close the figure after saving
-
             # Plot training predictions
             self.plot_train_predictions(train_data, fitted_model, self.differencing_order)
             pdf.savefig()
@@ -3382,14 +3605,8 @@ class ModelWithParameter(QDialog):
             pdf.savefig()
             plt.close()  # Close the figure after saving
 
-            # Add model summary text to PDF again (if needed)
-            pdf.savefig()  # Add an empty page
-            plt.clf()  # Clear the current figure
-            plt.text(0.5, 0.5, text, ha='center', va='center')  # Add text to the new page
-            pdf.savefig()  # Save the page with summary text
-
         # Show notification
-        QMessageBox.information(parent_window, "PDF Saved Successfully", f"PDF saved successfully at: {file_path}")
+        QMessageBox.information(self, "PDF Saved Successfully", f"PDF saved successfully at: {file_path}")
 
         # Open the saved PDF file
         try:
@@ -3399,7 +3616,6 @@ class ModelWithParameter(QDialog):
                 subprocess.Popen(["open", file_path])  # macOS
             except:
                 subprocess.Popen(["start", "", file_path], shell=True)  # Windows
-    
 
     def generate_test_predictions(self,test_data, fitted_model):
         """
@@ -3501,9 +3717,9 @@ class ModelWithParameter(QDialog):
         formatted_metrics += f"{'MAPE (Mean Absolute Percentage Error)':<30}{mape:<15.4f}\n"
         return formatted_metrics
 
-    def generate_test_prediction_report(self, parent_window, fitted_model, test_data, selected_column):
+    def generate_test_prediction_report(self, fitted_model, test_data, selected_column):
         # Create a new window for the test prediction report
-        test_report_window = QDialog(parent_window)
+        test_report_window = QDialog(self)
         test_report_window.setWindowTitle("Test Prediction Report")
         test_predictions = self.generate_test_predictions(test_data, fitted_model)
 
@@ -3900,136 +4116,7 @@ class ModelWithParameter(QDialog):
             results_text = f"Selected SARIMA parameters from (Grid Search) are:\n(p={p}, d={d}, q={q})(P={P}, D={D}, Q={Q})[m={m}]."
 
         self.iterationLogTextEdit.append("\n" + results_text) 
-    def generateArimaModel(self):
-        self.iterationLogTextEdit.clear()
-        trend=None
-        trend_offset=1
-        measurement_error = False
-        time_varying_regression = False
-        mle_regression = True
-        simple_differencing = False
-        enforce_stationarity = True
-        enforce_invertibility = True
-        hamilton_representation = False
-        concentrate_scale = False
-        trend_offset = 1
-        use_exact_diffuse = False
 
-    # Get the selected column
-        selected_column = self.columnSelector.currentText()
-    
-    # Get the selected dataset
-        selected_dataset = self.datasetSelector.currentText()
-    
-    # Determine the dataset based on the selected option
-        if selected_dataset == "Actual Set":
-         dataset = self.dataframe[selected_column].values
-        elif selected_dataset == "Train Set":
-         dataset = self.parent().train_data[selected_column].values
-        elif selected_dataset == "Test Set":
-         dataset = self.parent().test_data[selected_column].values
-        else:
-         QMessageBox.warning(self, "Input Error", "Please select a dataset.")
-         return
-    
-        try:
-            current_index = self.tabWidget.currentIndex()
-
-            if current_index == 0:
-                p_text = self.pLineEdiM.currentText()
-                d_text = self.dLineEditM.currentText()
-                q_text = self.qLineEditM.currentText()
-                P_text = self.startPSeasonalLineEdit.currentText()
-                D_text = self.dSeasonalLineEdit.currentText()
-                Q_text = self.startQSeasonalLineEdit.currentText()
-                m_text=self.mLineEdit.currentText()
-                if self.seasonal_collapsible.isChecked and self.non_seasonal_collapsible.isChecked:
- 
-                            # Convert parameters to integers
-                 p, d, q = int(p_text), int(d_text), int(q_text)
-                 P, D, Q, m = int(P_text), int(D_text), int(Q_text), int(m_text)
-
-       
-                elif not p_text or not d_text or not q_text or not P_text or not Q_text or not m_text or not D_text:
-                    QMessageBox.warning(self, "Input Error", "Please fill in all manual input parameters.")
-                    return
-
-
-                elif(self.non_seasonal_collapsible.isChecked and self.seasonal_collapsible.isChecked==False):
-                  p = int(p_text)
-                  d = int(d_text)
-                  q = int(q_text)
-                  P = 0
-                  D = 0
-                  Q = 0
-                  m=3
-                elif(self.non_seasonal_collapsible.isChecked==False and self.seasonal_collapsible.isChecked):
-                  p = 1
-                  d = 0
-                  q = 0
-                  P = int(P_text)
-                  D = int(D_text)
-                  Q = int(Q_text)
-                  m=int(m_text)
-
-                elif self.additional_options_collapsible.isChecked:
-                 trend=self.trendComboBox.currentText()
-                 trend_offset=int(self.trendOffsetLineEdit.text())
-                 measurement_error = self.measurement_error
-                 time_varying_regression = self.time_varying_regression
-                 mle_regression = self.mle_regression
-                 simple_differencing = self.simple_differencing
-                 enforce_stationarity = self.enforce_stationarity
-                 enforce_invertibility = self.enforce_invertibility
-                 hamilton_representation = self.hamilton_representation
-                 concentrate_scale = self.concentrate_scale
-                 use_exact_diffuse = self.use_exact_diffuse
-                elif self.additional_options_collapsible.isChecked == False:
-                 trend=None
-                 trend_offset=1
-                else:
-                 trend=None
-                 trend_offset=1
-                 p = 1
-                 d = 0
-                 q = 0
-                 P = 0
-                 D = 0
-                 Q = 0
-                 m=3
-            endog = dataset
-            model = SARIMAX(endog=endog, order=(p, d, q),seasonal_order=(P,D,Q,m),trend=trend,
-                            trend_offset=trend_offset, measurement_error=measurement_error,
-                        time_varying_regression=time_varying_regression, mle_regression=mle_regression,
-                        simple_differencing=simple_differencing, enforce_stationarity=enforce_stationarity,
-                        enforce_invertibility=enforce_invertibility, hamilton_representation=hamilton_representation,
-                        concentrate_scale=concentrate_scale, use_exact_diffuse=use_exact_diffuse)
-            fitted_model = model.fit()
-            self.order=(p, d, q)
-            self.differencing_order=d
-# Display model summary
-            summary_text = fitted_model.summary().as_text()
-            self.summary_text=summary_text
-            self.iterationLogTextEdit.append("\n\nSARIMA Model Summary:\n")
-            self.iterationLogTextEdit.append(summary_text)
-            self.reportButton.setEnabled(True)
-# Print forecasts
-            forecast = fitted_model.forecast(steps=10)  # Change steps as needed
-            self.iterationLogTextEdit.append("\n\nForecasts:\n")
-            self.iterationLogTextEdit.append(str(forecast))
-
-# Print residuals
-            residuals = fitted_model.resid
-            self.iterationLogTextEdit.append("\n\nResiduals:\n")
-            self.iterationLogTextEdit.append(str(residuals))
-
-# Print diagnostic plots (example: ACF and PACF)
-            fig = fitted_model.plot_diagnostics(figsize=(10, 8))
-            self.iterationLogTextEdit.append("\n\nDiagnostic Plots:\n")
-            self.iterationLogTextEdit.append("ACF and PACF plots displayed in a separate window.")
-        except Exception as e:
-            self.iterationLogTextEdit.append(f"\n\nFailed to find SARIMA due to an error:\n{e}")
-            return
         
     def create_dropdown(self, options):
         dropdown = QComboBox()
@@ -4061,37 +4148,25 @@ class SplitDatasetDialog(QDialog):
 
         layout = QVBoxLayout()
 
-        # Prompt labels
-        self.training_set_label = QLabel("Train Set Size(%):")
-        layout.addWidget(self.training_set_label)
+        # Tab widget for selecting splitting method
+        self.tab_widget = QTabWidget()
 
-        # Combo boxes for selecting training set size
-        self.training_set_combobox = self.create_combobox_with_range(25, 100, 25)
-        layout.addWidget(self.training_set_combobox)
+        # Add tabs
+        self.tab_percentage = QWidget()
+        self.tab_date = QWidget()
+        self.tab_data_points = QWidget()
 
-        # Radio buttons for selecting test set size option
-        self.test_set_label = QLabel("Test Dataset(%):")
-        layout.addWidget(self.test_set_label)
+        self.tab_widget.addTab(self.tab_percentage, "Split by Percentage")
+        self.tab_widget.addTab(self.tab_date, "Split by Date")
+        self.tab_widget.addTab(self.tab_data_points, "Split by Number of Data Points")
 
+        layout.addWidget(self.tab_widget)
 
+        # Input widgets for each tab
+        self.setup_percentage_tab()
+        self.setup_date_tab()
+        self.setup_data_points_tab()
 
-        # Combo box for test set size (read-only)
-        self.test_set_combobox = self.create_combobox_with_range(75, 100, 25)
-        self.training_set_combobox.currentTextChanged.connect(self.update_test_set_combobox)
-
-        self.test_set_combobox.setEnabled(False)
-        layout.addWidget(self.test_set_combobox)
-        self.radio_layout = QVBoxLayout()
-
-        self.radio_percentage = QRadioButton("Percentage")
-        self.radio_rows = QRadioButton("Number of Rows")
-        self.radio_percentage.setChecked(True)
-        self.radio_percentage.toggled.connect(self.set_test_input_editable)
-        self.radio_rows.toggled.connect(self.set_test_input_editable)
-
-        self.radio_layout.addWidget(self.radio_percentage)
-        self.radio_layout.addWidget(self.radio_rows)
-        layout.addLayout(self.radio_layout)
         # Buttons
         self.split_button = QPushButton("Split Dataset")
         self.split_button.clicked.connect(self.split_dataset)
@@ -4102,6 +4177,100 @@ class SplitDatasetDialog(QDialog):
         # Variables to store split datasets
         self.train_data = None
         self.test_data = None
+
+
+        # Stylesheet for QDateEdit and QLineEdit
+        self.setStyleSheet("""
+                           
+           QDateTime,QDateTimeEdit,QDate {
+                border: 2px solid #edebe3; /* Blue border */
+                border-radius: 7px;       /* Rounded corners */
+                padding: 3px;              /* Padding inside the combobox */
+                color: #0078D7;            /* Blue text */
+                background-color: white;   /* White background */
+            }
+
+            QLineEdit {
+                border: 2px solid #edebe3; /* Blue border */
+                border-radius: 7px;       /* Rounded corners */
+                padding: 3px;              /* Padding inside the combobox */
+                color: #0078D7;            /* Blue text */
+                background-color: white;   /* White background */
+            }
+        """)
+
+    def setup_percentage_tab(self):
+        layout = QVBoxLayout()
+
+        self.training_set_label = QLabel("Train Set Size(%):")
+        layout.addWidget(self.training_set_label)
+
+        self.training_set_combobox = self.create_combobox_with_range(25, 100, 25)
+        layout.addWidget(self.training_set_combobox)
+        self.testing_set_label = QLabel("Test Set Size(%):")
+        layout.addWidget(self.testing_set_label)
+        # Combo box for test set size (read-only)
+        self.test_set_combobox = self.create_combobox_with_range(75, 100, 25)
+        self.test_set_combobox.setEnabled(False)
+        layout.addWidget(self.test_set_combobox)
+
+        self.training_set_combobox.currentTextChanged.connect(self.update_test_set_combobox)
+
+        self.tab_percentage.setLayout(layout)
+
+    def setup_date_tab(self):
+        layout = QVBoxLayout()
+
+        self.date_label = QLabel("Split Date:")
+        layout.addWidget(self.date_label)
+
+        # Find the minimum and maximum dates in the DataFrame
+        min_date = self.dataframe.index.min()
+        max_date = self.dataframe.index.max()
+
+        # Check if min_date is not None
+        if min_date is not None:
+            # Set the minimum and maximum dates in the QDateTimeEdit widget
+            min_datetime = QDateTime(datetime.datetime.combine(min_date, datetime.datetime.min.time()))
+            max_datetime = QDateTime(datetime.datetime.combine(max_date, datetime.datetime.max.time()))
+
+            self.date_edit = QDateTimeEdit()
+            self.date_edit.setDisplayFormat("dd/MM/yyyy HH:mm:ss")
+            self.date_edit.setCalendarPopup(True)
+            self.date_edit.setMinimumDateTime(min_datetime)
+            self.date_edit.setMaximumDateTime(max_datetime)
+            self.date_edit.setDateTime(QDateTime.currentDateTime())  # Set default to current date-time
+            layout.addWidget(self.date_edit)
+        else:
+            layout.addWidget(QLabel("No dates available in the DataFrame"))
+
+        self.tab_date.setLayout(layout)
+
+
+
+
+        self.tab_date.setLayout(layout)
+
+    def setup_data_points_tab(self):
+        layout = QVBoxLayout()
+
+        self.data_points_label = QLabel("Number of Data Points(Train):")
+        layout.addWidget(self.data_points_label)
+
+        self.data_points_combobox = self.create_combobox_with_range(1, len(self.dataframe), 1)
+
+        layout.addWidget(self.data_points_combobox)
+
+        # Combo box for test set size (read-only)
+        self.data__points_label_test = QLabel("Number of Data Points(Test):")
+        layout.addWidget(self.data__points_label_test)
+        self.test_set_combobox_points = self.create_combobox_with_range(len(self.dataframe)-1, len(self.dataframe), 1)
+        self.test_set_combobox_points.setEnabled(False)
+        layout.addWidget(self.test_set_combobox_points)
+        self.data_points_combobox.currentTextChanged.connect(self.update_test_set_combobox)
+
+
+        self.tab_data_points.setLayout(layout)
 
     def create_combobox_with_range(self, start, end, step):
         combobox = QComboBox()
@@ -4115,47 +4284,48 @@ class SplitDatasetDialog(QDialog):
 
         return combobox
 
-    def set_test_input_editable(self):
-        # Set test set input field editable based on selected option
-        self.test_set_combobox.setDisabled(self.radio_percentage.isChecked())
-    def update_test_set_combobox(self):
-     # Update the test set combo box based on the selected training set size
-      training_set_text = self.training_set_combobox.currentText()
-      if not training_set_text:  # Check if the text is empty
-        return  # Do nothing if the text is empty
-
-      try:
-        training_set_size = int(training_set_text)
-        test_set_size = 100 - training_set_size
-        self.test_set_combobox.setCurrentText(str(test_set_size))
-      except ValueError:
-        QMessageBox.critical(self, "Error", "Please enter a valid numeric value for training set size.")
-
-
     def split_dataset(self):
-        # Retrieve user input
-        training_set_size = int(self.training_set_combobox.currentText())
-        test_set_size = int(self.test_set_combobox.currentText())
+        if self.tab_widget.currentIndex() == 0:  # Split by Percentage tab
+            training_set_size = int(self.training_set_combobox.currentText())
+            self.split_by_percentage(training_set_size)
+        elif self.tab_widget.currentIndex() == 1:  # Split by Date tab
+            split_date = self.date_edit.dateTime().toPyDateTime()
+            self.split_by_date(split_date)
+        elif self.tab_widget.currentIndex() == 2:  # Split by Data Points tab
+            data_points = int(self.data_points_combobox.currentText())
+            self.split_by_data_points(data_points)
 
-        # Process training and test set sizes (you can add your processing logic here)
-        # For example, you can pass these sizes to your ARIMA/SARIMA modeling functions
-
-        # Split the dataset
-        train_data, test_data = self.split_dataframe(training_set_size)
-        self.train_data = train_data
-        self.test_data = test_data
-        self.actual_data=self.dataframe
-        self.parent().train_data= self.train_data 
-        self.parent().test_data=self.test_data 
-        self.parent().actual_data=self.actual_data
-        # Display successful message
-        QMessageBox.information(self, "Success", f"Dataset split successful!\nTrain Data: {training_set_size}%\nTest Data: {test_set_size}%")
-
-        # Close the dialog
-        self.accept()
-
-    def split_dataframe(self, training_set_size):
+    def split_by_percentage(self, training_set_size):
         num_rows = int(len(self.dataframe) * (training_set_size / 100))
         train_data = self.dataframe.head(num_rows)
         test_data = self.dataframe.tail(len(self.dataframe) - num_rows)
-        return train_data, test_data
+        self.set_split_data(train_data, test_data)
+
+    def split_by_date(self, split_date):
+        train_data = self.dataframe[self.dataframe.index < split_date]
+        test_data = self.dataframe[self.dataframe.index >= split_date]
+        self.set_split_data(train_data, test_data)
+
+    def split_by_data_points(self, data_points):
+        train_data = self.dataframe.head(data_points)
+        test_data = self.dataframe.tail(len(self.dataframe) - data_points)
+        self.set_split_data(train_data, test_data)
+
+    def update_test_set_combobox(self):
+        if self.tab_widget.currentIndex() == 0:  # Split by Percentage tab
+            training_set_text = self.training_set_combobox.currentText()
+            test_set_size = 100 - int(training_set_text)
+            self.test_set_combobox.setCurrentText(str(test_set_size))
+        elif self.tab_widget.currentIndex() == 2:  # Split by Data Points tab
+            training_set_text = self.data_points_combobox.currentText()
+            test_set_size = len(self.dataframe) - int(training_set_text)
+            self.test_set_combobox_points.setCurrentText(str(test_set_size))
+
+    def set_split_data(self, train_data, test_data):
+        self.train_data = train_data
+        self.test_data = test_data
+        self.parent().train_data = self.train_data
+        self.parent().test_data = self.test_data
+        self.parent().actual_data = self.dataframe
+        QMessageBox.information(self, "Success", f"Dataset split successful!\nTrain Data: {len(self.train_data)} rows\nTest Data: {len(self.test_data)} rows")
+        self.accept()
