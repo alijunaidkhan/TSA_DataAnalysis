@@ -4124,11 +4124,6 @@ class ModelWithParameter(QDialog):
         original_stdout = sys.stdout
         sys.stdout = EmittingStream(self.iterationLogTextEdit)
 
-        try:
-            self.prepareAndRunAutoArima(series)
-        finally:
-            sys.stdout = original_stdout
-
         self.iterationLogTextEdit.clear()
 
         if self.non_seasonal_collapsible.isChecked():
