@@ -3117,7 +3117,7 @@ class ArimaConfigDialog(QDialog):
             oos_size = 0
             scoring = 'mse'
             with_intercept = 'auto'
-
+            random=False
         try:
             # Fit auto ARIMA model based on the combinations of parameter checkboxes
             model = auto_arima(series, start_p=start_p, start_q=start_q, max_p=max_p, max_q=max_q, d=d,
