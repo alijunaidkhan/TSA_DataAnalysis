@@ -2667,7 +2667,6 @@ class LatestSubsetDialog(QDialog):
              self.accept()  # Close the dialog
 
 
-
 class ArimaConfigDialog(QDialog):
     def __init__(self, dataframe, parent=None):
         super().__init__(parent)
@@ -2678,7 +2677,6 @@ class ArimaConfigDialog(QDialog):
                             Qt.WindowType.CustomizeWindowHint)  # Add min/max window option
 
         self.initUI()
-        self.iterationLogTextEdit = QTextEdit()
 
     def initUI(self):
         self.main_layout = QVBoxLayout(self)
@@ -2725,7 +2723,7 @@ class ArimaConfigDialog(QDialog):
       
   
 
-        #self.iterationLogTextEdit = QTextEdit()
+        self.iterationLogTextEdit = QTextEdit()
         self.iterationLogTextEdit.setReadOnly(True)
         self.iterationLogTextEdit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.iterationLogTextEdit.setMinimumHeight(400)  # Set minimum height
@@ -2761,11 +2759,49 @@ class ArimaConfigDialog(QDialog):
         self.setMinimumHeight(400)  # Set minimum height
         self.traceCheckBox = QCheckBox("Trace")
         self.traceCheckBox.setChecked(True)
-                # Checkbox for Suppress Warnings
-        self.suppress_warnings_checkbox = self.create_checkbox("Suppress Warnings", True)
-
         self.layout().addWidget(self.traceCheckBox)
+        self.suppress_warnings_checkbox = self.create_checkbox("Suppress Warnings", True)
         self.layout().addWidget(self.suppress_warnings_checkbox)
+    def findBestArimaParameters(self):
+        self.iterationLogTextEdit.clear()
+        if self.stepwise_radio.isChecked():
+            self.stepwise = True
+            self.random_search = False
+        elif self.random_search_radio.isChecked():
+            self.stepwise = False
+            self.random_search = True
+
+       
+        selected_column = self.columnSelector.currentText()
+        series = None
+
+        if self.datasetSelector.currentText() == "Actual Set":
+         series = self.dataframe[selected_column]
+        elif self.datasetSelector.currentText() == "Train Set":
+         series = self.parent().train_data[selected_column]
+        elif self.datasetSelector.currentText() == "Test Set":
+         series = self.parent().test_data[selected_column]
+
+    # Handle missing values
+        series.dropna(inplace=True)  # Drop rows with missing values
+
+    # Check if there are missing values after dropping
+        if series.isnull().any():
+         QMessageBox.critical(self, "Error", "Missing values still exist in the time series data after preprocessing.")
+         return
+
+    # Ensure the series is in datetime format
+        if not np.issubdtype(series.index.dtype, np.datetime64):
+         QMessageBox.critical(self, "Error", "The index of the time series data must be in datetime format.")
+         return
+
+        original_stdout = sys.stdout
+        sys.stdout = EmittingStream(self.iterationLogTextEdit)
+
+        try:
+            self.prepareAndRunAutoArima(series)
+        finally:
+            sys.stdout = original_stdout
 
     def create_non_seasonal_group(self):
         self.startPLineEdit = self.create_combobox_with_range(1, 5)
@@ -2869,7 +2905,7 @@ class ArimaConfigDialog(QDialog):
         # Replace the checkboxes for Stepwise and Random Search with radio buttons
         self.stepwise_radio = QRadioButton("Stepwise")
         self.random_search_radio = QRadioButton("Random Search")
-        self.stepwise_radio.setChecked(True)  # Default selection
+        self.random_search_radio.setChecked(True)  # Default selection
         self.stepwise_radio.toggled.connect(self.on_radio_toggled)
         self.random_search_radio.toggled.connect(self.on_radio_toggled)
         # Modify the create_additional_options_group method to use radio buttons
@@ -2926,7 +2962,7 @@ class ArimaConfigDialog(QDialog):
         layout.addLayout(grid_layout)
         group.setLayout(layout)
         self.parameter_widgets = {label: widget for label, widget in parameters}  # Store parameter widgets in a dictionary
-        self.findBestArimaParameters()  # Call the method to initialize parameters
+        #self.findBestArimaParameters()  # Call the method to initialize parameters
         return group
 
     def on_radio_toggled(self):
@@ -2987,15 +3023,6 @@ class ArimaConfigDialog(QDialog):
         checkbox.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         return checkbox
-
-    def findBestArimaParameters(self):
-
-        if self.stepwise_radio.isChecked():
-            self.stepwise = True
-            self.random_search = False
-        elif self.random_search_radio.isChecked():
-            self.stepwise = False
-            self.random_search = True
 
 
 
