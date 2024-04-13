@@ -2678,6 +2678,7 @@ class ArimaConfigDialog(QDialog):
                             Qt.WindowType.CustomizeWindowHint)  # Add min/max window option
 
         self.initUI()
+        self.iterationLogTextEdit = QTextEdit()
 
     def initUI(self):
         self.main_layout = QVBoxLayout(self)
@@ -2724,7 +2725,7 @@ class ArimaConfigDialog(QDialog):
       
   
 
-        self.iterationLogTextEdit = QTextEdit()
+        #self.iterationLogTextEdit = QTextEdit()
         self.iterationLogTextEdit.setReadOnly(True)
         self.iterationLogTextEdit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.iterationLogTextEdit.setMinimumHeight(400)  # Set minimum height
@@ -2760,16 +2761,27 @@ class ArimaConfigDialog(QDialog):
         self.setMinimumHeight(400)  # Set minimum height
         self.traceCheckBox = QCheckBox("Trace")
         self.traceCheckBox.setChecked(True)
-        self.layout().addWidget(self.traceCheckBox)
+                # Checkbox for Suppress Warnings
+        self.suppress_warnings_checkbox = self.create_checkbox("Suppress Warnings", True)
 
-    
+        self.layout().addWidget(self.traceCheckBox)
+        self.layout().addWidget(self.suppress_warnings_checkbox)
+
     def create_non_seasonal_group(self):
-        self.startPLineEdit = self.create_combobox_with_range(0, 5)
-        self.maxPLineEdit = self.create_combobox_with_range(0, 5)
-        self.dLineEdit = self.create_combobox_with_range(0, 2)
-        self.maxdLineEdit = self.create_combobox_with_range(0, 2)
-        self.startQLineEdit = self.create_combobox_with_range(0, 5)
-        self.maxQLineEdit = self.create_combobox_with_range(0, 5)
+        self.startPLineEdit = self.create_combobox_with_range(1, 5)
+        self.maxPLineEdit = self.create_combobox_with_range(1, 5)
+        self.dLineEdit = self.create_combobox_with_range(1, 5)
+        self.maxdLineEdit = self.create_combobox_with_range(1, 5)
+        self.startQLineEdit = self.create_combobox_with_range(1, 5)
+        self.maxQLineEdit = self.create_combobox_with_range(1, 5)
+
+        # Set default values
+        self.startPLineEdit.setCurrentText("2")
+        self.maxPLineEdit.setCurrentText("5")
+        self.dLineEdit.setCurrentText("")  # None
+        self.maxdLineEdit.setCurrentText("2")
+        self.startQLineEdit.setCurrentText("2")
+        self.maxQLineEdit.setCurrentText("5")
 
         group = QGroupBox("Non-Seasonal Parameters")
         layout = QGridLayout()
@@ -2791,16 +2803,38 @@ class ArimaConfigDialog(QDialog):
 
         group.setLayout(layout)
         return group
-
     def create_seasonal_group(self):
-        self.startPSeasonalLineEdit = self.create_combobox_with_range(0, 2)
-        self.maxPSeasonalLineEdit = self.create_combobox_with_range(0, 2)
-        self.dSeasonalLineEdit = self.create_combobox_with_range(0, 1)
-        self.maxDSeasonalLineEdit = self.create_combobox_with_range(0, 1)
-        self.startQSeasonalLineEdit = self.create_combobox_with_range(0, 2)
-        self.maxQSeasonalLineEdit = self.create_combobox_with_range(0, 2)
-        self.mLineEdit = self.create_combobox_with_range(3, 12)
+        # Create comboboxes
+        self.startPSeasonalLineEdit = self.create_combobox_with_range(1, 5)
+        self.maxPSeasonalLineEdit = self.create_combobox_with_range(1, 5)
+        self.dSeasonalLineEdit = self.create_combobox_with_range(1, 5)
+        self.maxDSeasonalLineEdit = self.create_combobox_with_range(1, 5)
+        self.startQSeasonalLineEdit = self.create_combobox_with_range(1, 5)
+        self.maxQSeasonalLineEdit = self.create_combobox_with_range(1, 5)
 
+        # Set default values
+        self.startPSeasonalLineEdit.setCurrentText("1")
+        self.maxPSeasonalLineEdit.setCurrentText("2")
+        self.dSeasonalLineEdit.setCurrentText("")  # None
+        self.maxDSeasonalLineEdit.setCurrentText("1")
+        self.startQSeasonalLineEdit.setCurrentText("1")
+        self.maxQSeasonalLineEdit.setCurrentText("2")
+
+        # Create combobox with range 1 to 365
+        self.mLineEdit = QComboBox()
+        self.mLineEdit.setEditable(True)
+
+        # Set default value to 1
+        self.mLineEdit.setCurrentText("1")
+
+        # Define the list of additional values for the dropdown
+        other_values = [1,4,6,7,12,24,52,365]
+
+        # Add other values to the combobox
+        for value in other_values:
+            self.mLineEdit.addItem(str(value))
+
+        # Create the group and layout
         group = QGroupBox("Seasonal Parameters")
         layout = QGridLayout()
 
@@ -2824,31 +2858,23 @@ class ArimaConfigDialog(QDialog):
 
         group.setLayout(layout)
         return group
- 
+
+
     def create_additional_options_group(self):
         group = QGroupBox("Additional Parameters")
         layout = QVBoxLayout()
 
         checkboxes_layout = QHBoxLayout()
 
-        # Checkbox for Stepwise
-        self.stepwise_checkbox = self.create_checkbox("Stepwise", True)
-        self.stepwise_checkbox.stateChanged.connect(self.on_stepwise_checkbox_state_changed)
-        checkboxes_layout.addWidget(self.stepwise_checkbox)
-
-        # Checkbox for Suppress Warnings
-        self.suppress_warnings_checkbox = self.create_checkbox("Suppress Warnings", True)
-        checkboxes_layout.addWidget(self.suppress_warnings_checkbox)
-
-        # Checkbox for Random Search
-        self.random_search_checkbox = self.create_checkbox("Random Search", False)
-        self.random_search_checkbox.stateChanged.connect(self.on_random_search_checkbox_state_changed)
-        checkboxes_layout.addWidget(self.random_search_checkbox)
-
-        # Checkbox for Return Valid Fits
-        self.return_valid_fits_checkbox = self.create_checkbox("Return Valid Fits", False)
-        self.return_valid_fits_checkbox.stateChanged.connect(self.on_return_valid_fits_checkbox_state_changed)
-        checkboxes_layout.addWidget(self.return_valid_fits_checkbox)
+        # Replace the checkboxes for Stepwise and Random Search with radio buttons
+        self.stepwise_radio = QRadioButton("Stepwise")
+        self.random_search_radio = QRadioButton("Random Search")
+        self.stepwise_radio.setChecked(True)  # Default selection
+        self.stepwise_radio.toggled.connect(self.on_radio_toggled)
+        self.random_search_radio.toggled.connect(self.on_radio_toggled)
+        # Modify the create_additional_options_group method to use radio buttons
+        checkboxes_layout.addWidget(self.stepwise_radio)
+        checkboxes_layout.addWidget(self.random_search_radio)
 
         layout.addLayout(checkboxes_layout)
         layout.addSpacing(5)  # Adjusted margin
@@ -2870,8 +2896,9 @@ class ArimaConfigDialog(QDialog):
             ("Out of Sample Size:", QLineEdit("0")),
             ("Scoring:", self.create_dropdown(['mse', 'mae'])),
             ("With Intercept:", self.create_dropdown(['auto', 'True', 'False'])),
+            
+            ("Random:", self.create_dropdown(['auto', 'True', 'False'])),
         ]
-
         self.max_order = int(parameters[0][1].currentText())
         self.info_criterion = parameters[1][1].currentText()
         self.alpha = float(parameters[2][1].text())
@@ -2886,32 +2913,34 @@ class ArimaConfigDialog(QDialog):
         self.oos_size = int(parameters[11][1].text())
         self.scoring = parameters[12][1].currentText()
         self.with_intercept = parameters[13][1].currentText()
-        for i, (label, widget) in enumerate(parameters):
-            if i < 7:  # First column for non-seasonal parameters
-                grid_layout.addWidget(QLabel(label), i, 0, 1, 1, Qt.AlignmentFlag.AlignRight)
-                grid_layout.addWidget(widget, i, 1, 1, 1)
+
+        self.random = parameters[14][1].currentText()
+        for idx, (label, widget) in enumerate(parameters):
+            if idx < 7:  # First column for non-seasonal parameters
+                grid_layout.addWidget(QLabel(label), idx, 0, 1, 1, Qt.AlignmentFlag.AlignRight)
+                grid_layout.addWidget(widget, idx, 1, 1, 1)
             else:  # Second column for seasonal parameters
-                grid_layout.addWidget(QLabel(label), i - 7, 2, 1, 1, Qt.AlignmentFlag.AlignLeft)
-                grid_layout.addWidget(widget, i - 7, 3, 1, 1)
+                grid_layout.addWidget(QLabel(label), idx - 7, 2, 1, 1, Qt.AlignmentFlag.AlignLeft)
+                grid_layout.addWidget(widget, idx - 7, 3, 1, 1)
 
         layout.addLayout(grid_layout)
         group.setLayout(layout)
+        self.parameter_widgets = {label: widget for label, widget in parameters}  # Store parameter widgets in a dictionary
+        self.findBestArimaParameters()  # Call the method to initialize parameters
         return group
 
-    def on_stepwise_checkbox_state_changed(self, state):
-        if state == Qt.CheckState.Checked:
-            self.random_search_checkbox.setChecked(False)
-            self.return_valid_fits_checkbox.setChecked(False)
-
-    def on_random_search_checkbox_state_changed(self, state):
-        if state == Qt.CheckState.Checked:
-            self.stepwise_checkbox.setChecked(False)
-            self.return_valid_fits_checkbox.setChecked(False)
-
-    def on_return_valid_fits_checkbox_state_changed(self, state):
-        if state == Qt.CheckState.Checked:
-            self.stepwise_checkbox.setChecked(False)
-            self.random_search_checkbox.setChecked(False)
+    def on_radio_toggled(self):
+        # Enable or disable parameters based on the selected radio button
+        if self.stepwise_radio.isChecked():
+            self.parameter_widgets["Max Order:"].setEnabled(False)
+            self.parameter_widgets["Random State:"].setEnabled(False)
+            self.parameter_widgets["N Fits:"].setEnabled(False)
+            self.parameter_widgets["Random:"].setEnabled(False)
+        elif self.random_search_radio.isChecked():
+            self.parameter_widgets["Max Order:"].setEnabled(True)
+            self.parameter_widgets["Random State:"].setEnabled(True)
+            self.parameter_widgets["N Fits:"].setEnabled(True)
+            self.parameter_widgets["Random:"].setEnabled(True)
 
     def create_combobox_with_range(self, start, end):
         combobox = QComboBox()
@@ -2960,37 +2989,15 @@ class ArimaConfigDialog(QDialog):
         return checkbox
 
     def findBestArimaParameters(self):
-        self.iterationLogTextEdit.clear()
-        selected_column = self.columnSelector.currentText()
-        series = None
 
-        if self.datasetSelector.currentText() == "Actual Set":
-         series = self.dataframe[selected_column]
-        elif self.datasetSelector.currentText() == "Train Set":
-         series = self.parent().train_data[selected_column]
-        elif self.datasetSelector.currentText() == "Test Set":
-         series = self.parent().test_data[selected_column]
+        if self.stepwise_radio.isChecked():
+            self.stepwise = True
+            self.random_search = False
+        elif self.random_search_radio.isChecked():
+            self.stepwise = False
+            self.random_search = True
 
-    # Handle missing values
-        series.dropna(inplace=True)  # Drop rows with missing values
 
-    # Check if there are missing values after dropping
-        if series.isnull().any():
-         QMessageBox.critical(self, "Error", "Missing values still exist in the time series data after preprocessing.")
-         return
-
-    # Ensure the series is in datetime format
-        if not np.issubdtype(series.index.dtype, np.datetime64):
-         QMessageBox.critical(self, "Error", "The index of the time series data must be in datetime format.")
-         return
-
-        original_stdout = sys.stdout
-        sys.stdout = EmittingStream(self.iterationLogTextEdit)
-
-        try:
-            self.prepareAndRunAutoArima(series)
-        finally:
-            sys.stdout = original_stdout
 
     def prepareAndRunAutoArima(self, series):
         trace = self.traceCheckBox.isChecked()
@@ -3005,7 +3012,7 @@ class ArimaConfigDialog(QDialog):
          error_action ='warn'
 
 
-         d = None if d_text.lower() == 'none' else int(d_text)
+         d = None if d_text.lower() == 'none'  or d_text.lower()=='' else int(d_text)
          
         if self.non_seasonal_collapsible.isChecked()==False:
          start_p = 2
@@ -3021,13 +3028,17 @@ class ArimaConfigDialog(QDialog):
             max_p = min(int(self.maxPLineEdit.currentText()), 3)  # Limit maximum p to 3
             max_q = min(int(self.maxQLineEdit.currentText()), 3)  # Limit maximum q to 3
             d_text = self.dLineEdit.currentText()
+            # Convert current text to integer, handling empty string case
+            d = int(d_text) if d_text.strip() else 0
+            # Convert current text to integer, handling empty string case
+            d = int(d_text) if d_text.strip() else 0
             max_d=int(self.maxdLineEdit.currentText())
             start_P = int(self.startPSeasonalLineEdit.currentText())
             start_Q = int(self.startQSeasonalLineEdit.currentText())
             max_P = min(int(self.maxPSeasonalLineEdit.currentText()), 2)  # Limit maximum P to 2
             max_D=int(self.maxDSeasonalLineEdit.currentText())
             max_Q = min(int(self.maxQSeasonalLineEdit.currentText()), 2)  # Limit maximum Q to 2
-            D = int(self.dSeasonalLineEdit.currentText())
+            D = int(self.dSeasonalLineEdit.currentText()) if self.dSeasonalLineEdit.currentText() != "" else 0
             m = int(self.mLineEdit.currentText())
             error_action ='warn'
 
@@ -3062,6 +3073,7 @@ class ArimaConfigDialog(QDialog):
             oos_size = self.oos_size
             scoring = self.scoring
             with_intercept = self.with_intercept
+            random=self.random
         if self.additional_options_collapsible.isChecked()==False:
             # Set default values if additional options collapsible is unchecked
             max_order = None
@@ -3085,14 +3097,13 @@ class ArimaConfigDialog(QDialog):
                            start_P=start_P, start_Q=start_Q, max_Q=max_Q, max_P=max_P, m=m,
                            seasonal=self.seasonal_collapsible.isChecked(), D=D, trace=trace,
                            error_action=error_action, suppress_warnings=self.suppress_warnings_checkbox.isChecked(),
-                           random_search=self.random_search_checkbox.isChecked(),
-                           return_valid_fits=self.return_valid_fits_checkbox.isChecked(),
-                           stepwise=self.stepwise_checkbox.isChecked(),
+                           random_search=self.random_search_radio.isChecked(),
+                           stepwise=self.stepwise_radio.isChecked(),
                            information_criterion=info_criterion, alpha=alpha, test=test,
                            seasonal_test=seasonal_test,max_D=max_D,
                            n_jobs=n_jobs, method=method, max_iter=max_iter, max_order=max_order,
                            random_state=random_state, max_d=max_d,n_fits=n_fits,
-                           out_of_sample_size=oos_size, scoring=scoring, with_intercept=with_intercept)
+                           out_of_sample_size=oos_size, scoring=scoring, with_intercept=with_intercept,random=random)
             #print(type(model))
             self.parent().best_params = {
                 'p': model.order[0],
@@ -4058,6 +4069,39 @@ class ModelWithParameter(QDialog):
             QMessageBox.critical(self, "Error", "Please enter a valid numeric value.")
 
     def findBestArimaParameters(self):
+        
+        self.iterationLogTextEdit.clear()
+        selected_column = self.columnSelector.currentText()
+        series = None
+
+        if self.datasetSelector.currentText() == "Actual Set":
+         series = self.dataframe[selected_column]
+        elif self.datasetSelector.currentText() == "Train Set":
+         series = self.parent().train_data[selected_column]
+        elif self.datasetSelector.currentText() == "Test Set":
+         series = self.parent().test_data[selected_column]
+
+    # Handle missing values
+        series.dropna(inplace=True)  # Drop rows with missing values
+
+    # Check if there are missing values after dropping
+        if series.isnull().any():
+         QMessageBox.critical(self, "Error", "Missing values still exist in the time series data after preprocessing.")
+         return
+
+    # Ensure the series is in datetime format
+        if not np.issubdtype(series.index.dtype, np.datetime64):
+         QMessageBox.critical(self, "Error", "The index of the time series data must be in datetime format.")
+         return
+
+        original_stdout = sys.stdout
+        sys.stdout = EmittingStream(self.iterationLogTextEdit)
+
+        try:
+            self.prepareAndRunAutoArima(series)
+        finally:
+            sys.stdout = original_stdout
+
         self.iterationLogTextEdit.clear()
 
         if self.non_seasonal_collapsible.isChecked():
