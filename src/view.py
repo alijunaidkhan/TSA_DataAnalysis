@@ -2496,7 +2496,7 @@ class SubsetDialog(QDialog):
             else:
                 QMessageBox.information(self, "No Subsets", "No subsets were created based on the given thresholds.")
         except ValueError:
-            QMessageBox.warning(self, "Error", "Invalid input: Please ensure all threshold values are numeric.")
+                pass
     def split_into_subsets(self, thresholds):
      df = self.dataframe.copy()  # Work on a copy to avoid modifying the original DataFrame
      subsets = []
@@ -2814,7 +2814,7 @@ class ArimaConfigDialog(QDialog):
         # Set default values
         self.startPLineEdit.setCurrentText("2")
         self.maxPLineEdit.setCurrentText("5")
-        self.dLineEdit.setCurrentText("")  # None
+        self.dLineEdit.setCurrentText('None')  # None
         self.maxdLineEdit.setCurrentText("2")
         self.startQLineEdit.setCurrentText("2")
         self.maxQLineEdit.setCurrentText("5")
@@ -2851,8 +2851,8 @@ class ArimaConfigDialog(QDialog):
         # Set default values
         self.startPSeasonalLineEdit.setCurrentText("1")
         self.maxPSeasonalLineEdit.setCurrentText("2")
-        self.dSeasonalLineEdit.setCurrentText("")  # None
-        self.maxDSeasonalLineEdit.setCurrentText("1")
+        self.dSeasonalLineEdit.setCurrentText('None')  # None
+        self.maxDSeasonalLineEdit.setCurrentText("2")
         self.startQSeasonalLineEdit.setCurrentText("1")
         self.maxQSeasonalLineEdit.setCurrentText("2")
 
@@ -2905,13 +2905,16 @@ class ArimaConfigDialog(QDialog):
         # Replace the checkboxes for Stepwise and Random Search with radio buttons
         self.stepwise_radio = QRadioButton("Stepwise")
         self.random_search_radio = QRadioButton("Random Search")
-        self.random_search_radio.setChecked(True)  # Default selection
+       
+
+        self.stepwise_radio.setChecked(True)
+
         self.stepwise_radio.toggled.connect(self.on_radio_toggled)
         self.random_search_radio.toggled.connect(self.on_radio_toggled)
         # Modify the create_additional_options_group method to use radio buttons
         checkboxes_layout.addWidget(self.stepwise_radio)
         checkboxes_layout.addWidget(self.random_search_radio)
-
+  # Default selection
         layout.addLayout(checkboxes_layout)
         layout.addSpacing(5)  # Adjusted margin
 
@@ -2963,6 +2966,11 @@ class ArimaConfigDialog(QDialog):
         group.setLayout(layout)
         self.parameter_widgets = {label: widget for label, widget in parameters}  # Store parameter widgets in a dictionary
         #self.findBestArimaParameters()  # Call the method to initialize parameters
+        if self.stepwise_radio.isChecked():
+            self.parameter_widgets["Max Order:"].setEnabled(False)
+            self.parameter_widgets["Random State:"].setEnabled(False)
+            self.parameter_widgets["N Fits:"].setEnabled(False)
+            self.parameter_widgets["Random:"].setEnabled(False)
         return group
 
     def on_radio_toggled(self):
@@ -3003,8 +3011,7 @@ class ArimaConfigDialog(QDialog):
 
      except ValueError:
         # If conversion fails, display an error message
-        QMessageBox.critical(self, "Error", "Please enter a valid numeric value.")
-
+        pass
     def create_dropdown(self, options):
         dropdown = QComboBox()
         dropdown.addItems(options)
@@ -3033,13 +3040,13 @@ class ArimaConfigDialog(QDialog):
          start_q = int(self.startQLineEdit.currentText())
          max_p = min(int(self.maxPLineEdit.currentText()), 3)  # Limit maximum p to 3
          max_q = min(int(self.maxQLineEdit.currentText()), 3)  # Limit maximum q to 3
-         d_text = self.dLineEdit.currentText()
+         d_text =self.dLineEdit.currentText()
          max_d=int(self.maxdLineEdit.currentText())
          
          error_action ='warn'
 
 
-         d = None if d_text.lower() == 'none'  or d_text.lower()=='' else int(d_text)
+         d = None if d_text.lower() == None  or d_text=='None' else int(d_text)
          
         if self.non_seasonal_collapsible.isChecked()==False:
          start_p = 2
@@ -3056,16 +3063,16 @@ class ArimaConfigDialog(QDialog):
             max_q = min(int(self.maxQLineEdit.currentText()), 3)  # Limit maximum q to 3
             d_text = self.dLineEdit.currentText()
             # Convert current text to integer, handling empty string case
-            d = int(d_text) if d_text.strip() else 0
-            # Convert current text to integer, handling empty string case
-            d = int(d_text) if d_text.strip() else 0
+
+            d = None if d_text.lower() == None  or d_text=='None' else int(d_text)            # Convert current text to integer, handling empty string case
             max_d=int(self.maxdLineEdit.currentText())
             start_P = int(self.startPSeasonalLineEdit.currentText())
             start_Q = int(self.startQSeasonalLineEdit.currentText())
             max_P = min(int(self.maxPSeasonalLineEdit.currentText()), 2)  # Limit maximum P to 2
             max_D=int(self.maxDSeasonalLineEdit.currentText())
             max_Q = min(int(self.maxQSeasonalLineEdit.currentText()), 2)  # Limit maximum Q to 2
-            D = int(self.dSeasonalLineEdit.currentText()) if self.dSeasonalLineEdit.currentText() != "" else 0
+            D_text=self.dSeasonalLineEdit.currentText()
+            D = None if self.dSeasonalLineEdit == None  or D_text=='None' else int(D_text)
             m = int(self.mLineEdit.currentText())
             error_action ='warn'
 
@@ -3298,7 +3305,7 @@ class ModelWithParameter(QDialog):
         # Ensure train_data contains only numeric values
         train_data_numeric = self.parent().train_data[selected_column].astype(float)
 
-        fitted_model = self.fit_arima_model(train_data_numeric, selected_column, self.order)
+        fitted_model = self.fit_arima_model(train_data_numeric, selected_column, self.order,self.seasonal_order)
         summary_text = fitted_model.summary().as_text()
         self.summary_text=summary_text
 
@@ -3444,79 +3451,37 @@ class ModelWithParameter(QDialog):
          return
     
         try:
-            current_index = self.tabWidget.currentIndex()
+            
 
-            if current_index == 0:
-                p_text = self.pLineEdiM.currentText()
-                d_text = self.dLineEditM.currentText()
-                q_text = self.qLineEditM.currentText()
-                P_text = self.startPSeasonalLineEdit.currentText()
-                D_text = self.dSeasonalLineEdit.currentText()
-                Q_text = self.startQSeasonalLineEdit.currentText()
-                m_text=self.mLineEdit.currentText()
-                if self.seasonal_collapsible.isChecked and self.non_seasonal_collapsible.isChecked:
- 
-                            # Convert parameters to integers
-                 p, d, q = int(p_text), int(d_text), int(q_text)
-                 P, D, Q, m = int(P_text), int(D_text), int(Q_text), int(m_text)
-
-       
-                elif not p_text or not d_text or not q_text or not P_text or not Q_text or not m_text or not D_text:
-                    QMessageBox.warning(self, "Input Error", "Please fill in all manual input parameters.")
-                    return
-
-
-                elif(self.non_seasonal_collapsible.isChecked and self.seasonal_collapsible.isChecked==False):
-                  p = int(p_text)
-                  d = int(d_text)
-                  q = int(q_text)
-                  P = 0
-                  D = 0
-                  Q = 0
-                  m=3
-                elif(self.non_seasonal_collapsible.isChecked==False and self.seasonal_collapsible.isChecked):
-                  p = 1
-                  d = 0
-                  q = 0
-                  P = int(P_text)
-                  D = int(D_text)
-                  Q = int(Q_text)
-                  m=int(m_text)
-
-                elif self.additional_options_collapsible.isChecked:
-                 trend=self.trendComboBox.currentText()
-                 trend_offset=int(self.trendOffsetLineEdit.text())
-                 measurement_error = self.measurement_error
-                 time_varying_regression = self.time_varying_regression
-                 mle_regression = self.mle_regression
-                 simple_differencing = self.simple_differencing
-                 enforce_stationarity = self.enforce_stationarity
-                 enforce_invertibility = self.enforce_invertibility
-                 hamilton_representation = self.hamilton_representation
-                 concentrate_scale = self.concentrate_scale
-                 use_exact_diffuse = self.use_exact_diffuse
-                elif self.additional_options_collapsible.isChecked == False:
-                 trend=None
-                 trend_offset=1
-                else:
-                 trend=None
-                 trend_offset=1
-                 p = 1
-                 d = 0
-                 q = 0
-                 P = 0
-                 D = 0
-                 Q = 0
-                 m=3
             endog = dataset
-            model = SARIMAX(endog=endog, order=(p, d, q),seasonal_order=(P,D,Q,m),trend=trend,
+            model = SARIMAX(endog=endog, order=(self.p, self.d, self.q),seasonal_order=(self.P,self.D,self.Q,self.m),trend=trend,
                             trend_offset=trend_offset, measurement_error=measurement_error,
                         time_varying_regression=time_varying_regression, mle_regression=mle_regression,
                         simple_differencing=simple_differencing, enforce_stationarity=enforce_stationarity,
                         enforce_invertibility=enforce_invertibility, hamilton_representation=hamilton_representation,
                         concentrate_scale=concentrate_scale, use_exact_diffuse=use_exact_diffuse)
+            p_text = self.pLineEdiM.currentText()
+            d_text = self.dLineEditM.currentText()
+            q_text = self.qLineEditM.currentText()
+            P_text = self.startPSeasonalLineEdit.currentText()
+            D_text = self.dSeasonalLineEdit.currentText()
+            Q_text = self.startQSeasonalLineEdit.currentText()
+            m_text = self.mLineEdit.currentText()
+            if not p_text or not d_text or not q_text or not P_text or not Q_text or not m_text:
+                QMessageBox.warning(self, "Input Error", "Please fill in all manual input parameters.")
+                return
+
+            p = self.p
+            d = self.d
+            q = self.q
+            P = self.P
+            D = self.D
+            Q = self.Q
+            m = self.m
+            
             fitted_model = model.fit()
             self.order=(p, d, q)
+            self.seasonal_order=(P,D,Q,m)
             self.differencing_order=d
 # Display model summary
             summary_text = fitted_model.summary().as_text()
@@ -3550,7 +3515,7 @@ class ModelWithParameter(QDialog):
         # Switch to the report tab
         self.tabWidget.setCurrentIndex(1)
 
-    def fit_arima_model(self, train, column_name, order):
+    def fit_arima_model(self, train, column_name, order,seasonal_order):
         """
         Fits an ARIMA model to the specified column of the training dataset and prints the model summary.
 
@@ -3566,15 +3531,94 @@ class ModelWithParameter(QDialog):
         Returns:
         - results: The results of the fitted model, which include the model summary and coefficients.
         """
-        # Check if the train data is a DataFrame and the specified column exists
-        if isinstance(train, pd.DataFrame) and column_name in train.columns:
-            model_data = train[column_name]
-        elif isinstance(train, pd.Series):
-            model_data = train
-        else:
-            raise ValueError("The training data should be a pandas DataFrame or Series.")
+        self.iterationLogTextEdit.clear()
+        trend=None
+        trend_offset=1
+        measurement_error = False
+        time_varying_regression = False
+        mle_regression = True
+        simple_differencing = False
+        enforce_stationarity = True
+        enforce_invertibility = True
+        hamilton_representation = False
+        concentrate_scale = False
+        trend_offset = 1
+        use_exact_diffuse = False
 
-        model = ARIMA(model_data, order=order)
+    # Get the selected column
+        selected_column = self.columnSelector.currentText()
+    
+    # Get the selected dataset
+        selected_dataset = self.datasetSelector.currentText()
+    
+    # Determine the dataset based on the selected option
+        if selected_dataset == "Actual Set":
+         dataset = self.dataframe[selected_column].values
+        elif selected_dataset == "Train Set":
+         dataset = self.parent().train_data[selected_column].values
+        elif selected_dataset == "Test Set":
+         dataset = self.parent().test_data[selected_column].values
+        else:
+         QMessageBox.warning(self, "Input Error", "Please select a dataset.")
+         return
+    
+        try:
+            
+
+            endog = dataset
+            model = SARIMAX(endog=endog, order=(self.p, self.d, self.q),seasonal_order=(self.P,self.D,self.Q,self.m),trend=trend,
+                            trend_offset=trend_offset, measurement_error=measurement_error,
+                        time_varying_regression=time_varying_regression, mle_regression=mle_regression,
+                        simple_differencing=simple_differencing, enforce_stationarity=enforce_stationarity,
+                        enforce_invertibility=enforce_invertibility, hamilton_representation=hamilton_representation,
+                        concentrate_scale=concentrate_scale, use_exact_diffuse=use_exact_diffuse)
+            p_text = self.pLineEdiM.currentText()
+            d_text = self.dLineEditM.currentText()
+            q_text = self.qLineEditM.currentText()
+            P_text = self.startPSeasonalLineEdit.currentText()
+            D_text = self.dSeasonalLineEdit.currentText()
+            Q_text = self.startQSeasonalLineEdit.currentText()
+            m_text = self.mLineEdit.currentText()
+            if not p_text or not d_text or not q_text or not P_text or not Q_text or not m_text:
+                QMessageBox.warning(self, "Input Error", "Please fill in all manual input parameters.")
+                return
+
+            p = self.p
+            d = self.d
+            q = self.q
+            P = self.P
+            D = self.D
+            Q = self.Q
+            m = self.m
+            
+            fitted_model = model.fit()
+            self.order=(p, d, q)
+            self.seasonal_order=(P,D,Q,m)
+            self.differencing_order=d
+# Display model summary
+            summary_text = fitted_model.summary().as_text()
+            self.summary_text=summary_text
+            self.iterationLogTextEdit.append("\n\nSARIMA Model Summary:\n")
+            self.iterationLogTextEdit.append(summary_text)
+            self.tabWidget.setTabEnabled(1, True)  # Report tab initially disabled
+            self.tabWidget.setTabEnabled(2, True)  
+
+            forecast = fitted_model.forecast(steps=10)  # Change steps as needed
+            self.iterationLogTextEdit.append("\n\nForecasts:\n")
+            self.iterationLogTextEdit.append(str(forecast))
+
+# Print residuals
+            residuals = fitted_model.resid
+            self.iterationLogTextEdit.append("\n\nResiduals:\n")
+            self.iterationLogTextEdit.append(str(residuals))
+
+# Print diagnostic plots (example: ACF and PACF)
+            fig = fitted_model.plot_diagnostics(figsize=(10, 8))
+            self.iterationLogTextEdit.append("\n\nDiagnostic Plots:\n")
+            self.iterationLogTextEdit.append("ACF and PACF plots displayed in a separate window.")
+        except Exception as e:
+            self.iterationLogTextEdit.append(f"\n\nFailed to find SARIMA due to an error:\n{e}")
+            return
         results = model.fit()
         print(results.summary())
         return results
@@ -4125,7 +4169,24 @@ class ModelWithParameter(QDialog):
         sys.stdout = EmittingStream(self.iterationLogTextEdit)
 
         self.iterationLogTextEdit.clear()
+        p_text = self.pLineEdiM.currentText()
+        d_text = self.dLineEditM.currentText()
+        q_text = self.qLineEditM.currentText()
+        P_text = self.startPSeasonalLineEdit.currentText()
+        D_text = self.dSeasonalLineEdit.currentText()
+        Q_text = self.startQSeasonalLineEdit.currentText()
+        m_text = self.mLineEdit.currentText()
+        if not p_text or not d_text or not q_text or not P_text or not Q_text or not m_text:
+            QMessageBox.warning(self, "Input Error", "Please fill in all manual input parameters.")
+            return
 
+        p = int(p_text)
+        d = int(d_text)
+        q = int(q_text)
+        P = int(P_text)
+        D = int(D_text)
+        Q = int(Q_text)
+        m = int(m_text)
         if self.non_seasonal_collapsible.isChecked():
             p_text = self.pLineEdiM.currentText()
             d_text = self.dLineEditM.currentText()
@@ -4182,7 +4243,14 @@ class ModelWithParameter(QDialog):
             results_text = f"Selected SARIMA parameters from (Grid Search) are:\n(p={p}, d={d}, q={q})(P={P}, D={D}, Q={Q})[m={m}]."
 
         self.iterationLogTextEdit.append("\n" + results_text) 
-
+     
+        self.p = p
+        self.d = d
+        self.q = q
+        self.P = P
+        self.D = D
+        self.Q = Q
+        self.m = m  
         
     def create_dropdown(self, options):
         dropdown = QComboBox()
