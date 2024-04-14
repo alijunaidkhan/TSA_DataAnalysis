@@ -3384,7 +3384,7 @@ class ModelWithParameter(QDialog):
         test_data_numeric = test_data[selected_column].astype(float)
 
         # Fit ARIMA model
-        fitted_model = self.fit_arima_model(train_data_numeric, selected_column, self.order)
+        fitted_model = self.fit_arima_model_plot(train_data_numeric, selected_column, self.order)
 
         # Plot training predictions
         self.plot_train_predictions(train_data_numeric, fitted_model, self.differencing_order)
@@ -3514,6 +3514,34 @@ class ModelWithParameter(QDialog):
 
         # Switch to the report tab
         self.tabWidget.setCurrentIndex(1)
+    def fit_arima_model_plot(self, train, column_name, order):
+        """
+        Fits an ARIMA model to the specified column of the training dataset and prints the model summary.
+
+        This function is tailored for training the model on a specific column of a pandas DataFrame or Series.
+        It prints out the summary of the fitted model, providing insights into the performance and characteristics 
+        of the model.
+
+        Parameters:
+        - train: The training dataset (pandas DataFrame or Series).
+        - column_name: The name of the column to be modeled (string).
+        - order: A tuple specifying the (p,d,q) order of the model.
+
+        Returns:
+        - results: The results of the fitted model, which include the model summary and coefficients.
+        """
+        # Check if the train data is a DataFrame and the specified column exists
+        if isinstance(train, pd.DataFrame) and column_name in train.columns:
+            model_data = train[column_name]
+        elif isinstance(train, pd.Series):
+            model_data = train
+        else:
+            raise ValueError("The training data should be a pandas DataFrame or Series.")
+
+        model = ARIMA(model_data, order=order)
+        results = model.fit()
+        print(results.summary())
+        return results
 
     def fit_arima_model(self, train, column_name, order,seasonal_order):
         """
