@@ -3377,17 +3377,17 @@ class ModelWithParameter(QDialog):
         # Ensure train_data contains only numeric values
         
         # Fit ARIMA model
-        fitted_model = self.fit_arima_model_plot(series, selected_column, self.order)
+        fitted_model = self.fit_arima_model(series, selected_column, self.order,self.seasonal_order)
 
         # Plot training predictions
-        self.plot_train_predictions(series, fitted_model, self.differencing_order)
+        self.plot_train_predictions(series, fitted_model)
         train_pred_plot = plt.gcf().canvas
         train_pred_plot.setMinimumSize(600, 400)  # Set minimum size for the plot canvas
         blank_widget = QWidget()
         blank_widget.setFixedHeight(50)  # Adjust the height as needed
 
         # Plot model diagnostics
-        self.plot_train_model_diagnostics(fitted_model)
+        self.plot_model_diagnostics(fitted_model)
         diagnostics_plot = plt.gcf().canvas
         diagnostics_plot.setMinimumSize(600, 700)  # Set minimum size for the plot canvas
             
@@ -3647,53 +3647,22 @@ class ModelWithParameter(QDialog):
         results = model.fit()
         print(results.summary())
         return results
-
-    def plot_train_predictions(self, train_data, fitted_model, differencing_order):
-        """
-        Generates and plots predictions from the fitted ARIMA model on the training dataset
-        alongside the actual training data, excluding the first 'differencing_order' observations
-        affected by differencing.
-
-        Parameters:
-        - train_data: The training dataset (pandas DataFrame or Series).
-        - fitted_model: The results object from the fitted ARIMA model.
-        - differencing_order: The differencing order of the ARIMA model.
-        """
-        # Generate predictions starting from the point that accounts for differencing
-        train_predictions = fitted_model.predict(start=train_data.index[differencing_order], 
-                                                 end=train_data.index[-1], typ='levels')
-        # Plotting
+    def plot_train_predictions(self, series, fitted_model):
+        # Plot training predictions vs actual data
+        train_predictions = fitted_model.predict(start=0, end=len(series)-1)
         plt.figure(figsize=(10, 5))
-        plt.plot(train_data.index[differencing_order:], train_data.values[differencing_order:], 
-                 label='Actual Training Data', color='blue')
-        
-        plt.plot(train_predictions.index, train_predictions, label='Training Model Predictions', 
-                 alpha=0.75, color='red')
-        plt.title('Training Data vs. Training Model Predictions')
-        plt.legend()
+        plt.plot(series.index, series.values, label='Actual Train Data', color='blue')
+        plt.plot(series.index, train_predictions, label='Train Predictions', color='red', linestyle='--')
+        plt.title('Train Data vs Train Predictions')
         plt.xlabel('Time')
         plt.ylabel('Values')
+        plt.legend()
         plt.grid()
 
-    def plot_train_model_diagnostics(self, fitted_model):
-        """
-        Plots diagnostic plots for the ARIMA model fitted to the training dataset. These diagnostics 
-        are crucial for evaluating the model's residuals and underlying assumptions, such as normality, 
-        homoscedasticity, and the absence of autocorrelation.
-
-        Parameters:
-        - fitted_model: The results object from the fitted ARIMA model on the training data.
-        """
-        fig, axes = plt.subplots(2, 2, figsize=(15, 8))
-
-        # Plotting individual diagnostic plots
-        fitted_model.plot_diagnostics().suptitle('Diagnostic Plot 1', fontsize=14, fontweight='bold', y=1.05, ha='center')
-        fitted_model.plot_diagnostics().suptitle('Diagnostic Plot 2', fontsize=14, fontweight='bold', y=1.05, ha='center')
-
-        # Adjusting layout
-        fig.suptitle('Training Model Diagnostics')
-        plt.tight_layout()
-
+    def plot_model_diagnostics(self, fitted_model):
+        # Plot diagnostics from Statsmodels
+        diag = fitted_model.plot_diagnostics(figsize=(10, 8))
+        diag.tight_layout()
 
     def savePlotAsPDF(self, fitted_model, train_data, selected_column):
         # Get the file path for saving
@@ -3703,12 +3672,12 @@ class ModelWithParameter(QDialog):
         # Create a PDF canvas
         with PdfPages(file_path) as pdf:
             # Plot training predictions
-            self.plot_train_predictions(train_data, fitted_model, self.differencing_order)
+            self.plot_train_predictions(train_data, fitted_model)
             pdf.savefig()
             plt.close()  # Close the figure after saving
 
             # Plot model diagnostics
-            self.plot_train_model_diagnostics(fitted_model)
+            self.plot_model_diagnostics(fitted_model)
             pdf.savefig()
             plt.close()  # Close the figure after saving
 
@@ -3723,13 +3692,11 @@ class ModelWithParameter(QDialog):
                 subprocess.Popen(["open", file_path])  # macOS
             except:
                 subprocess.Popen(["start", "", file_path], shell=True)  # Windows
-
     def generate_test_predictions(self, fitted_model):
         """
         Generates predictions for the test set using the fitted ARIMA model.
         
         Parameters:
-        - test_data: The test dataset (pandas DataFrame or Series).
         - fitted_model: The trained ARIMA model.
         
         Returns:
@@ -3738,11 +3705,19 @@ class ModelWithParameter(QDialog):
         if self.datasetSelector.currentText() != "Test Set":
             QMessageBox.warning(self, "Input Error", "Please select Test dataset for Prediction Report.")
             return
+
         selected_column = self.columnSelector.currentText()
-     
+
         # Get test data
         test_data = self.parent().test_data[selected_column].astype(float)
-        test_predictions = fitted_model.predict(start=test_data.index[0], end=test_data.index[-1], typ='levels')
+
+        # Generate predictions for the test set
+        try:
+            test_predictions = fitted_model.predict(start=test_data.index[0], end=test_data.index[-1], typ='levels')
+        except Exception as e:
+            QMessageBox.warning(self, "Prediction Error", f"Failed to generate predictions due to: {e}")
+            return None
+
         return test_predictions
 
     def plot_test_predictions(self,test_data, test_predictions):
@@ -3908,7 +3883,7 @@ class ModelWithParameter(QDialog):
         # Show the test prediction report window
         test_report_window.exec()
 
-    def calculate_evaluation_metrics(self, test_data, test_predictions):
+    def calculate_evaluation_metrics(self, series, fitted_model):
         """
         Calculates evaluation metrics for the test predictions.
 
@@ -3922,11 +3897,13 @@ class ModelWithParameter(QDialog):
         - rmse: Root Mean Squared Error
         - mape: Mean Absolute Percentage Error
         """
-        mae = mean_absolute_error(test_data, test_predictions)
-        mse = mean_squared_error(test_data, test_predictions)
-        rmse = np.sqrt(mse)
-        mape = np.mean(np.abs((test_data - test_predictions) / test_data)) * 100
-        return mae, mse, rmse, mape
+        residuals = series - fitted_model.fittedvalues
+        mae = residuals.abs().mean()
+        mse = (residuals ** 2).mean()
+        rmse = mse ** 0.5
+        mape = (residuals / series).abs().mean() * 100
+        return {'MAE': mae, 'MSE': mse, 'RMSE': rmse, 'MAPE': mape}
+
 
     def saveTestPredictionReportAsPDF(self, test_report_window, fitted_model, test_data, selected_column):
         # Get the file path for saving
