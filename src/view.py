@@ -3275,6 +3275,11 @@ class ModelWithParameter(QDialog):
 
             # Call a function when the "Report" tab is selected
             self.addReportTab()
+        elif index == 0:
+            self.iterationLogTextEdit.setEnabled(True)
+            self.iterationLogTextEdit.setVisible(True)
+            self.runButton.setVisible(True)
+            self.generateModelButton.setVisible(True)
         elif index == 2:
 
             self.iterationLogTextEdit.setEnabled(False)
@@ -3283,29 +3288,23 @@ class ModelWithParameter(QDialog):
             self.generateModelButton.setVisible(False)
             self.addPlotsTab()
     def addReportTab(self):
-        selected_column = self.columnSelector.currentText()
-        train_data = self.parent().train_data
-        test_data = self.parent().test_data
-        if selected_column not in self.parent().train_data.columns:
-            QMessageBox.warning(self, "Column Not Found", "Selected column not found in the dataset.")
-            return
-        
-            # Ensure train_data and test_data contain only numeric values (float or int)
-        if train_data[selected_column].dtype not in ['float64', 'int64'] or test_data[selected_column].dtype not in ['float64', 'int64']:
-            return
-        else:
-            self.report_tab()
+
+        self.report_tab()
     def report_tab(self):
         self.iterationLogTextEdit.setEnabled(False)
         self.iterationLogTextEdit.setVisible(False)
         self.runButton.setVisible(False)
         self.generateModelButton.setVisible(False)
         selected_column = self.columnSelector.currentText()
-
+        if self.datasetSelector.currentText() == "Actual Set":
+         series = self.dataframe[selected_column].astype(float)
+        elif self.datasetSelector.currentText() == "Train Set":
+         series = self.parent().train_data[selected_column].astype(float)
+        elif self.datasetSelector.currentText() == "Test Set":
+         series = self.parent().test_data[selected_column].astype(float)
         # Ensure train_data contains only numeric values
-        train_data_numeric = self.parent().train_data[selected_column].astype(float)
-
-        fitted_model = self.fit_arima_model(train_data_numeric, selected_column, self.order,self.seasonal_order)
+     
+        fitted_model = self.fit_arima_model(series, selected_column, self.order,self.seasonal_order)
         summary_text = fitted_model.summary().as_text()
         self.summary_text=summary_text
 
@@ -3329,7 +3328,7 @@ class ModelWithParameter(QDialog):
         self.reportSummaryTextEdit.append("ACF and PACF plots displayed in a separate window.")
         self.reportSummaryTextEdit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.reportSavePDFButton = QPushButton("Save PDF")
-        self.reportSavePDFButton.clicked.connect(lambda: self.saveReportAsPDF(fitted_model, train_data_numeric, selected_column))
+        self.reportSavePDFButton.clicked.connect(lambda: self.saveReportAsPDF(fitted_model, series, selected_column))
 
         layout = QVBoxLayout()
         
@@ -3366,28 +3365,22 @@ class ModelWithParameter(QDialog):
                 subprocess.Popen(["open", file_path])  # macOS
             except:
                 subprocess.Popen(["start", "", file_path], shell=True)  # Windows
-    
-
     def addPlotsTab(self):
         selected_column = self.columnSelector.currentText()
-        train_data = self.parent().train_data
-        test_data = self.parent().test_data
-        if selected_column not in self.parent().train_data.columns:
-            QMessageBox.warning(self, "Column Not Found", "Selected column not found in the dataset.")
-            return
-        # Ensure train_data and test_data contain only numeric values (float or int)
-        if train_data[selected_column].dtype not in ['float64', 'int64'] or test_data[selected_column].dtype not in ['float64', 'int64']:
-            return
-
-        # Convert data to numeric
-        train_data_numeric = train_data[selected_column].astype(float)
-        test_data_numeric = test_data[selected_column].astype(float)
-
+        if self.datasetSelector.currentText() == "Actual Set":
+            series = self.dataframe[selected_column].astype(float)
+        elif self.datasetSelector.currentText() == "Train Set":
+            series = self.parent().train_data[selected_column].astype(float)
+        elif self.datasetSelector.currentText() == "Test Set":
+            series = self.parent().test_data[selected_column].astype(float)
+        
+        # Ensure train_data contains only numeric values
+        
         # Fit ARIMA model
-        fitted_model = self.fit_arima_model_plot(train_data_numeric, selected_column, self.order)
+        fitted_model = self.fit_arima_model_plot(series, selected_column, self.order)
 
         # Plot training predictions
-        self.plot_train_predictions(train_data_numeric, fitted_model, self.differencing_order)
+        self.plot_train_predictions(series, fitted_model, self.differencing_order)
         train_pred_plot = plt.gcf().canvas
         train_pred_plot.setMinimumSize(600, 400)  # Set minimum size for the plot canvas
         blank_widget = QWidget()
@@ -3397,14 +3390,17 @@ class ModelWithParameter(QDialog):
         self.plot_train_model_diagnostics(fitted_model)
         diagnostics_plot = plt.gcf().canvas
         diagnostics_plot.setMinimumSize(600, 700)  # Set minimum size for the plot canvas
+            
+        # Check if Test Set is selected for prediction
+
 
         # Create buttons
         self.plotPredictButton = QPushButton("Predict")
-        self.plotPredictButton.clicked.connect(lambda: self.generate_test_prediction_report(fitted_model, test_data_numeric, selected_column))
+        self.plotPredictButton.clicked.connect(lambda: self.generate_test_prediction_report(fitted_model, selected_column))
 
         self.plotSavePDFButton = QPushButton("Save PDF")
-        self.plotSavePDFButton.clicked.connect(lambda: self.savePlotAsPDF(fitted_model, train_data_numeric, selected_column))
-
+        self.plotSavePDFButton.clicked.connect(lambda: self.savePlotAsPDF(fitted_model, series, selected_column))
+        
         # Create button layout
         button_layout = QHBoxLayout()
         button_layout.addWidget(self.plotPredictButton)
@@ -3417,6 +3413,7 @@ class ModelWithParameter(QDialog):
         layout.addWidget(diagnostics_plot)
         layout.addLayout(button_layout)  # Add button layout
         self.plotTab.setLayout(layout)
+
 
     def generateArimaModel(self):
         self.iterationLogTextEdit.clear()
@@ -3727,7 +3724,7 @@ class ModelWithParameter(QDialog):
             except:
                 subprocess.Popen(["start", "", file_path], shell=True)  # Windows
 
-    def generate_test_predictions(self,test_data, fitted_model):
+    def generate_test_predictions(self, fitted_model):
         """
         Generates predictions for the test set using the fitted ARIMA model.
         
@@ -3738,6 +3735,13 @@ class ModelWithParameter(QDialog):
         Returns:
         - test_predictions: Predictions made on the test set.
         """
+        if self.datasetSelector.currentText() != "Test Set":
+            QMessageBox.warning(self, "Input Error", "Please select Test dataset for Prediction Report.")
+            return
+        selected_column = self.columnSelector.currentText()
+     
+        # Get test data
+        test_data = self.parent().test_data[selected_column].astype(float)
         test_predictions = fitted_model.predict(start=test_data.index[0], end=test_data.index[-1], typ='levels')
         return test_predictions
 
@@ -3827,11 +3831,18 @@ class ModelWithParameter(QDialog):
         formatted_metrics += f"{'MAPE (Mean Absolute Percentage Error)':<30}{mape:<15.4f}\n"
         return formatted_metrics
 
-    def generate_test_prediction_report(self, fitted_model, test_data, selected_column):
+    def generate_test_prediction_report(self, fitted_model, selected_column):
         # Create a new window for the test prediction report
         test_report_window = QDialog(self)
         test_report_window.setWindowTitle("Test Prediction Report")
-        test_predictions = self.generate_test_predictions(test_data, fitted_model)
+        if self.datasetSelector.currentText() != "Test Set":
+            QMessageBox.warning(self, "Input Error", "Please select Test dataset for Prediction Report.")
+            return
+        selected_column = self.columnSelector.currentText()
+     
+        # Get test data
+        test_data = self.parent().test_data[selected_column].astype(float)
+        test_predictions = self.generate_test_predictions( fitted_model)
 
         # Set a fixed size for the window
         test_report_window.setFixedSize(800, 600)
@@ -3855,7 +3866,7 @@ class ModelWithParameter(QDialog):
         scroll_area.setWidget(scroll_contents)
 
         # Generate predictions for the test set
-        test_predictions = self.generate_test_predictions(test_data, fitted_model)
+        test_predictions = self.generate_test_predictions( fitted_model)
 
         # Plot test predictions
         self.plot_test_predictions(test_data, test_predictions)
@@ -3921,7 +3932,7 @@ class ModelWithParameter(QDialog):
         # Get the file path for saving
         filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Test_Prediction_Report.pdf"
         file_path = os.path.join(os.getcwd(), filename)
-        test_predictions = self.generate_test_predictions(test_data, fitted_model)
+        test_predictions = self.generate_test_predictions(fitted_model)
 
         # Create a PDF canvas
         with PdfPages(file_path) as pdf:
