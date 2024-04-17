@@ -1025,7 +1025,7 @@ class View(QMainWindow):
         Creates a docked widget with a red background central widget and three container widgets.
         The 'column_selection_wshapeidget' contains a label, a combobox, and a button arranged horizontally.
         The 'buttons_widget' contains a grid of six buttons.
-        The 'display_results_widget' contains a QTextEdit for displaying output.
+        The 'results_widget' contains a QTextEdit for displaying output.
         """
 
         docked_widget = QDockWidget("Property", self)
@@ -3464,7 +3464,7 @@ class ModelWithParameter(QDialog):
             D_text = self.dSeasonalLineEdit.currentText()
             Q_text = self.startQSeasonalLineEdit.currentText()
             m_text = self.mLineEdit.currentText()
-            if not p_text or not d_text or not q_text or not P_text or not Q_text or not m_text:
+            if not p_text or not d_text or not q_text or not P_text or not Q_text or not m_text or not D_text:
                 QMessageBox.warning(self, "Input Error", "Please fill in all manual input parameters.")
                 return
 
@@ -3586,10 +3586,10 @@ class ModelWithParameter(QDialog):
         else:
          QMessageBox.warning(self, "Input Error", "Please select a dataset.")
          return
-    
+        print("the value of Q is ",self.Q)
+
         try:
             
-
             endog = dataset
             model = SARIMAX(endog=endog, order=(self.p, self.d, self.q),seasonal_order=(self.P,self.D,self.Q,self.m),trend=trend,
                             trend_offset=trend_offset, measurement_error=measurement_error,
@@ -3604,7 +3604,7 @@ class ModelWithParameter(QDialog):
             D_text = self.dSeasonalLineEdit.currentText()
             Q_text = self.startQSeasonalLineEdit.currentText()
             m_text = self.mLineEdit.currentText()
-            if not p_text or not d_text or not q_text or not P_text or not Q_text or not m_text:
+            if not p_text or not d_text or not q_text or not P_text or not Q_text or not m_text or not D_text:
                 QMessageBox.warning(self, "Input Error", "Please fill in all manual input parameters.")
                 return
 
@@ -3692,7 +3692,7 @@ class ModelWithParameter(QDialog):
                 subprocess.Popen(["open", file_path])  # macOS
             except:
                 subprocess.Popen(["start", "", file_path], shell=True)  # Windows
-    def generate_test_predictions(self, fitted_model):
+    def generate_test_predictions(self, test_data,fitted_model):
         """
         Generates predictions for the test set using the fitted ARIMA model.
         
@@ -3702,14 +3702,7 @@ class ModelWithParameter(QDialog):
         Returns:
         - test_predictions: Predictions made on the test set.
         """
-        if self.datasetSelector.currentText() != "Test Set":
-            QMessageBox.warning(self, "Input Error", "Please select Test dataset for Prediction Report.")
-            return
 
-        selected_column = self.columnSelector.currentText()
-
-        # Get test data
-        test_data = self.parent().test_data[selected_column].astype(float)
 
         # Generate predictions for the test set
         try:
@@ -3734,40 +3727,52 @@ class ModelWithParameter(QDialog):
         plt.title('Test Set Predictions vs Actual Test Data')
         plt.legend()
         plt.grid(True)
-        
+    def plot_actual_vs_predicted(self, test_data, test_predictions):
+        # Ensure test_data and test_predictions have the same index
+        test_predictions.index = test_data.index
 
-    def plot_test_predictions_errors(self,test_data, test_predictions):
-        """
-        Plots a histogram of the test prediction errors.
-        
-        Parameters:
-        - test_data: The test dataset, including actual values.
-        - test_predictions: Predictions made on the test set.
-        """
-        prediction_errors = test_data - test_predictions
-        plt.figure(figsize=(8, 5))
-        sns.histplot(prediction_errors, kde=True, color='blue')
-        plt.title('Histogram of Test Prediction Errors')
-        plt.xlabel('Prediction Errors')
-        plt.ylabel('Density')
+        # Plot actual vs predicted values
+        plt.plot(test_data.index, test_data, label='Actual', color='blue')
+        plt.plot(test_predictions.index, test_predictions, label='Predictions', color='red')
+
+        plt.xlabel('Date')
+        plt.ylabel('Value')
+        plt.title('Actual vs Predicted')
+        plt.legend()
+        plt.show()
 
     def plot_magnitude_residual_relationship(self,test_data, test_predictions):
-        """
-        Plots the relationship between the magnitude of actual test values and the squared prediction errors.
-        
-        Parameters:
-        - test_data: The test dataset with actual values.
-        - test_predictions: Predictions made on the test set.
-        """
-        prediction_errors = test_data - test_predictions
-        plt.figure(figsize=(8, 5))
-        plt.scatter(test_data, prediction_errors**2)
+        errors = test_data - test_predictions
+        plt.figure(figsize=(8, 6))
+        plt.scatter(test_predictions, errors, alpha=0.5)
+        plt.xlabel('Predictions')
+        plt.ylabel('Prediction Error')
         plt.title('Magnitude-Residual Relationship')
-        plt.xlabel('Actual Test Values')
-        plt.ylabel('Squared Prediction Errors')
-        plt.grid(True)
-    
+        plt.show()
 
+
+    def plot_prediction_errors(self,test_data, test_predictions):
+        errors = test_data - test_predictions
+        plt.figure(figsize=(8, 6))
+        plt.hist(errors, bins=30, edgecolor='black')
+        plt.xlabel('Prediction Error')
+        plt.ylabel('Frequency')
+        plt.title('Histogram of Prediction Errors')
+        plt.show()
+    def display_evaluation_metrics(self,test_data, test_predictions):
+        from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+        mse = mean_squared_error(test_data, test_predictions)
+        mae = mean_absolute_error(test_data, test_predictions)
+
+        r2 = r2_score(test_data, test_predictions)
+        rmse = np.sqrt(mse)
+        mape = np.mean(np.abs((test_data - test_predictions) / test_data)) * 100
+
+        print(f'Mean Squared Error (MSE): {mse}')
+        print(f'Mean Absolute Error (MAE): {mae}')
+        print(f'R-squared (R2): {r2}')
+        print("RMSE (Root Mean Squared Error):", rmse)
+        print("MAPE (Mean Absolute Percentage Error):", mape)
     def display_test_evaluation_metrics(self,test_data, test_predictions):
         """
         Displays evaluation metrics for the test predictions.
@@ -3805,7 +3810,6 @@ class ModelWithParameter(QDialog):
         formatted_metrics += f"{'RMSE (Root Mean Squared Error)':<30}{rmse:<15.4f}\n"
         formatted_metrics += f"{'MAPE (Mean Absolute Percentage Error)':<30}{mape:<15.4f}\n"
         return formatted_metrics
-
     def generate_test_prediction_report(self, fitted_model, selected_column):
         # Create a new window for the test prediction report
         test_report_window = QDialog(self)
@@ -3814,10 +3818,10 @@ class ModelWithParameter(QDialog):
             QMessageBox.warning(self, "Input Error", "Please select Test dataset for Prediction Report.")
             return
         selected_column = self.columnSelector.currentText()
-     
+    
         # Get test data
         test_data = self.parent().test_data[selected_column].astype(float)
-        test_predictions = self.generate_test_predictions( fitted_model)
+        train_data = self.parent().train_data[selected_column].astype(float)
 
         # Set a fixed size for the window
         test_report_window.setFixedSize(800, 600)
@@ -3841,22 +3845,23 @@ class ModelWithParameter(QDialog):
         scroll_area.setWidget(scroll_contents)
 
         # Generate predictions for the test set
-        test_predictions = self.generate_test_predictions( fitted_model)
+        test_predictions = fitted_model.predict(start=len(train_data), end=len(test_data)-1)
+        test_predictions_series = pd.Series(test_predictions, index=test_data.index)
 
         # Plot test predictions
-        self.plot_test_predictions(test_data, test_predictions)
+        self.plot_actual_vs_predicted(test_data, test_predictions_series)
         test_pred_plot = plt.gcf().canvas
         test_pred_plot.setMinimumSize(600, 400)  # Set minimum size for the plot canvas
         scroll_layout.addWidget(test_pred_plot)
 
         # Plot test prediction errors
-        self.plot_test_predictions_errors(test_data, test_predictions)
+        self.plot_test_predictions_errors(test_data, test_predictions_series)
         error_plot = plt.gcf().canvas
         error_plot.setMinimumSize(600, 400)  # Set minimum size for the plot canvas
         scroll_layout.addWidget(error_plot)
 
         # Plot magnitude-residual relationship
-        self.plot_magnitude_residual_relationship(test_data, test_predictions)
+        self.plot_magnitude_residual_relationship(test_data, test_predictions_series)
         mag_residual_plot = plt.gcf().canvas
         mag_residual_plot.setMinimumSize(600, 400)  # Set minimum size for the plot canvas
         scroll_layout.addWidget(mag_residual_plot)
@@ -3865,7 +3870,7 @@ class ModelWithParameter(QDialog):
         evaluation_metrics_label = QLabel("Evaluation Metrics:")
         scroll_layout.addWidget(evaluation_metrics_label)
 
-        mae, mse, rmse, mape = self.calculate_evaluation_metrics(test_data, test_predictions)
+        mae, mse, rmse, mape = self.calculate_evaluation_metrics(test_data, test_predictions_series)
         metrics_text = QTextEdit()
         metrics_text.setReadOnly(True)
         metrics_text.setMinimumSize(600, 100)
@@ -3882,7 +3887,6 @@ class ModelWithParameter(QDialog):
 
         # Show the test prediction report window
         test_report_window.exec()
-
     def calculate_evaluation_metrics(self, series, fitted_model):
         """
         Calculates evaluation metrics for the test predictions.
@@ -3909,7 +3913,7 @@ class ModelWithParameter(QDialog):
         # Get the file path for saving
         filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Test_Prediction_Report.pdf"
         file_path = os.path.join(os.getcwd(), filename)
-        test_predictions = self.generate_test_predictions(fitted_model)
+        test_predictions = self.generate_test_predictions(test_data,fitted_model)
 
         # Create a PDF canvas
         with PdfPages(file_path) as pdf:
@@ -3929,7 +3933,7 @@ class ModelWithParameter(QDialog):
             plt.close()  # Close the figure after saving
 
             # Plot test prediction errors
-            self.plot_test_predictions_errors(test_data, test_predictions)
+            self.plot_prediction_errors(test_data, test_predictions)
             pdf.savefig()
             plt.close()  # Close the figure after saving
 
