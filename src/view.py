@@ -3846,36 +3846,18 @@ class ModelWithParameter(QDialog):
 
         # Generate predictions for the test set
         test_predictions = fitted_model.predict(start=len(train_data), end=len(test_data)-1)
-        test_predictions_series = pd.Series(test_predictions, index=test_data.index)
 
-        # Plot test predictions
-        self.plot_actual_vs_predicted(test_data, test_predictions_series)
-        test_pred_plot = plt.gcf().canvas
-        test_pred_plot.setMinimumSize(600, 400)  # Set minimum size for the plot canvas
-        scroll_layout.addWidget(test_pred_plot)
+        # Plot actual vs predicted
+        self.plot_actual_vs_predicted(test_data, test_predictions)
 
-        # Plot test prediction errors
-        self.plot_test_predictions_errors(test_data, test_predictions_series)
-        error_plot = plt.gcf().canvas
-        error_plot.setMinimumSize(600, 400)  # Set minimum size for the plot canvas
-        scroll_layout.addWidget(error_plot)
+        # Plot prediction errors
+        self.plot_prediction_errors(test_data, test_predictions)
 
         # Plot magnitude-residual relationship
-        self.plot_magnitude_residual_relationship(test_data, test_predictions_series)
-        mag_residual_plot = plt.gcf().canvas
-        mag_residual_plot.setMinimumSize(600, 400)  # Set minimum size for the plot canvas
-        scroll_layout.addWidget(mag_residual_plot)
+        self.plot_magnitude_residual_relationship(test_data, test_predictions)
 
         # Display evaluation metrics
-        evaluation_metrics_label = QLabel("Evaluation Metrics:")
-        scroll_layout.addWidget(evaluation_metrics_label)
-
-        mae, mse, rmse, mape = self.calculate_evaluation_metrics(test_data, test_predictions_series)
-        metrics_text = QTextEdit()
-        metrics_text.setReadOnly(True)
-        metrics_text.setMinimumSize(600, 100)
-        metrics_text.setText(self.display_metrics_matrix(mae, mse, rmse, mape))
-        scroll_layout.addWidget(metrics_text)
+        self.display_evaluation_metrics(test_data, test_predictions)
 
         # Create a button to save report as PDF
         save_pdf_button = QPushButton("Save Report as PDF")
