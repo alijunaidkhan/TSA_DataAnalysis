@@ -157,6 +157,7 @@ matplotlib.use('QtAgg')
 
 from pmdarima import auto_arima
 from statsmodels.tsa.seasonal import seasonal_decompose
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from pandas.plotting import lag_plot
 from statsmodels.tsa.arima.model import ARIMA
@@ -197,8 +198,12 @@ class View(QMainWindow):
         self.best_params = {}  # Define global variable to store best parameters
         self.model_dataframe = None
         self.file_path = None
-
+        self.df_model=None
+        self.selected_column=None
+        self.order=None
+        self.seasonal_order=None
         self.columnSelector = None
+        self.fitted_model=None
         self.subsetCreated = False  # Track whether a subset has been created
         self.savedSubsets = None  # Initialize the data_frame attribute
         self.thresholds_layout = QVBoxLayout()  # Initialize the layout
@@ -748,6 +753,7 @@ class View(QMainWindow):
         model_with_parameters_action.triggered.connect(self.model_with_parameters)
         arima_submenu.addAction(model_with_parameters_action)
 
+
         # Menu item VAR
         var_action = QAction("&VAR", self)
         var_action.setIcon(QIcon('images/var_icon.png'))  # Replace 'images/var_icon.png' with your icon path
@@ -765,6 +771,64 @@ class View(QMainWindow):
         prophet_action.setIcon(QIcon('images/facebook_prophet_icon.png'))  # Replace 'images/facebook_prophet_icon.png' with your icon path
         prophet_action.triggered.connect(self.facebook_prophect_function)
         model_menu.addAction(prophet_action)
+        # Define icon for Forecast menu
+
+            # Add Forecast menu
+        forecast_menu = menu_bar.addMenu("&Forecast")
+        arima_based = QAction("&ARIMA Based", self)
+        arima_based.setIcon(QIcon('images/forecast_icon.ico'))  # Replace 'images/facebook_prophet_icon.png' with your icon path
+        arima_based.triggered.connect(self.forecast_dialogue)
+        forecast_menu.addAction(arima_based)
+
+
+        # Add other actions to forecast_menu if needed
+
+    def forecast_dialogue(self):
+        if self.controller.model.data_frame is  None:
+         icon_path = os.path.abspath('images/forecast_icon.ico')
+         self.setWindowIcon(QIcon(icon_path))
+         QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
+         icon_path = os.path.abspath('images/bulb_icon.png')
+         self.setWindowIcon(QIcon(icon_path))
+         return
+        
+        if not isinstance(self.controller.model.data_frame.index, pd.DatetimeIndex):
+         icon_path = os.path.abspath('images/forecast_icon.ico')
+         self.setWindowIcon(QIcon(icon_path))
+         QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
+         icon_path = os.path.abspath('images/bulb_icon.png')
+         self.setWindowIcon(QIcon(icon_path))
+         return
+        if self.order is None or self.seasonal_order is None:
+         icon_path = os.path.abspath('images/forecast_icon.ico')
+         self.setWindowIcon(QIcon(icon_path))
+         QMessageBox.warning(self, "Warning", "Please perform modeling for future forecasting. Navigate to menu Model > ARIMA > Model with Parameters.")
+         icon_path = os.path.abspath('images/bulb_icon.png')
+         self.setWindowIcon(QIcon(icon_path))
+         return
+
+        dialog = ForecastResult(self)
+        dialog.exec() 
+    def model_with_parameters(self):
+        if self.controller.model.data_frame is  None:
+         icon_path = os.path.abspath('images/model_parameters_icon.ico')
+         self.setWindowIcon(QIcon(icon_path))
+         QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
+         icon_path = os.path.abspath('images/bulb_icon.png')
+         self.setWindowIcon(QIcon(icon_path))
+         return
+        
+        if not isinstance(self.controller.model.data_frame.index, pd.DatetimeIndex):
+         icon_path = os.path.abspath('images/model_parameters_icon.ico')
+         self.setWindowIcon(QIcon(icon_path))
+         QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
+         icon_path = os.path.abspath('images/bulb_icon.png')
+         self.setWindowIcon(QIcon(icon_path))
+         return
+
+
+        dialog = ModelWithParameter(self.controller.model.data_frame,self)
+        dialog.exec()  #
     def var_function(self):
         pass
     def varma_function(self):
@@ -965,26 +1029,7 @@ class View(QMainWindow):
          return
         dialog = ArimaConfigDialog(self.controller.model.data_frame, self)
         dialog.exec()  # Make sure this is .exec() to display the dialog window
-    def model_with_parameters(self):
-        if self.controller.model.data_frame is  None:
-         icon_path = os.path.abspath('images/model_parameters_icon.ico')
-         self.setWindowIcon(QIcon(icon_path))
-         QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
-         icon_path = os.path.abspath('images/bulb_icon.png')
-         self.setWindowIcon(QIcon(icon_path))
-         return
-        
-        if not isinstance(self.controller.model.data_frame.index, pd.DatetimeIndex):
-         icon_path = os.path.abspath('images/model_parameters_icon.ico')
-         self.setWindowIcon(QIcon(icon_path))
-         QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
-         icon_path = os.path.abspath('images/bulb_icon.png')
-         self.setWindowIcon(QIcon(icon_path))
-         return
-
-
-        dialog = ModelWithParameter(self.controller.model.data_frame,self)
-        dialog.exec()  #
+    
     def update_column_combobox(self, logical_index):
      if self.controller.model.data_frame is None:
         return
@@ -3199,6 +3244,127 @@ class CollapsibleSection(QGroupBox):
             self.layout().setSpacing(5)
         else:
             self.layout().setSpacing(20)
+
+
+
+class ForecastResult(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Future Forecasting")
+        self.setWindowIcon(QIcon('images/forecast_icon.ico'))  # Setting window icon
+        self.dataframe = self.parent().df_model
+        self.selected_column = self.parent().selected_column
+        self.order = self.parent().order
+        self.seasonal_order = self.parent().seasonal_order
+
+        self.initUI()
+
+    def initUI(self):
+        # Creating a scroll area to make the dialog scrollable
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        self.layout = QVBoxLayout(self)
+        self.setContentsMargins(20, 20, 20, 20)
+        self.layout.addWidget(scroll_area)
+
+        # Creating the content widget for the scroll area
+        content_widget = QWidget()
+        scroll_area.setWidget(content_widget)
+
+        # Using a QVBoxLayout for the content widget
+        content_layout = QVBoxLayout(content_widget)
+
+        self.resize(800, 600)  # Set initial size
+        self.setMinimumWidth(600)  # Set minimum width
+        self.setMinimumHeight(400)  # Set minimum height
+
+        # Forecasting and plotting
+        steps_to_forecast = 12  # Or any other number of steps you wish to forecast
+        forecasted_values = self.forecast_into_future(self.dataframe, self.selected_column, self.order,
+                                                      self.seasonal_order, steps=steps_to_forecast)
+        self.plot_historical_and_forecast(content_layout, self.dataframe, forecasted_values, self.selected_column)
+
+        # Add button to save PDF
+        save_button = QPushButton("Save as PDF", self)
+        save_button.clicked.connect(self.save_as_pdf)
+        content_layout.addWidget(save_button)
+
+    def forecast_into_future(self, df, column_name, order, seasonal_order=None, steps=12):
+        """
+        Retrains the ARIMA model on the entire dataset including potential seasonal components and
+        forecasts the specified number of steps into the future.
+        """
+        # Fit the ARIMA model to the entire dataset
+        if seasonal_order:
+            model = SARIMAX(df[column_name], order=order, seasonal_order=seasonal_order)
+        else:
+            model = SARIMAX(df[column_name], order=order)
+        fitted_model =self.parent().fitted_model
+
+        # The start point is the length of the dataset
+        start = len(df)
+        # The end point is the start point plus the number of steps
+        end = start + steps - 1
+
+        # Generating forecasts
+        future_forecast = fitted_model.predict(start=start, end=end, typ='levels')
+
+        return future_forecast
+
+    def plot_historical_and_forecast(self, layout, df, future_forecast, column_name):
+        """
+        Plots the historical data alongside the future forecasted values.
+        """
+        # Clear layout before adding the plot
+        for i in reversed(range(layout.count())):
+            layout.itemAt(i).widget().setParent(None)
+
+        fig, ax = plt.subplots(figsize=(12, 5))
+
+        # Plotting the historical data
+        ax.plot(df.index, df[column_name], label='Historical Data', marker='o', color='blue')
+
+        # Creating a continuation of the index for the forecasted values
+        last_date = df.index[-1]
+        periods = len(future_forecast)
+        freq = pd.infer_freq(df.index)  # Attempt to infer the frequency of the index
+        future_index = pd.date_range(start=last_date, periods=periods + 1, freq=freq)[1:]  # Offset to start after last_date
+
+        # Plotting the forecasted data
+        ax.plot(future_index, future_forecast, label='Future Forecast', marker='x', linestyle='--', color='red')
+
+        ax.set_title(f'Historical and Future Forecast of {column_name}')
+        ax.set_xlabel('Date')
+        ax.set_ylabel(column_name)
+        ax.legend()
+        ax.grid(True)
+
+        # Embedding the matplotlib plot into PyQt
+        canvas = FigureCanvas(fig)
+        layout.addWidget(canvas)
+
+    def save_as_pdf(self):
+        # Open file dialog to select save location
+        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_SARIMA_Forecast_Result_Report.pdf"
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save as PDF", filename, "PDF Files (*.pdf)")
+
+        if file_path:
+            # Create a PDF file
+            with PdfPages(file_path) as pdf:
+                # Get the current matplotlib figure
+                fig = plt.gcf()
+                # Save the figure to PDF
+                pdf.savefig(fig)
+                plt.close()
+
+            # Open the saved PDF file
+            try:
+                subprocess.Popen(["xdg-open", file_path])  # Linux
+            except:
+                try:
+                    subprocess.Popen(["open", file_path])  # macOS
+                except:
+                    subprocess.Popen(["start", "", file_path], shell=True)  # Windows
 class ModelWithParameter(QDialog):
     def __init__(self, dataframe, parent=None):
         super().__init__(parent)
@@ -3272,11 +3438,11 @@ class ModelWithParameter(QDialog):
 
             # Call a function when the "Report" tab is selected
             self.addReportTab()
-        elif index == 0:
+        if index == 0:
             self.iterationLogTextEdit.setEnabled(True)
             self.iterationLogTextEdit.setVisible(True)
             self.generateModelButton.setVisible(True)
-        elif index == 2:
+        if index == 2:
 
             self.iterationLogTextEdit.setEnabled(False)
             self.iterationLogTextEdit.setVisible(False)
@@ -3286,40 +3452,36 @@ class ModelWithParameter(QDialog):
 
         self.report_tab()
     def report_tab(self):
-        self.iterationLogTextEdit.setEnabled(False)
-        self.iterationLogTextEdit.setVisible(False)
+        self.iterationLogTextEdit.setEnabled(True)
+        self.iterationLogTextEdit.setVisible(True)
         self.generateModelButton.setVisible(False)
         selected_column = self.columnSelector.currentText()
         if self.datasetSelector.currentText() == "Actual Set":
-         series = self.dataframe[selected_column].astype(float)
+            series = self.dataframe[selected_column].astype(float)
         elif self.datasetSelector.currentText() == "Train Set":
-         series = self.parent().train_data[selected_column].astype(float)
+            series = self.parent().train_data[selected_column].astype(float)
         elif self.datasetSelector.currentText() == "Test Set":
-         series = self.parent().test_data[selected_column].astype(float)
+            series = self.parent().test_data[selected_column].astype(float)
         # Ensure train_data contains only numeric values
-     
-      
 
-        self.reportSummaryTextEdit = QTextEdit()
-        self.reportSummaryTextEdit.clear()
-        self.reportSummaryTextEdit.append("\n\nSARIMA Model Summary:\n")
-        self.reportSummaryTextEdit.append(self.summary_text)      
-        self.reportSummaryTextEdit.setReadOnly(True)
+        # Initialize the layout for the report tab
+        layout = QVBoxLayout()
 
-        self.reportSummaryTextEdit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        # Add the iteration log text edit widget to the layout
+        layout.addWidget(self.iterationLogTextEdit)
+
+        # Create a button to save the report as PDF
         self.reportSavePDFButton = QPushButton("Save PDF")
         self.reportSavePDFButton.clicked.connect(self.saveReportAsPDF)
 
-        layout = QVBoxLayout()
-        
-        layout.addWidget(self.reportSummaryTextEdit)
+        # Add the save PDF button to the layout
         layout.addWidget(self.reportSavePDFButton)
 
+        # Set the layout for the report tab
         self.reportTab.setLayout(layout)
 
-
-    def saveReportAsPDF(self, fitted_model, series, selected_column):
-        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_ARIMA_Report.pdf"
+    def saveReportAsPDF(self):
+        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_SARIMA_Report.pdf"
         file_path = os.path.join(os.getcwd(), filename)
 
         # Create a PDF file
@@ -3349,12 +3511,31 @@ class ModelWithParameter(QDialog):
             series = self.parent().test_data[selected_column].astype(float)
         
         # Ensure train_data contains only numeric values
-        
+            # Get the selected column
+        column_name= self.columnSelector.currentText()
+    
+    # Get the selected dataset
+        selected_dataset = self.datasetSelector.currentText()
+    
+    # Determine the dataset based on the selected option
+        if selected_dataset == "Actual Set":
+         train = self.dataframe[selected_column].values
+        elif selected_dataset == "Train Set":
+         train = self.parent().train_data[selected_column].values
+        elif selected_dataset == "Test Set":
+         train = self.parent().test_data[selected_column].values
+        else:
+         QMessageBox.warning(self, "Input Error", "Please select a dataset.")
+         return
         # Fit ARIMA model
-        fitted_model = self.fit_arima_model(series, selected_column, self.order,self.seasonal_order)
+        order=(self.p, self.d, self.q)
 
+
+        seasonal_order=(self.P,self.D,self.Q,self.m)
+
+        fitted_model = self.fit_arima_model(train, column_name, order, seasonal_order)
         # Plot training predictions
-        self.plot_train_predictions(series, fitted_model)
+        self.plot_train_predictions(series, fitted_model,selected_column=column_name)
         train_pred_plot = plt.gcf().canvas
         train_pred_plot.setMinimumSize(600, 400)  # Set minimum size for the plot canvas
         blank_widget = QWidget()
@@ -3414,18 +3595,25 @@ class ModelWithParameter(QDialog):
     # Determine the dataset based on the selected option
         if selected_dataset == "Actual Set":
          dataset = self.dataframe[selected_column].values
+         self.parent().df_model=self.dataframe
+
+
         elif selected_dataset == "Train Set":
          dataset = self.parent().train_data[selected_column].values
+         self.parent().df_model=self.parent().train_data
+
         elif selected_dataset == "Test Set":
          dataset = self.parent().test_data[selected_column].values
+         self.parent().df_model=self.parent().test_data
+
         else:
          QMessageBox.warning(self, "Input Error", "Please select a dataset.")
          return
-    
         try:
             
 
             endog = dataset
+            self.parent().selected_column=selected_column
             if self.seasonal_collapsible.isChecked() and self.non_seasonal_collapsible.isChecked():
              model = SARIMAX(endog=endog, order=(self.p, self.d, self.q),seasonal_order=(self.P,self.D,self.Q,self.m),trend=trend,
                             trend_offset=trend_offset, measurement_error=measurement_error,
@@ -3452,8 +3640,11 @@ class ModelWithParameter(QDialog):
             m = self.m
             
             fitted_model = model.fit()
+            self.parent().fitted_model=fitted_model
             self.order=(p, d, q)
             self.seasonal_order=(P,D,Q,m)
+            self.parent().order=self.order
+            self.parent().seasonal_order=self.seasonal_order
             self.differencing_order=d
 # Display model summary
             summary_text = fitted_model.summary().as_text()
@@ -3476,7 +3667,6 @@ class ModelWithParameter(QDialog):
 
         # Switch to the report tab
         self.tabWidget.setCurrentIndex(1)
-
 
     def fit_arima_model(self, train, column_name, order,seasonal_order):
         """
@@ -3560,6 +3750,8 @@ class ModelWithParameter(QDialog):
 # Display model summary
             summary_text = fitted_model.summary().as_text()
             self.summary_text=summary_text
+            self.iterationLogTextEdit.clear()
+
             self.iterationLogTextEdit.append("\n\nSARIMA Model Summary:\n")
             self.iterationLogTextEdit.append(summary_text)
             self.tabWidget.setTabEnabled(1, True)  # Report tab initially disabled
@@ -3571,41 +3763,42 @@ class ModelWithParameter(QDialog):
 
 
 # Print diagnostic plots (example: ACF and PACF)
-            fig = fitted_model.plot_diagnostics(figsize=(10, 8))
-            self.iterationLogTextEdit.append("\n\nDiagnostic Plots:\n")
-            self.iterationLogTextEdit.append("ACF and PACF plots displayed in a separate window.")
+
         except Exception as e:
             self.iterationLogTextEdit.append(f"\n\nFailed to find SARIMA due to an error:\n{e}")
             return
         results = model.fit()
         print(results.summary())
         return results
-    def plot_train_predictions(self, series, fitted_model):
+    def plot_train_predictions(self, series, fitted_model,selected_column):
         # Plot training predictions vs actual data
         train_predictions = fitted_model.predict(start=0, end=len(series)-1)
         plt.figure(figsize=(10, 5))
-        plt.plot(series.index, series.values, label='Actual Train Data', color='blue')
-        plt.plot(series.index, train_predictions, label='Train Predictions', color='red', linestyle='--')
-        plt.title('Train Data vs Train Predictions')
+        plt.plot(series.index, series.values, label='Actual Training Data', color='blue')
+        plt.plot(series.index, train_predictions, label='Training Model Predictions', color='red', linestyle='--')
+        plt.title(f'Train Data vs Model Predictions for {selected_column}')
         plt.xlabel('Time')
-        plt.ylabel('Values')
+        plt.ylabel(f'{selected_column}')
         plt.legend()
         plt.grid()
 
     def plot_model_diagnostics(self, fitted_model):
         # Plot diagnostics from Statsmodels
         diag = fitted_model.plot_diagnostics(figsize=(10, 8))
+        plt.grid(True, which='major', axis='y', color='green', alpha=0.75, linestyle='--')
+        plt.grid(True, which='major', axis='x', color='blue', alpha=0.5, linestyle=':')
+        plt.suptitle('Training Model Diagnostics: Residual Checks')
         diag.tight_layout()
 
     def savePlotAsPDF(self, fitted_model, train_data, selected_column):
         # Get the file path for saving
-        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_ARIMA_Report.pdf"
+        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_SARIMA_Plot_Report.pdf"
         file_path = os.path.join(os.getcwd(), filename)
 
         # Create a PDF canvas
         with PdfPages(file_path) as pdf:
             # Plot training predictions
-            self.plot_train_predictions(train_data, fitted_model)
+            self.plot_train_predictions(train_data, fitted_model,selected_column)
             pdf.savefig()
             plt.close()  # Close the figure after saving
 
@@ -3641,7 +3834,7 @@ class ModelWithParameter(QDialog):
         return test_predictions
 
 
-    def plot_test_predictions(self,test_data, test_predictions):
+    def plot_test_predictions(self,test_data,selected_column, test_predictions):
         """
         Plots the actual test data against the test predictions.
         
@@ -3651,10 +3844,12 @@ class ModelWithParameter(QDialog):
         """
         plt.figure(figsize=(10, 5))
         plt.plot(test_data.index, test_data.values, label='Actual Test Data', marker='o')
-        plt.plot(test_data.index, test_predictions, label='Test Predictions', marker='x', linestyle='--', alpha=0.7)
-        plt.title('Test Set Predictions vs Actual Test Data')
+        plt.plot(test_data.index, test_predictions, label='Test APredictions', marker='x', linestyle='--', alpha=0.7)
+        plt.title(f'Test Set Predictions vs Actual Test Data for {selected_column}')        
         plt.legend()
         plt.grid(True)
+        plt.xlabel('Date-Time')
+        plt.ylabel(f'{selected_column}')
         
 
     def plot_test_predictions_errors(self,test_data, test_predictions):
@@ -3819,7 +4014,7 @@ class ModelWithParameter(QDialog):
         test_predictions = self.generate_test_predictions(test_data, fitted_model,train_data)
 
         # Plot test predictions
-        self.plot_test_predictions(test_data, test_predictions)
+        self.plot_test_predictions(test_data, selected_column, test_predictions)
         test_pred_plot = plt.gcf().canvas
         test_pred_plot.setMinimumSize(600, 400)  # Set minimum size for the plot canvas
         scroll_layout.addWidget(test_pred_plot)
@@ -4231,7 +4426,7 @@ class ModelWithParameter(QDialog):
             Q = int(Q_text)
             m = int(m_text)
             results_text = f"Selected SARIMA parameters from (Grid Search) are:\n(p={p}, d={d}, q={q})(P={P}, D={D}, Q={Q})[m={m}]."
-
+        self.iterationLogTextEdit.clear()
         self.iterationLogTextEdit.append("\n" + results_text) 
      
         self.p = p
