@@ -221,6 +221,8 @@ class View(QMainWindow):
 
         self.train_data=None
         self.test_data=None
+        self.validation_data = None
+
         # Initialize the plotting dialog
     
         self.lineplotting_dialog = PlottingDialog(controller=self.controller)
@@ -754,6 +756,19 @@ class View(QMainWindow):
         arima_submenu.addAction(model_with_parameters_action)
 
 
+
+        # Optionally, add submenu or additional options related to RNN
+        rnn_submenu = model_menu.addMenu(QIcon('images/rnn_icon.ico'), "&RNN")
+
+        # Add configurations or settings specific to RNN model
+        configure_rnn_action = QAction("&Configure RNN", self)
+        configure_rnn_action.setIcon(QIcon('images/configure_icon.ico'))  # Replace with your icon path
+        #configure_rnn_action.triggered.connect(self.configure_rnn)
+        split_dataset_icon = QIcon('images/split_dataset.ico')  # Update the icon path as necessary
+        split_dataset_rnn= QAction(split_dataset_icon, "&Split Dataset", self)
+        split_dataset_rnn.triggered.connect(self.split_dataset_rnn)
+        rnn_submenu.addAction(split_dataset_rnn)
+        rnn_submenu.addAction(configure_rnn_action)
         # Menu item VAR
         var_action = QAction("&VAR", self)
         var_action.setIcon(QIcon('images/var_icon.png'))  # Replace 'images/var_icon.png' with your icon path
@@ -855,7 +870,25 @@ class View(QMainWindow):
 
         dialog = SplitDatasetDialog(self.controller.model.data_frame, self)
         dialog.exec()
+    def split_dataset_rnn(self):
+        if self.controller.model.data_frame is None:
+            icon_path = os.path.abspath('images/split_dataset.ico')
+            self.setWindowIcon(QIcon(icon_path))
+            QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
+            icon_path = os.path.abspath('images/bulb_icon.png')
+            self.setWindowIcon(QIcon(icon_path))
+            return
 
+        if not isinstance(self.controller.model.data_frame.index, pd.DatetimeIndex):
+            icon_path = os.path.abspath('images/split_dataset.ico')
+            self.setWindowIcon(QIcon(icon_path))
+            QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
+            icon_path = os.path.abspath('images/bulb_icon.png')
+            self.setWindowIcon(QIcon(icon_path))
+            return
+
+        dialog = SplitDatasetDialogRNN(self.controller.model.data_frame, self)
+        dialog.exec()
     def create_status_bar(self):
         """
         Create the status bar with a custom style.
@@ -2908,7 +2941,7 @@ class ArimaConfigDialog(QDialog):
         self.mLineEdit.setCurrentText("1")
 
         # Define the list of additional values for the dropdown
-        other_values = [1,4,6,7,12,24,52,365]
+        other_values = [1, 4,6,7,12,24,52,365]
 
         # Add other values to the combobox
         for value in other_values:
@@ -4648,3 +4681,248 @@ class SplitDatasetDialog(QDialog):
         self.parent().actual_data = self.dataframe
         QMessageBox.information(self, "Success", f"Dataset split successful!\nTrain Data: {len(self.train_data)} rows\nTest Data: {len(self.test_data)} rows")
         self.accept()
+class SplitDatasetDialogRNN(QDialog):
+    def __init__(self, dataframe, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Split Dataset")
+        self.setWindowIcon(QIcon('images/split_dataset.ico'))
+        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
+        self.resize(500, 300)
+        self.dataframe = dataframe
+
+        layout = QVBoxLayout()
+        self.tab_widget = QTabWidget()
+        self.tab_percentage = QWidget()
+        self.tab_date = QWidget()
+        self.tab_data_points = QWidget()
+
+        self.tab_widget.addTab(self.tab_percentage, "Split by Percentage")
+        self.tab_widget.addTab(self.tab_date, "Split by Date")
+        self.tab_widget.addTab(self.tab_data_points, "Split by Number of Data Points")
+
+        layout.addWidget(self.tab_widget)
+
+        self.setup_percentage_tab()
+        self.setup_date_tab()
+        self.setup_data_points_tab()
+
+        self.split_button = QPushButton("Split Dataset")
+        self.split_button.clicked.connect(self.split_dataset)
+        layout.addWidget(self.split_button)
+        self.setLayout(layout)
+
+        self.train_data = None
+        self.validation_data = None
+        self.test_data = None
+        self.actual_data = self.dataframe  # Store the original dataframe
+        
+        # Stylesheet for QDateEdit and QLineEdit
+        self.setStyleSheet("""
+                           
+           QDateTime,QDateTimeEdit,QDate {
+                border: 2px solid #edebe3; /* Blue border */
+                border-radius: 7px;       /* Rounded corners */
+                padding: 3px;              /* Padding inside the combobox */
+                color: #0078D7;            /* Blue text */
+                background-color: white;   /* White background */
+            }
+
+            QLineEdit {
+                border: 2px solid #edebe3; /* Blue border */
+                border-radius: 7px;       /* Rounded corners */
+                padding: 3px;              /* Padding inside the combobox */
+                color: #0078D7;            /* Blue text */
+                background-color: white;   /* White background */
+            }
+        """)
+
+    def setup_date_tab(self):
+        layout = QVBoxLayout()
+        self.date_label = QLabel("Select Split Date:")
+        layout.addWidget(self.date_label)
+
+        # Create a date picker for selecting the split date
+        self.date_edit = QDateTimeEdit()
+        self.date_edit.setDisplayFormat("dd/MM/yyyy")
+        self.date_edit.setCalendarPopup(True)
+        
+        # Ensure the date range is valid based on the DataFrame's index
+        if isinstance(self.dataframe.index, pd.DatetimeIndex):
+            min_date = self.dataframe.index.min().to_pydatetime()
+            max_date = self.dataframe.index.max().to_pydatetime()
+            self.date_edit.setMinimumDate(min_date)
+            self.date_edit.setMaximumDate(max_date)
+        else:
+            self.date_edit.setEnabled(False)  # Disable if not datetime index
+        
+        layout.addWidget(self.date_edit)
+        self.tab_date.setLayout(layout)
+    def setup_data_points_tab(self):
+        layout = QVBoxLayout()
+        self.data_points_label = QLabel("Enter Number of Data Points for Training:")
+        layout.addWidget(self.data_points_label)
+        
+        # Combo box to select the number of data points for training
+        self.data_points_combobox = QComboBox()
+        self.data_points_combobox.setEditable(True)
+        
+        max_points = len(self.dataframe)
+        for i in range(1, max_points, 100):  # Adjust step size based on your dataset size
+            self.data_points_combobox.addItem(str(i))
+        
+        layout.addWidget(self.data_points_combobox)
+        
+        # Validation data points label and combo box
+        self.validation_points_label = QLabel("Enter Number of Data Points for Validation (15% of Train):")
+        layout.addWidget(self.validation_points_label)
+        self.validation_points_combobox = QComboBox()
+        self.validation_points_combobox.setEditable(True)
+        
+        layout.addWidget(self.validation_points_combobox)
+        
+        # Test data points label and combo box
+        self.test_points_label = QLabel("Enter Number of Data Points for Test (Remaining after Train and Validation):")
+        layout.addWidget(self.test_points_label)
+        self.test_points_combobox = QComboBox()
+        self.test_points_combobox.setEditable(True)
+        
+        layout.addWidget(self.test_points_combobox)
+        
+        self.tab_data_points.setLayout(layout)
+
+        # Connect change signal of training data points combo box to a custom slot to update validation and test combo boxes
+        self.data_points_combobox.currentTextChanged.connect(self.update_validation_and_test_comboboxes)
+
+    def update_validation_and_test_comboboxes(self):
+        train_points = int(self.data_points_combobox.currentText())
+        max_points = len(self.dataframe)
+        validation_points = int(0.15 * train_points)  # 15% of training data
+        remaining_points = max_points - train_points
+        test_points = remaining_points - validation_points  # Remaining data after allocating for validation
+
+        # Clear existing items and update validation points combo box
+        self.validation_points_combobox.clear()
+        self.validation_points_combobox.addItem(str(validation_points))
+
+        # Clear existing items and update test points combo box
+        self.test_points_combobox.clear()
+        self.test_points_combobox.addItem(str(test_points))
+
+    def setup_percentage_tab(self):
+        layout = QVBoxLayout()
+
+        # Train set size
+        train_layout = QHBoxLayout()
+        self.training_set_label = QLabel("Train Set Size (%):")
+        self.training_set_combobox = self.create_combobox_with_range(70, 80, 5)
+        train_layout.addWidget(self.training_set_label)
+        train_layout.addWidget(self.training_set_combobox)
+        layout.addLayout(train_layout)
+
+        # Validation set size
+        validation_layout = QHBoxLayout()
+        self.validation_set_label = QLabel("Validation Set Size (%):")
+        self.validation_set_combobox = self.create_combobox_with_range(15, 25, 5)
+        validation_layout.addWidget(self.validation_set_label)
+        validation_layout.addWidget(self.validation_set_combobox)
+        layout.addLayout(validation_layout)
+
+        # Test set size (automatically calculated, not editable)
+        test_layout = QHBoxLayout()
+        self.test_set_label = QLabel("Test Set Size (%):")
+        self.test_set_combobox = QComboBox()
+        self.test_set_combobox.setEditable(True)
+        test_layout.addWidget(self.test_set_label)
+        test_layout.addWidget(self.test_set_combobox)
+        layout.addLayout(test_layout)
+
+        self.tab_percentage.setLayout(layout)
+
+        self.training_set_combobox.currentIndexChanged.connect(self.update_test_set_size)
+        self.validation_set_combobox.currentIndexChanged.connect(self.update_test_set_size)
+        self.update_test_set_size()
+
+    def create_combobox_with_range(self, start, end, step):
+        combobox = QComboBox()
+        combobox.setEditable(True)
+        for i in range(start, end + 1, step):
+            combobox.addItem(str(i))
+        return combobox
+
+    def update_test_set_size(self):
+        try:
+            train_size = int(self.training_set_combobox.currentText())
+            validation_size = int(self.validation_set_combobox.currentText())
+            test_size = 100 - train_size - validation_size
+            self.test_set_combobox.clear()
+            self.test_set_combobox.addItem(str(test_size))
+        except Exception as e:
+            print(f"Error updating test set size: {e}")
+    def split_by_percentage(self, train_percent, val_percent_of_train):
+        total_samples = len(self.dataframe)
+        train_size = int(total_samples * train_percent / 100)  # Convert percentage to fraction
+        val_size = int(train_size * val_percent_of_train / 100)  # Convert percentage to fraction
+
+        # Recompute train_size to exclude the validation set from the original train set
+        train_size -= val_size
+
+        # Slice the dataframe to create training, validation, and testing sets
+        self.train_data = self.dataframe.iloc[:train_size]
+        self.validation_data = self.dataframe.iloc[train_size:train_size + val_size]
+        self.test_data = self.dataframe.iloc[train_size + val_size:]
+
+        self.show_split_results()
+    def split_dataset(self):
+        if self.tab_widget.currentIndex() == 0:
+            train_percent = int(self.training_set_combobox.currentText())
+            val_percent_of_train = int(self.validation_set_combobox.currentText())
+            self.split_by_percentage(train_percent, val_percent_of_train)
+        elif self.tab_widget.currentIndex() == 1:
+            # Pass the QDateTime object directly
+            self.split_by_date(self.date_edit.dateTime())
+        elif self.tab_widget.currentIndex() == 2:
+            train_points = int(self.data_points_combobox.currentText())
+            validation_points = int(self.validation_points_combobox.currentText())
+            self.split_by_data_points(train_points, validation_points)
+        if self.parent() is not None:
+            self.parent().train_data = self.train_data
+            self.parent().validation_data = self.validation_data
+            self.parent().test_data = self.test_data
+            self.parent().actual_data = self.dataframe
+
+    def show_split_results(self):
+        QMessageBox.information(self, "Success", f"Dataset split successful!\nTrain Data: {len(self.train_data)} rows\nValidation Data: {len(self.validation_data)} rows\nTest Data: {len(self.test_data)} rows")
+        self.accept()
+    
+    def split_by_date(self, qdatetime):
+        # Convert QDateTime to a pandas-compatible datetime (numpy datetime64)
+        # Here, we include the time in the conversion process
+        split_datetime = pd.to_datetime(qdatetime.toString("yyyy-MM-dd hh:mm:ss"))
+
+        # Ensure the index is in datetime format if it's not already
+        if not isinstance(self.dataframe.index, pd.DatetimeIndex):
+            self.dataframe.index = pd.to_datetime(self.dataframe.index)
+
+        # Filter the dataset based on the datetime
+        mask = self.dataframe.index < split_datetime
+        train_data = self.dataframe.loc[mask]
+        remaining_data = self.dataframe.loc[~mask]
+
+        # Split the remaining data equally for validation and testing
+        split_index = len(remaining_data) // 2
+        self.validation_data = remaining_data.iloc[:split_index]
+        self.test_data = remaining_data.iloc[split_index:]
+
+        self.train_data = train_data
+        self.show_split_results()
+
+    def split_by_data_points(self, train_points, validation_points):
+        if train_points + validation_points > len(self.dataframe):
+            QMessageBox.warning(self, "Error", "Sum of training and validation points exceeds total data points.")
+            return
+
+        self.train_data = self.dataframe.iloc[:train_points]
+        self.validation_data = self.dataframe.iloc[train_points:train_points + validation_points]
+        self.test_data = self.dataframe.iloc[train_points + validation_points:]
+
+        self.show_split_results()
