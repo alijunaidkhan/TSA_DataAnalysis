@@ -127,6 +127,7 @@ QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
 import datetime
 from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget,QCheckBox
 import os
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 import matplotlib
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
@@ -136,7 +137,7 @@ from PyQt6.QtCore import Qt, QUrl,pyqtSignal,QDateTime
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-from PyQt6.QtGui import QAction, QIcon,QFont,QColor,QPixmap,QStandardItem, QStandardItemModel, QDesktopServices
+from PyQt6.QtGui import QAction, QIcon,QIntValidator  ,QFont,QColor,QPixmap,QStandardItem, QStandardItemModel, QDesktopServices
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget, QTabWidget, \
     QTableWidget,QMenu, QTableWidgetItem, QHBoxLayout, QLabel, QLineEdit,QDateTimeEdit, QGridLayout, QDialog, QGroupBox,\
     QRadioButton, QComboBox,QProgressBar,QFormLayout,QTextEdit,QAbstractItemView, QMessageBox, QButtonGroup, QDockWidget,QSpinBox, QSpacerItem, QSizePolicy
@@ -146,6 +147,12 @@ import zipfile
 import os
 from PyQt6.QtWidgets import QDialog, QFileDialog,QScrollArea,QVBoxLayout, QFormLayout, QLabel, QLineEdit, QDialogButtonBox, QMessageBox, QApplication
 import sys
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, InputLayer
+from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import Callback
 
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 import subprocess
@@ -763,7 +770,7 @@ class View(QMainWindow):
         # Add configurations or settings specific to RNN model
         configure_rnn_action = QAction("&Configure RNN", self)
         configure_rnn_action.setIcon(QIcon('images/configure_icon.ico'))  # Replace with your icon path
-        #configure_rnn_action.triggered.connect(self.configure_rnn)
+        configure_rnn_action.triggered.connect(self.configure_rnn)
         split_dataset_icon = QIcon('images/split_dataset.ico')  # Update the icon path as necessary
         split_dataset_rnn= QAction(split_dataset_icon, "&Split Dataset", self)
         split_dataset_rnn.triggered.connect(self.split_dataset_rnn)
@@ -794,7 +801,29 @@ class View(QMainWindow):
         arima_based.setIcon(QIcon('images/forecast_icon.ico'))  # Replace 'images/facebook_prophet_icon.png' with your icon path
         arima_based.triggered.connect(self.forecast_dialogue)
         forecast_menu.addAction(arima_based)
+    def configure_rnn(self):
+        if self.controller.model.data_frame is  None:
+         icon_path = os.path.abspath('images/configure_icon.ico')
+         self.setWindowIcon(QIcon(icon_path))
+         QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
+         icon_path = os.path.abspath('images/bulb_icon.png')
+         self.setWindowIcon(QIcon(icon_path))
+         return
+        
+        if not isinstance(self.controller.model.data_frame.index, pd.DatetimeIndex):
+         icon_path = os.path.abspath('images/configure_icon.ico')
+         self.setWindowIcon(QIcon(icon_path))
+         QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
+         icon_path = os.path.abspath('images/bulb_icon.png')
+         self.setWindowIcon(QIcon(icon_path))
+         return
 
+
+        if self.validation_data is None:
+            QMessageBox.warning(self, "Data is empty", "Please split the data first to get Train and Validation Data.")
+            return
+        rnn_configuration_dialog = ConfigureRNN(self)
+        rnn_configuration_dialog.show()
 
         # Add other actions to forecast_menu if needed
 
@@ -4684,6 +4713,7 @@ class SplitDatasetDialog(QDialog):
 class SplitDatasetDialogRNN(QDialog):
     def __init__(self, dataframe, parent=None):
         super().__init__(parent)
+
         self.setWindowTitle("Split Dataset")
         self.setWindowIcon(QIcon('images/split_dataset.ico'))
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
@@ -4926,3 +4956,195 @@ class SplitDatasetDialogRNN(QDialog):
         self.test_data = self.dataframe.iloc[train_points + validation_points:]
 
         self.show_split_results()
+
+
+
+class ConfigureRNN(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Configure RNN")
+        icon_path = os.path.abspath('images/configure_icon.ico')
+        self.setWindowIcon(QIcon(icon_path))
+        self.setup_ui()
+        self.setStyleSheet("""
+            QLineEdit {
+                border: 2px solid #edebe3;
+                border-radius: 7px;
+                padding: 3px;
+                color: #0078D7;
+                background-color: white;
+            }""")
+
+    def setup_ui(self):
+        self.layout = QVBoxLayout(self)
+        self.layout.setSpacing(10)
+        self.resize(400, 300)
+
+        self.window_size_input = QLineEdit()
+        self.window_size_input.setValidator(QIntValidator(1, 100))
+        self.window_size_input.setText("5")
+        self.layout.addWidget(QLabel("Window Size:"))
+        self.layout.addWidget(self.window_size_input)
+
+        self.column_selection = QComboBox()
+        self.column_selection.addItems([str(col) for col in self.parent().train_data.columns if self.parent().train_data[col].dtype in [np.float64, np.int64]])
+        self.layout.addWidget(QLabel("Select Numeric Column:"))
+        self.layout.addWidget(self.column_selection)
+
+        self.num_units_input = QLineEdit()
+        self.num_units_input.setValidator(QIntValidator(1, 512))
+        self.num_units_input.setText("64")
+        self.layout.addWidget(QLabel("Number of LSTM Units:"))
+        self.layout.addWidget(self.num_units_input)
+
+        self.lstm_activation = QComboBox()
+        self.lstm_activation.addItems(['tanh', 'relu', 'sigmoid', 'linear'])
+        self.layout.addWidget(QLabel("LSTM Activation Function:"))
+        self.layout.addWidget(self.lstm_activation)
+
+        self.dense_activation = QComboBox()
+        self.dense_activation.addItems(['relu', 'sigmoid', 'tanh', 'linear'])
+        self.layout.addWidget(QLabel("Dense Layer Activation Function:"))
+        self.layout.addWidget(self.dense_activation)
+
+        self.train_button = QPushButton("Train Model")
+        self.train_button.clicked.connect(self.train_model)
+        self.layout.addWidget(self.train_button)
+
+        self.progress_bar = QProgressBar()
+        self.layout.addWidget(self.progress_bar)
+    def train_model(self):
+        if not self.validate_data():
+            return
+        window_size = int(self.window_size_input.text())
+        num_units = int(self.num_units_input.text())
+        lstm_activation = self.lstm_activation.currentText()
+        dense_activation = self.dense_activation.currentText()
+        selected_column = self.column_selection.currentText()
+
+        X_train, y_train = self.df_to_X_y(self.parent().train_data, window_size, selected_column)
+        X_val, y_val = self.df_to_X_y(self.parent().validation_data, window_size, selected_column)
+
+        self.model = self.build_model(window_size, num_units, lstm_activation, dense_activation)
+        
+        # Create a ProgressCallback instance
+        progress_callback = ProgressCallback(self.progress_bar)
+        
+        # Pass the ProgressCallback instance as a callback during model training
+        history = self.model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=10, callbacks=[progress_callback])
+
+        test_predictions = self.model.predict(X_val).flatten()
+        self.generate_plots(y_val, test_predictions)
+        QMessageBox.information(self, "Training Complete", "Model training has completed successfully.")
+
+    def build_model(self, window_size, num_units, lstm_activation, dense_activation):
+        model = Sequential([
+            InputLayer(input_shape=(window_size, 1)),
+            LSTM(num_units, activation=lstm_activation),
+            Dense(1, activation=dense_activation)
+        ])
+        model.compile(optimizer=Adam(), loss='mean_squared_error')
+        return model
+    def generate_plots(self, y_test, test_predictions):
+        test_results = pd.DataFrame({
+            'Test Predictions': test_predictions, 
+            'Actuals': y_test
+        })
+        test_results['Residuals'] = test_results['Actuals'] - test_results['Test Predictions']
+        test_mae = mean_absolute_error(test_results['Actuals'], test_results['Test Predictions'])
+        test_mse = mean_squared_error(test_results['Actuals'], test_predictions)
+        test_rmse = np.sqrt(test_mse)
+
+        test_metrics_text = f"MAE: {test_mae:.2f}\nMSE: {test_mse:.2f}\nRMSE: {test_rmse:.2f}"
+
+        for plot_title, plot_function in [("Test Predicted vs. Actual Values", self.plot_predicted_vs_actual),
+                                        ("Test Magnitude-Residual Relationship", self.plot_magnitude_residual),
+                                        ("Histogram of Test Residuals", self.plot_residual_histogram)]:
+            # Create a new window for each plot
+            plot_window = QWidget()
+            plot_window.setWindowTitle(plot_title)
+            plot_layout = QVBoxLayout(plot_window)
+
+            # Execute the plot function to generate the plot
+            fig, ax = plt.subplots(figsize=(10, 6))
+            plot_function(test_results, ax, test_metrics_text)
+            canvas = FigureCanvas(fig)
+
+            # Wrap the plot in a scroll area
+            scroll_area = QScrollArea()
+            scroll_area.setWidget(canvas)
+            plot_layout.addWidget(scroll_area)
+
+            # Show the window
+            plot_window.show()
+
+    def plot_predicted_vs_actual(self, test_results, layout, test_metrics_text):
+        plt.figure(figsize=(12, 5))
+        plt.plot(test_results['Test Predictions'], label='Test Predictions')
+        plt.plot(test_results['Actuals'], label='Actuals')
+        plt.title('Test Predicted vs. Actual Values')
+        plt.ylabel('Values')
+        plt.legend()
+        plt.text(0.01, 0.99, test_metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+        plt.tight_layout()
+        canvas = FigureCanvas(plt.gcf())
+        layout.addWidget(canvas)
+        plt.close()
+
+    def plot_magnitude_residual(self, test_results, layout, test_metrics_text):
+        plt.figure(figsize=(10, 6))
+        plt.scatter(test_results['Actuals'], test_results['Residuals'] ** 2, alpha=0.5)
+        plt.title('Test Magnitude-Residual Relationship')
+        plt.xlabel('Actual Values')
+        plt.ylabel('Squared Residuals')
+        plt.grid(True)
+        plt.text(0.01, 0.99, test_metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+        plt.tight_layout()
+        canvas = FigureCanvas(plt.gcf())
+        layout.addWidget(canvas)
+        plt.close()
+
+    def plot_residual_histogram(self, test_results, layout, test_metrics_text):
+        plt.figure(figsize=(8, 6))
+        plt.hist(test_results['Residuals'], bins=20, edgecolor='black', alpha=0.7)
+        plt.title('Histogram of Test Residuals')
+        plt.xlabel('Residuals')
+        plt.ylabel('Frequency')
+        plt.text(0.99, 0.99, test_metrics_text, verticalalignment='top', horizontalalignment='right', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+        plt.tight_layout()
+        canvas = FigureCanvas(plt.gcf())
+        layout.addWidget(canvas)
+        plt.close()
+    def df_to_X_y(self, df, window_size=5, column_name=None):
+        df_as_np = df[column_name].to_numpy()
+        X = []
+        y = []
+        for i in range(len(df_as_np) - window_size):
+            row = [[a] for a in df_as_np[i:i + window_size]]
+            X.append(row)
+            target = df_as_np[i + window_size]
+            y.append(target)
+        return np.array(X), np.array(y)
+
+    def update_progress(self, epoch, logs=None):
+        if logs is not None:
+            progress = int((epoch / 10) * 100)
+            self.progress_bar.setValue(progress)
+
+    def validate_data(self):
+        if self.parent().train_data is None or self.parent().validation_data is None:
+            QMessageBox.warning(self, "Data Error", "Training or validation data not set.")
+            return False
+        return True
+
+
+class ProgressCallback(Callback):
+    def __init__(self, progress_bar):
+        super().__init__()
+        self.progress_bar = progress_bar
+
+    def on_epoch_end(self, epoch, logs=None):
+        # Update the progress bar based on the number of epochs
+        if logs is not None:
+            progress = int((epoch + 1) / 10 * 100)  # Assuming 10 epochs
+            self.progress_bar.setValue(progress)
