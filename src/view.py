@@ -4748,7 +4748,28 @@ class SplitDatasetDialogRNN(QDialog):
         
         # Stylesheet for QDateEdit and QLineEdit
         self.setStyleSheet("""
-                           
+                            # Set global stylesheet for buttons and comboboxes
+            QPushButton {
+                background-color: #96b1c2; /* grey background */
+                color: white;              /* White text */
+                border-radius: 7px;       /* Rounded corners */
+                padding: 6px;              /* Padding for text */
+                font-weight: bold;         /* Bold font */
+            }
+            QPushButton:hover {
+                background-color: #1b4972; /* Darker blue on hover */
+            }
+            QComboBox {
+                border: 2px solid #edebe3; /* Blue border */
+                border-radius: 7px;       /* Rounded corners */
+                padding: 3px;              /* Padding inside the combobox */
+                color: #0078D7;            /* Blue text */
+                background-color: white;   /* White background */
+            }
+            QComboBox::drop-down {
+                border: none;              /* No border for the dropdown button */
+
+
            QDateTime,QDateTimeEdit,QDate {
                 border: 2px solid #edebe3; /* Blue border */
                 border-radius: 7px;       /* Rounded corners */
@@ -4967,6 +4988,16 @@ class ConfigureRNN(QDialog):
         self.setWindowIcon(QIcon(icon_path))
         self.setup_ui()
         self.setStyleSheet("""
+            QPushButton {
+                background-color: #96b1c2; /* grey background */
+                color: white;              /* White text */
+                border-radius: 7px;       /* Rounded corners */
+                padding: 6px;              /* Padding for text */
+                font-weight: bold;         /* Bold font */
+            }
+            QPushButton:hover {
+                background-color: #1b4972; /* Darker blue on hover */
+            }
             QLineEdit {
                 border: 2px solid #edebe3;
                 border-radius: 7px;
@@ -5029,7 +5060,8 @@ class ConfigureRNN(QDialog):
         
         # Create a ProgressCallback instance
         progress_callback = ProgressCallback(self.progress_bar)
-        
+        progress_callback.on_epoch_end(0)  # Initialize progress bar to 0%
+
         # Pass the ProgressCallback instance as a callback during model training
         history = self.model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=10, callbacks=[progress_callback])
 
@@ -5045,9 +5077,10 @@ class ConfigureRNN(QDialog):
         ])
         model.compile(optimizer=Adam(), loss='mean_squared_error')
         return model
+    
     def generate_plots(self, y_test, test_predictions):
         test_results = pd.DataFrame({
-            'Test Predictions': test_predictions, 
+            'Test Predictions': test_predictions,
             'Actuals': y_test
         })
         test_results['Residuals'] = test_results['Actuals'] - test_results['Test Predictions']
@@ -5055,66 +5088,103 @@ class ConfigureRNN(QDialog):
         test_mse = mean_squared_error(test_results['Actuals'], test_predictions)
         test_rmse = np.sqrt(test_mse)
 
-        test_metrics_text = f"MAE: {test_mae:.2f}\nMSE: {test_mse:.2f}\nRMSE: {test_rmse:.2f}"
+        dialog = QDialog()
+        dialog.setWindowTitle("Test Results")
+        dialog.resize(1000, 800)
 
-        for plot_title, plot_function in [("Test Predicted vs. Actual Values", self.plot_predicted_vs_actual),
-                                        ("Test Magnitude-Residual Relationship", self.plot_magnitude_residual),
-                                        ("Histogram of Test Residuals", self.plot_residual_histogram)]:
-            # Create a new window for each plot
-            plot_window = QWidget()
-            plot_window.setWindowTitle(plot_title)
-            plot_layout = QVBoxLayout(plot_window)
+        scroll_area = QScrollArea(dialog)
+        scroll_area.setWidgetResizable(True)
+        scroll_contents = QWidget()
+        scroll_layout = QVBoxLayout(scroll_contents)
 
-            # Execute the plot function to generate the plot
-            fig, ax = plt.subplots(figsize=(10, 6))
-            plot_function(test_results, ax, test_metrics_text)
-            canvas = FigureCanvas(fig)
+        fig_size = (12, 8)  # Figure size
 
-            # Wrap the plot in a scroll area
-            scroll_area = QScrollArea()
-            scroll_area.setWidget(canvas)
-            plot_layout.addWidget(scroll_area)
+        # Creating multiple plots
+        figures = []
+        for i, (title, y_label) in enumerate([
+            ("Test Predicted vs. Actual Values", "Values"),
+            ("Test Magnitude-Residual Relationship", "Squared Residuals"),
+            ("Histogram of Test Residuals", "Frequency")
+        ]):
+            fig = plt.figure(figsize=fig_size)
+            ax = fig.add_subplot(111)
+            if i == 0:
+                ax.plot(test_results['Test Predictions'], label='Test Predictions')
+                ax.plot(test_results['Actuals'], label='Actuals')
+                ax.legend()
+            elif i == 1:
+                ax.scatter(test_results['Actuals'], test_results['Residuals'] ** 2, alpha=0.5)
+            elif i == 2:
+                ax.hist(test_results['Residuals'], bins=20, edgecolor='black', alpha=0.7)
+            
+            ax.set_title(title)
+            ax.set_ylabel(y_label)
+            ax.text(0.01, 0.99, f"MAE: {test_mae:.2f}, MSE: {test_mse:.2f}, RMSE: {test_rmse:.2f}",
+                    verticalalignment='top', horizontalalignment='left',
+                    transform=ax.transAxes, fontsize=12,
+                    bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+            plot_widget = FigureCanvas(fig)
+            scroll_layout.addWidget(plot_widget)
+            figures.append(fig)
 
-            # Show the window
-            plot_window.show()
+        scroll_area.setWidget(scroll_contents)
+        self.setStyleSheet("""
+            QPushButton {
+                background-color: #96b1c2; /* grey background */
+                color: white;              /* White text */
+                border-radius: 7px;       /* Rounded corners */
+                padding: 6px;              /* Padding for text */
+                font-weight: bold;         /* Bold font */
+            }
+            QPushButton:hover {
+                background-color: #1b4972; /* Darker blue on hover */
+            }
+            QLineEdit {
+                border: 2px solid #edebe3;
+                border-radius: 7px;
+                padding: 3px;
+                color: #0078D7;
+                background-color: white;
+            }""")
 
-    def plot_predicted_vs_actual(self, test_results, layout, test_metrics_text):
-        plt.figure(figsize=(12, 5))
-        plt.plot(test_results['Test Predictions'], label='Test Predictions')
-        plt.plot(test_results['Actuals'], label='Actuals')
-        plt.title('Test Predicted vs. Actual Values')
-        plt.ylabel('Values')
-        plt.legend()
-        plt.text(0.01, 0.99, test_metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
-        plt.tight_layout()
-        canvas = FigureCanvas(plt.gcf())
-        layout.addWidget(canvas)
-        plt.close()
+        dialog_layout = QVBoxLayout(dialog)
+        dialog_layout.addWidget(scroll_area)
+        save_pdf_button = QPushButton("Save PDF", dialog)
+        save_pdf_button.clicked.connect(lambda: self.save_plots_as_pdf(figures))
+        dialog_layout.addWidget(save_pdf_button)
 
-    def plot_magnitude_residual(self, test_results, layout, test_metrics_text):
-        plt.figure(figsize=(10, 6))
-        plt.scatter(test_results['Actuals'], test_results['Residuals'] ** 2, alpha=0.5)
-        plt.title('Test Magnitude-Residual Relationship')
-        plt.xlabel('Actual Values')
-        plt.ylabel('Squared Residuals')
-        plt.grid(True)
-        plt.text(0.01, 0.99, test_metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
-        plt.tight_layout()
-        canvas = FigureCanvas(plt.gcf())
-        layout.addWidget(canvas)
-        plt.close()
+        dialog.exec()
 
-    def plot_residual_histogram(self, test_results, layout, test_metrics_text):
-        plt.figure(figsize=(8, 6))
-        plt.hist(test_results['Residuals'], bins=20, edgecolor='black', alpha=0.7)
-        plt.title('Histogram of Test Residuals')
-        plt.xlabel('Residuals')
-        plt.ylabel('Frequency')
-        plt.text(0.99, 0.99, test_metrics_text, verticalalignment='top', horizontalalignment='right', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
-        plt.tight_layout()
-        canvas = FigureCanvas(plt.gcf())
-        layout.addWidget(canvas)
-        plt.close()
+
+    def save_plots_as_pdf(self, figures):
+        # Ensure file path is correctly acquired and is valid
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save as PDF", "", "PDF Files (*.pdf);;All Files (*)")
+        if file_path:
+            # Create a PDF file at the specified path
+            with PdfPages(file_path) as pdf:
+                for fig in figures:
+                    # Check if the item is a matplotlib figure instance before saving
+                    if isinstance(fig, plt.Figure):
+                        pdf.savefig(fig)
+                        plt.close(fig)  # Close the figure after saving to free up memory
+                    else:
+                        print("Attempted to save a non-figure object as a figure.")
+
+            # Information dialog to confirm the file was saved
+            QMessageBox.information(self, "PDF Saved", f"PDF file saved successfully at:\n{file_path}")
+
+            # Optionally, open the PDF file automatically using the default application
+            self.open_pdf_file(file_path)
+
+    def open_pdf_file(self, file_path):
+        if os.name == 'posix':  # Linux or macOS
+            subprocess.call(['open', file_path] if os.uname().sysname == 'Darwin' else ['xdg-open', file_path])
+        elif os.name == 'nt':  # Windows
+            os.startfile(file_path)
+        else:
+            QMessageBox.information(self, "Open PDF", "Could not automatically open the PDF. Please open it manually.")
+
+            
     def df_to_X_y(self, df, window_size=5, column_name=None):
         df_as_np = df[column_name].to_numpy()
         X = []
