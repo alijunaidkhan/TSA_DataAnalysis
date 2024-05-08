@@ -139,7 +139,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from PyQt6.QtGui import QAction, QIcon,QIntValidator  ,QFont,QColor,QPixmap,QStandardItem, QStandardItemModel, QDesktopServices
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget, QTabWidget, \
-    QTableWidget,QMenu, QTableWidgetItem, QHBoxLayout, QLabel, QLineEdit,QDateTimeEdit, QGridLayout, QDialog, QGroupBox,\
+    QTableWidget,QMenu, QTableWidgetItem, QHBoxLayout, QLabel, QLineEdit,QFrame,QDateTimeEdit, QGridLayout, QDialog, QGroupBox,\
     QRadioButton, QComboBox,QProgressBar,QFormLayout,QTextEdit,QAbstractItemView, QMessageBox, QButtonGroup, QDockWidget,QSpinBox, QSpacerItem, QSizePolicy
 import numpy as np
 import pandas as pd
@@ -743,13 +743,13 @@ class View(QMainWindow):
                # Create Model menu
         model_menu = self.menuBar().addMenu("&Model")
 # Add Split Dataset action with an icon to the Model menu
+
+        # Submenu ARIMA
+        arima_submenu = model_menu.addMenu(QIcon('images/arima_icon.svg'), "&ARIMA")
         split_dataset_icon = QIcon('images/split_dataset.ico')  # Update the icon path as necessary
         split_dataset_action = QAction(split_dataset_icon, "&Split Dataset", self)
         split_dataset_action.triggered.connect(self.split_dataset_function)
-        model_menu.addAction(split_dataset_action)
-        # Submenu ARIMA
-        arima_submenu = model_menu.addMenu(QIcon('images/arima_icon.svg'), "&ARIMA")
-
+        arima_submenu.addAction(split_dataset_action)
         # Submenu Grid Search Parameters
         grid_search_action = QAction("&Grid Search", self)
         grid_search_action.setIcon(QIcon('images/grid_search_icon.ico'))  # Replace 'images/grid_search_icon.png' with your icon path
@@ -765,42 +765,53 @@ class View(QMainWindow):
 
 
         # Optionally, add submenu or additional options related to RNN
-        rnn_submenu = model_menu.addMenu(QIcon('images/rnn_icon.ico'), "&RNN")
+        rnn_submenu = model_menu.addMenu(QIcon('images/nueral_net.ico'), "&Nueral Network")
 
         # Add configurations or settings specific to RNN model
-        configure_rnn_action = QAction("&Configure RNN", self)
+        configure_rnn_action = QAction("&Univariate RNN", self)
         configure_rnn_action.setIcon(QIcon('images/configure_icon.ico'))  # Replace with your icon path
         configure_rnn_action.triggered.connect(self.configure_rnn)
+        multi_rnn_action = QAction("&Multivariate RNN", self)
+        multi_rnn_action.setIcon(QIcon('images/configure_icon.ico'))  # Replace with your icon path
+        multi_rnn_action.triggered.connect(self.multi_rnn)
         split_dataset_icon = QIcon('images/split_dataset.ico')  # Update the icon path as necessary
         split_dataset_rnn= QAction(split_dataset_icon, "&Split Dataset", self)
         split_dataset_rnn.triggered.connect(self.split_dataset_rnn)
         rnn_submenu.addAction(split_dataset_rnn)
         rnn_submenu.addAction(configure_rnn_action)
-        # Menu item VAR
-        var_action = QAction("&VAR", self)
-        var_action.setIcon(QIcon('images/var_icon.png'))  # Replace 'images/var_icon.png' with your icon path
-        var_action.triggered.connect(self.var_function)
-        model_menu.addAction(var_action)
+        rnn_submenu.addAction(multi_rnn_action)
+       
 
-        # Menu item VARMA
-        varma_action = QAction("&VARMA", self)
-        varma_action.setIcon(QIcon('images/varma_icon.png'))  # Replace 'images/varma_icon.png' with your icon path
-        varma_action.triggered.connect(self.varma_function)
-        model_menu.addAction(varma_action)
-
-        # Menu item Facebook Prophet
-        prophet_action = QAction("&Facebook Prophet", self)
-        prophet_action.setIcon(QIcon('images/facebook_prophet_icon.png'))  # Replace 'images/facebook_prophet_icon.png' with your icon path
-        prophet_action.triggered.connect(self.facebook_prophect_function)
-        model_menu.addAction(prophet_action)
-        # Define icon for Forecast menu
-
-            # Add Forecast menu
+        # Add Forecast menu
         forecast_menu = menu_bar.addMenu("&Forecast")
         arima_based = QAction("&ARIMA Based", self)
         arima_based.setIcon(QIcon('images/forecast_icon.ico'))  # Replace 'images/facebook_prophet_icon.png' with your icon path
         arima_based.triggered.connect(self.forecast_dialogue)
         forecast_menu.addAction(arima_based)
+    def multi_rnn(self):
+        if self.controller.model.data_frame is  None:
+         icon_path = os.path.abspath('images/configure_icon.ico')
+         self.setWindowIcon(QIcon(icon_path))
+         QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
+         icon_path = os.path.abspath('images/bulb_icon.png')
+         self.setWindowIcon(QIcon(icon_path))
+         return
+        
+        if not isinstance(self.controller.model.data_frame.index, pd.DatetimeIndex):
+         icon_path = os.path.abspath('images/configure_icon.ico')
+         self.setWindowIcon(QIcon(icon_path))
+         QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
+         icon_path = os.path.abspath('images/bulb_icon.png')
+         self.setWindowIcon(QIcon(icon_path))
+         return
+
+
+        if self.validation_data is None:
+            QMessageBox.warning(self, "Data is empty", "Please split the data first to get Train and Validation Data.")
+            return
+       # rnn_configuration_dialog = MultiRNN(self)
+       # rnn_configuration_dialog.show()
+
     def configure_rnn(self):
         if self.controller.model.data_frame is  None:
          icon_path = os.path.abspath('images/configure_icon.ico')
@@ -873,12 +884,7 @@ class View(QMainWindow):
 
         dialog = ModelWithParameter(self.controller.model.data_frame,self)
         dialog.exec()  #
-    def var_function(self):
-        pass
-    def varma_function(self):
-        pass
-    def facebook_prophect_function(self):
-        pass
+
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     def split_dataset_function(self):
         if self.controller.model.data_frame is None:
@@ -4849,7 +4855,7 @@ class SplitDatasetDialogRNN(QDialog):
         max_points = len(self.dataframe)
         validation_points = int(0.15 * train_points)  # 15% of training data
         remaining_points = max_points - train_points
-        test_points = remaining_points - validation_points  # Remaining data after allocating for validation
+        test_points = remaining_points   # Remaining data after allocating for validation
 
         # Clear existing items and update validation points combo box
         self.validation_points_combobox.clear()
@@ -4904,7 +4910,7 @@ class SplitDatasetDialogRNN(QDialog):
         try:
             train_size = int(self.training_set_combobox.currentText())
             validation_size = int(self.validation_set_combobox.currentText())
-            test_size = 100 - train_size - validation_size
+            test_size = 100 - train_size 
             self.test_set_combobox.clear()
             self.test_set_combobox.addItem(str(test_size))
         except Exception as e:
@@ -4983,7 +4989,7 @@ class SplitDatasetDialogRNN(QDialog):
 class ConfigureRNN(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Configure RNN")
+        self.setWindowTitle("Univariate RNN")
         icon_path = os.path.abspath('images/configure_icon.ico')
         self.setWindowIcon(QIcon(icon_path))
         self.setup_ui()
@@ -5013,7 +5019,7 @@ class ConfigureRNN(QDialog):
 
         self.window_size_input = QLineEdit()
         self.window_size_input.setValidator(QIntValidator(1, 100))
-        self.window_size_input.setText("5")
+        self.window_size_input.setText("2")
         self.layout.addWidget(QLabel("Window Size:"))
         self.layout.addWidget(self.window_size_input)
 
@@ -5044,6 +5050,7 @@ class ConfigureRNN(QDialog):
 
         self.progress_bar = QProgressBar()
         self.layout.addWidget(self.progress_bar)
+    
     def train_model(self):
         if not self.validate_data():
             return
@@ -5055,18 +5062,30 @@ class ConfigureRNN(QDialog):
 
         X_train, y_train = self.df_to_X_y(self.parent().train_data, window_size, selected_column)
         X_val, y_val = self.df_to_X_y(self.parent().validation_data, window_size, selected_column)
+        X_test, y_test = self.df_to_X_y(self.parent().test_data, window_size, selected_column)
 
         self.model = self.build_model(window_size, num_units, lstm_activation, dense_activation)
         
+        # Normalize training data
+        X_train_norm, mids, hrange = self.normalize(X_train)
+
+        # Apply the same normalization to the validation and test sets using the training parameters
+        X_val_norm = (X_val - mids) / hrange
+        X_test_norm = (X_test - mids) / hrange
+        ######################################################################################################
+        y_train_norm, y_mids, y_hrange = self.normalize(y_train)
+        y_val_norm = (y_val - y_mids) / y_hrange
+        y_test_norm = (y_test - y_mids) / y_hrange
+
         # Create a ProgressCallback instance
         progress_callback = ProgressCallback(self.progress_bar)
         progress_callback.on_epoch_end(0)  # Initialize progress bar to 0%
 
         # Pass the ProgressCallback instance as a callback during model training
-        history = self.model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=10, callbacks=[progress_callback])
+        history = self.model.fit(X_train_norm, y_train_norm, validation_data=(X_val_norm, y_val_norm), epochs=10, callbacks=[progress_callback])
 
-        test_predictions = self.model.predict(X_val).flatten()
-        self.generate_plots(y_val, test_predictions)
+        test_predictions = self.model.predict(X_test_norm).flatten()
+        self.generate_plots(y_test_norm, test_predictions)
         QMessageBox.information(self, "Training Complete", "Model training has completed successfully.")
 
     def build_model(self, window_size, num_units, lstm_activation, dense_activation):
@@ -5077,7 +5096,6 @@ class ConfigureRNN(QDialog):
         ])
         model.compile(optimizer=Adam(), loss='mean_squared_error')
         return model
-    
     def generate_plots(self, y_test, test_predictions):
         test_results = pd.DataFrame({
             'Test Predictions': test_predictions,
@@ -5088,113 +5106,250 @@ class ConfigureRNN(QDialog):
         test_mse = mean_squared_error(test_results['Actuals'], test_predictions)
         test_rmse = np.sqrt(test_mse)
 
-        dialog = QDialog()
-        dialog.setWindowTitle("Test Results")
-        dialog.resize(1000, 800)
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Univariate RNN Test Results")
+        dialog.setMaximumSize(800, 800)  # Increased height to accommodate larger graphs
+        dialog_layout = QVBoxLayout(dialog)
 
-        scroll_area = QScrollArea(dialog)
+        # Create a frame for selected attributes
+        attributes_frame = QFrame()
+        attributes_layout = QGridLayout()
+        attributes_frame.setLayout(attributes_layout)
+
+        attributes = {
+            "Window Size": self.window_size_input.text(),
+            "Numeric Column": self.column_selection.currentText(),
+            "Number of LSTM Units": self.num_units_input.text(),
+            "LSTM Activation Function": self.lstm_activation.currentText(),
+            "Dense Layer Activation Function": self.dense_activation.currentText()
+        }
+
+        for i, (label, value) in enumerate(attributes.items()):
+            label_widget = QLabel(label + ":")
+            value_widget = QLabel(value)
+            attributes_layout.addWidget(label_widget, i, 0)
+            attributes_layout.addWidget(value_widget, i, 1)
+
+        dialog_layout.addWidget(attributes_frame)
+
+        # Add spacer for separation
+        dialog_layout.addSpacing(20)
+
+        # Add heading for test results report
+        heading_label = QLabel("======== Univariate RNN Test Results Report ===========")
+        heading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        dialog_layout.addWidget(heading_label)
+
+        # Add scroll area for plots
+        scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
+        dialog_layout.addWidget(scroll_area)
+
+        # Add scroll contents
         scroll_contents = QWidget()
         scroll_layout = QVBoxLayout(scroll_contents)
-
-        fig_size = (12, 8)  # Figure size
-
-        # Creating multiple plots
-        figures = []
-        for i, (title, y_label) in enumerate([
-            ("Test Predicted vs. Actual Values", "Values"),
-            ("Test Magnitude-Residual Relationship", "Squared Residuals"),
-            ("Histogram of Test Residuals", "Frequency")
-        ]):
-            fig = plt.figure(figsize=fig_size)
-            ax = fig.add_subplot(111)
-            if i == 0:
-                ax.plot(test_results['Test Predictions'], label='Test Predictions')
-                ax.plot(test_results['Actuals'], label='Actuals')
-                ax.legend()
-            elif i == 1:
-                ax.scatter(test_results['Actuals'], test_results['Residuals'] ** 2, alpha=0.5)
-            elif i == 2:
-                ax.hist(test_results['Residuals'], bins=20, edgecolor='black', alpha=0.7)
-            
-            ax.set_title(title)
-            ax.set_ylabel(y_label)
-            ax.text(0.01, 0.99, f"MAE: {test_mae:.2f}, MSE: {test_mse:.2f}, RMSE: {test_rmse:.2f}",
-                    verticalalignment='top', horizontalalignment='left',
-                    transform=ax.transAxes, fontsize=12,
-                    bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
-            plot_widget = FigureCanvas(fig)
-            scroll_layout.addWidget(plot_widget)
-            figures.append(fig)
-
         scroll_area.setWidget(scroll_contents)
-        self.setStyleSheet("""
-            QPushButton {
-                background-color: #96b1c2; /* grey background */
-                color: white;              /* White text */
-                border-radius: 7px;       /* Rounded corners */
-                padding: 6px;              /* Padding for text */
-                font-weight: bold;         /* Bold font */
-            }
-            QPushButton:hover {
-                background-color: #1b4972; /* Darker blue on hover */
-            }
-            QLineEdit {
-                border: 2px solid #edebe3;
-                border-radius: 7px;
-                padding: 3px;
-                color: #0078D7;
-                background-color: white;
-            }""")
 
-        dialog_layout = QVBoxLayout(dialog)
+        # Plot test predictions vs actuals
+        self.plot_train_predictions_vs_actuals(test_results, percentage=98, test_predictions=test_predictions)
+        plot_train_predictions = plt.gcf().canvas
+        plot_train_predictions.setMinimumSize(600, 400)
+        scroll_layout.addWidget(plot_train_predictions)
+
+        # Plot residual relationships
+        self.plot_train_residuals_relationship(test_results)
+        plot_train_residuals = plt.gcf().canvas
+        plot_train_residuals.setMinimumSize(600, 400)
+        scroll_layout.addWidget(plot_train_residuals)
+
+        # Plot residual histogram
+        self.plot_train_residuals_histogram(test_results)
+        plot_train_histogram = plt.gcf().canvas
+        plot_train_histogram.setMinimumSize(600, 400)
+        scroll_layout.addWidget(plot_train_histogram)
+
+        # Add buttons for interaction
         dialog_layout.addWidget(scroll_area)
+        test_button = QPushButton("Test Prediction", dialog)
+        dialog_layout.addWidget(test_button)
         save_pdf_button = QPushButton("Save PDF", dialog)
-        save_pdf_button.clicked.connect(lambda: self.save_plots_as_pdf(figures))
+        save_pdf_button.clicked.connect(lambda: self.save_plots_as_pdf(dialog, test_results, test_predictions=test_predictions))
         dialog_layout.addWidget(save_pdf_button)
 
         dialog.exec()
 
 
-    def save_plots_as_pdf(self, figures):
-        # Ensure file path is correctly acquired and is valid
-        file_path, _ = QFileDialog.getSaveFileName(self, "Save as PDF", "", "PDF Files (*.pdf);;All Files (*)")
-        if file_path:
-            # Create a PDF file at the specified path
-            with PdfPages(file_path) as pdf:
-                for fig in figures:
-                    # Check if the item is a matplotlib figure instance before saving
-                    if isinstance(fig, plt.Figure):
-                        pdf.savefig(fig)
-                        plt.close(fig)  # Close the figure after saving to free up memory
-                    else:
-                        print("Attempted to save a non-figure object as a figure.")
+    def plot_train_residuals_relationship(self, train_results, figsize=(8, 6)):
+        # Calculate squared residuals
+        train_results['Residuals'] = (train_results['Actuals'] - train_results['Test Predictions'])
+        train_results['Squared Residuals'] = (train_results['Actuals'] - train_results['Test Predictions'])**2
+        mae = mean_absolute_error(train_results['Actuals'], train_results['Test Predictions'])
+        mse = mean_squared_error(train_results['Actuals'], train_results['Test Predictions'])
+        rmse = np.sqrt(mse)
+        metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
 
-            # Information dialog to confirm the file was saved
-            QMessageBox.information(self, "PDF Saved", f"PDF file saved successfully at:\n{file_path}")
+        plt.figure(figsize=figsize)
+        sns.scatterplot(x=train_results['Actuals'], y=train_results['Squared Residuals'], alpha=0.5)
+        plt.title('Magnitude-Residual Relationship')
+        plt.xlabel('Actual Values')
+        plt.ylabel('Squared Residuals')
+        plt.grid(True)
+        # Positioning the text, might need adjustment based on actual data range
+        plt.text(0.01, 0.99, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
 
-            # Optionally, open the PDF file automatically using the default application
-            self.open_pdf_file(file_path)
+    def plot_train_residuals_histogram(self, train_results, bins=20, figsize=(8, 6), include_kde=True):
+        mae = mean_absolute_error(train_results['Actuals'], train_results['Test Predictions'])
+        mse = mean_squared_error(train_results['Actuals'], train_results['Test Predictions'])
+        rmse = np.sqrt(mse)
+        metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
 
-    def open_pdf_file(self, file_path):
-        if os.name == 'posix':  # Linux or macOS
-            subprocess.call(['open', file_path] if os.uname().sysname == 'Darwin' else ['xdg-open', file_path])
-        elif os.name == 'nt':  # Windows
-            os.startfile(file_path)
-        else:
-            QMessageBox.information(self, "Open PDF", "Could not automatically open the PDF. Please open it manually.")
+        plt.figure(figsize=figsize)
+        # Using 'kde' parameter from sns.histplot to include/exclude KDE
+        sns.histplot(train_results['Residuals'], bins=bins, kde=include_kde, edgecolor='black', color='g', alpha=0.7)
+        plt.title('Residuals')
+        plt.xlabel('Residuals')
+        plt.ylabel('Frequency')
+        plt.text(0.99, 0.99, metrics_text, verticalalignment='top', horizontalalignment='right', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
 
-            
-    def df_to_X_y(self, df, window_size=5, column_name=None):
-        df_as_np = df[column_name].to_numpy()
-        X = []
-        y = []
-        for i in range(len(df_as_np) - window_size):
-            row = [[a] for a in df_as_np[i:i + window_size]]
-            X.append(row)
-            target = df_as_np[i + window_size]
-            y.append(target)
-        return np.array(X), np.array(y)
+    def plot_train_predictions_vs_actuals(self, train_results, percentage=10, figsize=(12, 6), test_predictions=None):
+        num_entries = int(len(train_results) * (percentage / 100))
+        start_index = max(0, len(train_results) - num_entries)
+        
+        # Calculate error metrics
+        mae = mean_absolute_error(train_results['Actuals'][start_index:], test_predictions[start_index:])
+        mse = mean_squared_error(train_results['Actuals'][start_index:], test_predictions[start_index:])
+        rmse = np.sqrt(mse)
+        metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
+        
+        # Prepare a slice of the DataFrame for plotting
+        plot_data = train_results.iloc[start_index:].reset_index()
+        melted_data = pd.melt(plot_data, id_vars=['index'], value_vars=['Test Predictions', 'Actuals'])
+        
+        plt.figure(figsize=figsize)
+        sns.lineplot(data=melted_data, x='index', y='value', hue='variable')
+        plt.title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
+        plt.ylabel('Values')
+        plt.xlabel('')
+        plt.legend(title='Legend')
+        plt.text(0.01, 0.99, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+    
+
+
+    def normalize(self,data):
+        """
+        Normalizes the data to the range [-1, 1] based on the mid-range and half-range of maximum and minimum values.
+
+        Parameters:
+            data (np.array or pd.DataFrame): Input data to normalize.
+
+        Returns:
+            tuple: normalized data, mid-range values, half-range values.
+        """
+        if isinstance(data, pd.DataFrame):
+            data = data.values
+
+        if data.ndim == 1:
+            data = data.reshape(-1, 1)
+        
+        normalized = np.zeros(data.shape)
+        maxes = np.amax(data, axis=0)
+        mins = np.amin(data, axis=0)
+        mids = (maxes + mins) / 2
+        hrange = (maxes - mins) / 2
+
+        hrange[hrange == 0] = 1
+        normalized = (data - mids) / hrange
+
+        if data.shape[1] == 1:
+            normalized = normalized.flatten()
+
+        return normalized, mids, hrange
+
+    def convert_to_list(self,vec):
+        """
+        Converts a DataFrame, ndarray, or an iterable to a list.
+
+        Parameters:
+            vec (iterable): Data to convert to a list.
+
+        Returns:
+            list: List representation of the input data.
+        """
+        try:
+            if isinstance(vec, pd.DataFrame):
+                return vec.iloc[:, 0].tolist()
+            elif isinstance(vec, np.ndarray):
+                return vec.flatten().tolist()
+            else:
+                return list(vec)
+        except Exception as e:
+            print('Error in function convert_to_list')
+            print('Exception:', str(e))
+            print('Argument type:', type(vec))
+            print('End of error message')
+    ######################################################################################################
+    #Normalize the various splits
+
+    def save_plots_as_pdf(self,dialog,test_results, test_predictions):
+        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Test_Prediction_Report.pdf"
+        file_path = os.path.join(os.getcwd(), filename)
+
+        # Create a PDF canvas
+        with PdfPages(file_path) as pdf:
+            # Add heading to the PDF
+            heading_text = "======== Test Prediction Report ==========="
+            pdf.savefig()
+            plt.clf()  # Clear the current figure
+
+            # Add heading to the PDF
+            plt.text(0.5, 0.9, heading_text, ha='center', va='center', fontsize=16)
+            pdf.savefig()
+            plt.clf()  # Clear the current figure
+
+            # Plot test predictions
+            self.plot_train_predictions_vs_actuals(test_results, percentage=98, test_predictions=test_predictions)
+            pdf.savefig()
+            plt.close()  # Close the figure after saving
+
+            # Plot test prediction errors
+            self.plot_train_residuals_relationship(test_results)
+            pdf.savefig()
+            plt.close()  # Close the figure after saving
+
+            # Plot magnitude-residual relationship
+            self.plot_train_residuals_histogram(test_results)
+            pdf.savefig()
+            plt.close()  # Close the figure after saving
+
+
+        # Show notification
+        QMessageBox.information(dialog, "PDF Saved Successfully", f"PDF saved successfully at: {file_path}")
+
+        # Open the saved PDF file
+        try:
+            subprocess.Popen(["xdg-open", file_path])  # Linux
+        except:
+            try:
+                subprocess.Popen(["open", file_path])  # macOS
+            except:
+                subprocess.Popen(["start", "", file_path], shell=True)  # Windows
+ 
+    def df_to_X_y(self, df, window_size=1, column_name=None):
+       
+        try:
+            df_as_np = df[column_name].to_numpy()
+            X = []
+            y = []
+            for i in range(len(df_as_np) - window_size):
+                #row = [[a] for a in df_as_np[i:i + window_size]]
+                row = [a for a in df_as_np[i:i + window_size]]
+                X.append(row)
+                target = df_as_np[i + window_size]
+                y.append(target)
+            return np.array(X), np.array(y)
+        except Exception as e:
+            print("An error occurred:", e)
+            return None,None
 
     def update_progress(self, epoch, logs=None):
         if logs is not None:
