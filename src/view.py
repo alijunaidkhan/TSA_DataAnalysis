@@ -140,7 +140,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from PyQt6.QtGui import QAction, QIcon,QIntValidator  ,QFont,QColor,QPixmap,QStandardItem, QStandardItemModel, QDesktopServices
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget, QTabWidget, \
     QTableWidget,QMenu, QTableWidgetItem, QHBoxLayout, QLabel, QLineEdit,QFrame,QDateTimeEdit, QGridLayout, QDialog, QGroupBox,\
-    QRadioButton, QComboBox,QProgressBar,QFormLayout,QTextEdit,QAbstractItemView, QMessageBox, QButtonGroup, QDockWidget,QSpinBox, QSpacerItem, QSizePolicy
+    QRadioButton, QComboBox,QProgressBar,QFormLayout,QTextEdit,QAbstractItemView,QInputDialog, QMessageBox, QButtonGroup, QDockWidget,QSpinBox, QSpacerItem, QSizePolicy
 import numpy as np
 import pandas as pd
 import zipfile
@@ -153,6 +153,11 @@ from tensorflow.keras.layers import LSTM, Dense, InputLayer
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import Callback
+from tensorflow.keras.losses import MeanSquaredError
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.metrics import RootMeanSquaredError
+from tensorflow.keras.models import load_model
+
 
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 import subprocess
@@ -225,7 +230,8 @@ class View(QMainWindow):
         self.generated_subsets = []
         self.copy_data_frame=None
         self.actual_data=self.controller.model.data_frame
-
+        self.train_percent=None
+        self.val_percent_of_train =None
         self.train_data=None
         self.test_data=None
         self.validation_data = None
@@ -4931,22 +4937,27 @@ class SplitDatasetDialogRNN(QDialog):
         self.show_split_results()
     def split_dataset(self):
         if self.tab_widget.currentIndex() == 0:
-            train_percent = int(self.training_set_combobox.currentText())
-            val_percent_of_train = int(self.validation_set_combobox.currentText())
+            train_percent = float(self.training_set_combobox.currentText())
+            val_percent_of_train = float(self.validation_set_combobox.currentText())
             self.split_by_percentage(train_percent, val_percent_of_train)
         elif self.tab_widget.currentIndex() == 1:
             # Pass the QDateTime object directly
             self.split_by_date(self.date_edit.dateTime())
         elif self.tab_widget.currentIndex() == 2:
-            train_points = int(self.data_points_combobox.currentText())
-            validation_points = int(self.validation_points_combobox.currentText())
+            train_points = float(self.data_points_combobox.currentText())
+            validation_points = float(self.validation_points_combobox.currentText())
             self.split_by_data_points(train_points, validation_points)
         if self.parent() is not None:
             self.parent().train_data = self.train_data
             self.parent().validation_data = self.validation_data
             self.parent().test_data = self.test_data
             self.parent().actual_data = self.dataframe
-
+            train_data_length = len(self.train_data)
+            dataframe_length = len(self.dataframe)
+            val_data_length=len(self.validation_data)
+            
+            self.parent().train_percent=float(float(self.training_set_combobox.currentText())/100)
+            self.parent().val_percent_of_train =float(float(self.validation_set_combobox.currentText())/100)
     def show_split_results(self):
         QMessageBox.information(self, "Success", f"Dataset split successful!\nTrain Data: {len(self.train_data)} rows\nValidation Data: {len(self.validation_data)} rows\nTest Data: {len(self.test_data)} rows")
         self.accept()
@@ -5034,11 +5045,15 @@ class ConfigureRNN(QDialog):
         self.layout.addWidget(QLabel("Number of LSTM Units:"))
         self.layout.addWidget(self.num_units_input)
 
-        self.lstm_activation = QComboBox()
-        self.lstm_activation.addItems(['tanh', 'relu', 'sigmoid', 'linear'])
-        self.layout.addWidget(QLabel("LSTM Activation Function:"))
-        self.layout.addWidget(self.lstm_activation)
-
+        # self.lstm_activation = QComboBox()
+        # self.lstm_activation.addItems(['tanh', 'relu', 'sigmoid', 'linear'])
+        # self.layout.addWidget(QLabel("LSTM Activation Function:"))
+        # self.layout.addWidget(self.lstm_activation)
+        self.dense_units = QLineEdit()
+        self.dense_units.setValidator(QIntValidator(1, 100))
+        self.dense_units.setText("8")
+        self.layout.addWidget(QLabel("Dense Units:"))
+        self.layout.addWidget(self.dense_units)
         self.dense_activation = QComboBox()
         self.dense_activation.addItems(['relu', 'sigmoid', 'tanh', 'linear'])
         self.layout.addWidget(QLabel("Dense Layer Activation Function:"))
@@ -5056,59 +5071,106 @@ class ConfigureRNN(QDialog):
             return
         window_size = int(self.window_size_input.text())
         num_units = int(self.num_units_input.text())
-        lstm_activation = self.lstm_activation.currentText()
+       # lstm_activation = self.lstm_activation.currentText()
         dense_activation = self.dense_activation.currentText()
+        dense_units=int(self.dense_units.text())
         selected_column = self.column_selection.currentText()
+        train_percent=self.parent().train_percent
+        val_percent_of_train=self.parent().val_percent_of_train
 
-        X_train, y_train = self.df_to_X_y(self.parent().train_data, window_size, selected_column)
-        X_val, y_val = self.df_to_X_y(self.parent().validation_data, window_size, selected_column)
-        X_test, y_test = self.df_to_X_y(self.parent().test_data, window_size, selected_column)
+        actual_data= self.parent().actual_data
+        print(train_percent, val_percent_of_train)
+        NN_df = actual_data[[selected_column]].copy() #separate combo
+       # NN_df=actual_data[selected_column].copy()
+        X1, y1=self.df_to_X_y(NN_df, window_size)
+        print(X1.shape, y1.shape)
+        (X_train, y_train), (X_val, y_val), (X_test, y_test) = self.split_data(X1, y1, train_percent, val_percent_of_train)
 
-        self.model = self.build_model(window_size, num_units, lstm_activation, dense_activation)
+
         
         # Normalize training data
-        X_train_norm, mids, hrange = self.normalize(X_train)
+        # Normalize training data
+        self.X_train_norm,self.mids, self.hrange = self.normalize(X_train)
 
         # Apply the same normalization to the validation and test sets using the training parameters
-        X_val_norm = (X_val - mids) / hrange
-        X_test_norm = (X_test - mids) / hrange
+        self.X_val_norm = (X_val - self.mids) / self.hrange
+        self.X_test_norm = (X_test - self.mids) / self.hrange
         ######################################################################################################
-        y_train_norm, y_mids, y_hrange = self.normalize(y_train)
-        y_val_norm = (y_val - y_mids) / y_hrange
-        y_test_norm = (y_test - y_mids) / y_hrange
-
+        self.y_train_norm, self.y_mids, self.y_hrange = self.normalize(y_train)
+        self.y_val_norm = (y_val - self.y_mids) / self.y_hrange
+        self.y_test_norm = (y_test - self.y_mids) / self.y_hrange
+        print(self.X_train_norm.shape)
         # Create a ProgressCallback instance
         progress_callback = ProgressCallback(self.progress_bar)
         progress_callback.on_epoch_end(0)  # Initialize progress bar to 0%
-
+        input_shape = self.X_train_norm.shape[1:]  # Assuming X_train_norm is at least 2D
+        print(input_shape)
+        self.model = self.build_model(input_shape, num_units, dense_activation,dense_units)
         # Pass the ProgressCallback instance as a callback during model training
-        history = self.model.fit(X_train_norm, y_train_norm, validation_data=(X_val_norm, y_val_norm), epochs=10, callbacks=[progress_callback])
-
-        test_predictions = self.model.predict(X_test_norm).flatten()
-        self.generate_plots(y_test_norm, test_predictions)
+        history = self.model.fit(self.X_train_norm, self.y_train_norm, validation_data=(self.X_val_norm, self.y_val_norm),
+                             epochs=100, callbacks=[progress_callback])
+        test_predictions = self.model.predict(self.X_test_norm).flatten()
+        self.generate_plots(y_train,y_test, test_predictions)
         QMessageBox.information(self, "Training Complete", "Model training has completed successfully.")
 
-    def build_model(self, window_size, num_units, lstm_activation, dense_activation):
-        model = Sequential([
-            InputLayer(input_shape=(window_size, 1)),
-            LSTM(num_units, activation=lstm_activation),
-            Dense(1, activation=dense_activation)
-        ])
-        model.compile(optimizer=Adam(), loss='mean_squared_error')
+
+    def build_model(self, input_shape, num_units, dense_activation,dense_units):
+   
+        model = Sequential()
+        model.add(InputLayer(shape=input_shape))
+        model.add(LSTM(num_units))  # User-adjustable number of LSTM units
+        model.add(Dense(dense_units, activation=dense_activation))  # User-adjustable number of dense units
+        model.add(Dense(1, activation='linear'))  # Output Dense Layer
+
+        model.compile(loss=MeanSquaredError(), optimizer=Adam(learning_rate=0.0001), metrics=[RootMeanSquaredError()])
+        #src\model1\model_checkpoint.keras
+        # Add ModelCheckpoint callback
+        cp1 = ModelCheckpoint('model1/model_checkpoint.keras', save_best_only=True)
+        # Check if the user wants to use EarlyStopping
+        use_early_stopping, ok = QInputDialog.getText(self, "Early Stopping", "Would you like to use EarlyStopping? (yes/no)",text="no")
+        callbacks = [cp1]  # ModelCheckpoint is always used
+        if ok and use_early_stopping.strip().lower() == 'yes':
+            es1 = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+            callbacks.append(es1)
+        model.callbacks = callbacks  # Assign the callbacks to the model
         return model
-    def generate_plots(self, y_test, test_predictions):
-        test_results = pd.DataFrame({
-            'Test Predictions': test_predictions,
-            'Actuals': y_test
+    def de_normalize(self,data, mids, hrange):
+    # If data is a DataFrame, convert to numpy array
+     if isinstance(data, pd.DataFrame):
+        data = data.values
+    
+    # De-normalize data to original scale
+     return (data * hrange) + mids
+    def generate_plots(self, y_train, y_test,train_predictions):
+        # try:
+        #     self.model = load_model('model1/model_checkpoint.keras')
+        # except Exception as e:
+        #     print("An error occurred while loading the model:", e)
+        #     return
+
+        # Generate predictions for the training data
+        try:
+            train_predictions = self.model.predict(self.X_train_norm).flatten()
+        except Exception as e:
+            print("An error occurred while generating predictions:", e)
+            return
+
+        # De-normalize train_predictions
+        train_predictions_original = self.de_normalize(train_predictions, self.y_mids, self.y_hrange)
+
+        # Create a DataFrame to compare the de-normalized predictions with the actual values
+        train_results = pd.DataFrame({
+            'Train Predictions': train_predictions_original.flatten(),
+            'Actuals': y_train.flatten()
         })
-        test_results['Residuals'] = test_results['Actuals'] - test_results['Test Predictions']
-        test_mae = mean_absolute_error(test_results['Actuals'], test_results['Test Predictions'])
-        test_mse = mean_squared_error(test_results['Actuals'], test_predictions)
+        train_results['Residuals'] = train_results['Actuals'] - train_results['Train Predictions']
+        test_mae = mean_absolute_error(train_results['Actuals'], train_results['Train Predictions'])
+        test_mse = mean_squared_error(train_results['Actuals'], train_predictions)
         test_rmse = np.sqrt(test_mse)
 
         dialog = QDialog(self)
-        dialog.setWindowTitle("Univariate RNN Test Results")
-        dialog.setMaximumSize(800, 800)  # Increased height to accommodate larger graphs
+        dialog.setWindowTitle("Univariate RNN Train Results")
+        dialog.setMaximumSize(800, 900)  # Increased height to accommodate larger graphs
         dialog_layout = QVBoxLayout(dialog)
 
         # Create a frame for selected attributes
@@ -5120,7 +5182,8 @@ class ConfigureRNN(QDialog):
             "Window Size": self.window_size_input.text(),
             "Numeric Column": self.column_selection.currentText(),
             "Number of LSTM Units": self.num_units_input.text(),
-            "LSTM Activation Function": self.lstm_activation.currentText(),
+           
+            "Dense Units": self.dense_units.text(),
             "Dense Layer Activation Function": self.dense_activation.currentText()
         }
 
@@ -5134,6 +5197,119 @@ class ConfigureRNN(QDialog):
 
         # Add spacer for separation
         dialog_layout.addSpacing(20)
+
+        # Add heading for test results report
+        heading_label = QLabel("======== Univariate RNN Train Results Report ===========")
+        heading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        dialog_layout.addWidget(heading_label)
+
+        # Add scroll area for plots
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        dialog_layout.addWidget(scroll_area)
+
+        # Add scroll contents
+        scroll_contents = QWidget()
+        scroll_layout = QVBoxLayout(scroll_contents)
+        scroll_area.setWidget(scroll_contents)
+
+        # Plot test predictions vs actuals
+        self.plot_train_predictions_vs_actuals(train_results, percentage=98)
+        self.plot_train_predictions = plt.gcf().canvas
+        self.plot_train_predictions.setMinimumSize(600, 400)
+        scroll_layout.addWidget(self.plot_train_predictions)
+
+        # Plot residual relationships
+        self.plot_train_residuals_relationship(train_results)
+        self.plot_train_residuals = plt.gcf().canvas
+        self.plot_train_residuals.setMinimumSize(600, 400)
+        scroll_layout.addWidget(self.plot_train_residuals)
+
+        # Plot residual histogram
+        self.plot_train_residuals_histogram(train_results)
+        self.plot_train_histogram = plt.gcf().canvas
+        self.plot_train_histogram.setMinimumSize(600, 400)
+        scroll_layout.addWidget(self.plot_train_histogram)
+        test_predictions = self.model.predict(self.X_test_norm).flatten()
+        test_predictions_original = self.de_normalize(test_predictions,self.y_mids, self.y_hrange)
+        test_results = pd.DataFrame({
+        'Test Predictions': test_predictions_original.flatten(),
+        'Actuals': y_test.flatten()  # Ensure y_test is in its original scale, not normalized
+        })
+
+        # Add buttons for interaction
+        dialog_layout.addWidget(scroll_area)
+        test_button = QPushButton("Test Prediction", dialog)
+        test_button.clicked.connect(lambda: self.test_prediction(dialog, test_results))
+
+        dialog_layout.addWidget(test_button)
+        save_pdf_button = QPushButton("Save PDF", dialog)
+        save_pdf_button.clicked.connect(lambda: self.save_plots_as_pdf(dialog))
+        dialog_layout.addWidget(save_pdf_button)
+
+        dialog.exec()
+    def plot_test_predictions_vs_actuals(self,test_results, percentage=10, figsize=(12, 6)):
+        num_entries = int(len(test_results) * (percentage / 100))
+        start_index = max(0, len(test_results) - num_entries)
+        
+        # Calculate error metrics
+        mae = mean_absolute_error(test_results['Actuals'][start_index:], test_results['Test Predictions'][start_index:])
+        mse = mean_squared_error(test_results['Actuals'][start_index:], test_results['Test Predictions'][start_index:])
+        rmse = np.sqrt(mse)
+        metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
+        
+        # Prepare a slice of the DataFrame for plotting
+        plot_data = test_results.iloc[start_index:].reset_index()
+        melted_data = pd.melt(plot_data, id_vars=['index'], value_vars=['Test Predictions', 'Actuals'])
+        
+        plt.figure(figsize=figsize)
+        sns.lineplot(data=melted_data, x='index', y='value', hue='variable')
+        plt.title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
+        plt.ylabel('Values')
+        plt.xlabel('')
+        plt.legend(title='Legend')
+        plt.text(0.01, 0.99, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+    def plot_test_residuals_relationship(self,test_results, figsize=(8, 6)):
+        # Calculate squared residuals
+        test_results['Residuals'] = (test_results['Actuals'] - test_results['Test Predictions'])
+        test_results['Squared Residuals'] = (test_results['Actuals'] - test_results['Test Predictions'])**2
+        mae = mean_absolute_error(test_results['Actuals'], test_results['Test Predictions'])
+        mse = mean_squared_error(test_results['Actuals'], test_results['Test Predictions'])
+        rmse = np.sqrt(mse)
+        metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
+
+        plt.figure(figsize=figsize)
+        sns.scatterplot(x=test_results['Actuals'], y=test_results['Squared Residuals'], alpha=0.5)
+        plt.title('Magnitude-Residual Relationship')
+        plt.xlabel('Actual Values')
+        plt.ylabel('Squared Residuals')
+        plt.grid(True)
+        # Positioning the text, might need adjustment based on actual data range
+        plt.text(0.01, 0.99, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+    def plot_test_residuals_histogram(self,test_results, bins=20, figsize=(8, 6), include_kde=True):
+        mae = mean_absolute_error(test_results['Actuals'], test_results['Test Predictions'])
+        mse = mean_squared_error(test_results['Actuals'], test_results['Test Predictions'])
+        rmse = np.sqrt(mse)
+        metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
+
+        plt.figure(figsize=figsize)
+        # Using 'kde' parameter from sns.histplot to include/exclude KDE
+        sns.histplot(test_results['Residuals'], bins=bins, kde=include_kde, edgecolor='black', color='g', alpha=0.7)
+        plt.title('Residuals')
+        plt.xlabel('Residuals')
+        plt.ylabel('Frequency')
+        plt.text(0.99, 0.99, metrics_text, verticalalignment='top', horizontalalignment='right', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+    
+
+    def test_prediction(self,dialog, test_results):
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Univariate RNN Test Results")
+        dialog.setMaximumSize(800, 900)  # Increased height to accommodate larger graphs
+        dialog_layout = QVBoxLayout(dialog)
+
+
+
 
         # Add heading for test results report
         heading_label = QLabel("======== Univariate RNN Test Results Report ===========")
@@ -5151,40 +5327,62 @@ class ConfigureRNN(QDialog):
         scroll_area.setWidget(scroll_contents)
 
         # Plot test predictions vs actuals
-        self.plot_train_predictions_vs_actuals(test_results, percentage=98, test_predictions=test_predictions)
-        plot_train_predictions = plt.gcf().canvas
-        plot_train_predictions.setMinimumSize(600, 400)
-        scroll_layout.addWidget(plot_train_predictions)
+        self.plot_test_predictions_vs_actuals(test_results)
+        self.plot_test_predictions = plt.gcf().canvas
+        self.plot_test_predictions.setMinimumSize(600, 400)
+        scroll_layout.addWidget(self.plot_test_predictions)
 
         # Plot residual relationships
-        self.plot_train_residuals_relationship(test_results)
-        plot_train_residuals = plt.gcf().canvas
-        plot_train_residuals.setMinimumSize(600, 400)
-        scroll_layout.addWidget(plot_train_residuals)
+        self.plot_test_residuals_relationship(test_results)
+        self.plot_test_residuals = plt.gcf().canvas
+        self.plot_test_residuals.setMinimumSize(600, 400)
+        scroll_layout.addWidget(self.plot_test_residuals)
 
         # Plot residual histogram
-        self.plot_train_residuals_histogram(test_results)
-        plot_train_histogram = plt.gcf().canvas
-        plot_train_histogram.setMinimumSize(600, 400)
-        scroll_layout.addWidget(plot_train_histogram)
-
+        self.plot_test_residuals_histogram(test_results)
+        self.plot_test_histogram = plt.gcf().canvas
+        self.plot_test_histogram.setMinimumSize(600, 400)
+        scroll_layout.addWidget(self.plot_test_histogram)
+       
         # Add buttons for interaction
         dialog_layout.addWidget(scroll_area)
-        test_button = QPushButton("Test Prediction", dialog)
-        dialog_layout.addWidget(test_button)
+
+
         save_pdf_button = QPushButton("Save PDF", dialog)
-        save_pdf_button.clicked.connect(lambda: self.save_plots_as_pdf(dialog, test_results, test_predictions=test_predictions))
+        save_pdf_button.clicked.connect(lambda: self.save_test_plots_as_pdf(dialog))
         dialog_layout.addWidget(save_pdf_button)
 
         dialog.exec()
+    def plot_train_predictions_vs_actuals(self,train_results, percentage=10, figsize=(12, 6)):
+        num_entries = int(len(train_results) * (percentage / 100))
+        start_index = max(0, len(train_results) - num_entries)
+        
+        # Calculate error metrics
+        mae = mean_absolute_error(train_results['Actuals'][start_index:], train_results['Train Predictions'][start_index:])
+        mse = mean_squared_error(train_results['Actuals'][start_index:], train_results['Train Predictions'][start_index:])
+        rmse = np.sqrt(mse)
+        metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
+        
+        # Prepare a slice of the DataFrame for plotting
+        plot_data = train_results.iloc[start_index:].reset_index()
+        melted_data = pd.melt(plot_data, id_vars=['index'], value_vars=['Train Predictions', 'Actuals'])
+        
+        plt.figure(figsize=figsize)
+        sns.lineplot(data=melted_data, x='index', y='value', hue='variable')
+        plt.title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
+        plt.ylabel('Values')
+        plt.xlabel('')
+        plt.legend(title='Legend')
+        plt.text(0.01, 0.99, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+      
 
 
-    def plot_train_residuals_relationship(self, train_results, figsize=(8, 6)):
+    def plot_train_residuals_relationship(self,train_results, figsize=(8, 6)):
         # Calculate squared residuals
-        train_results['Residuals'] = (train_results['Actuals'] - train_results['Test Predictions'])
-        train_results['Squared Residuals'] = (train_results['Actuals'] - train_results['Test Predictions'])**2
-        mae = mean_absolute_error(train_results['Actuals'], train_results['Test Predictions'])
-        mse = mean_squared_error(train_results['Actuals'], train_results['Test Predictions'])
+        train_results['Residuals'] = (train_results['Actuals'] - train_results['Train Predictions'])
+        train_results['Squared Residuals'] = (train_results['Actuals'] - train_results['Train Predictions'])**2
+        mae = mean_absolute_error(train_results['Actuals'], train_results['Train Predictions'])
+        mse = mean_squared_error(train_results['Actuals'], train_results['Train Predictions'])
         rmse = np.sqrt(mse)
         metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
 
@@ -5196,10 +5394,10 @@ class ConfigureRNN(QDialog):
         plt.grid(True)
         # Positioning the text, might need adjustment based on actual data range
         plt.text(0.01, 0.99, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
-
-    def plot_train_residuals_histogram(self, train_results, bins=20, figsize=(8, 6), include_kde=True):
-        mae = mean_absolute_error(train_results['Actuals'], train_results['Test Predictions'])
-        mse = mean_squared_error(train_results['Actuals'], train_results['Test Predictions'])
+        
+    def plot_train_residuals_histogram(self,train_results, bins=20, figsize=(8, 6), include_kde=True):
+        mae = mean_absolute_error(train_results['Actuals'], train_results['Train Predictions'])
+        mse = mean_squared_error(train_results['Actuals'], train_results['Train Predictions'])
         rmse = np.sqrt(mse)
         metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
 
@@ -5210,29 +5408,6 @@ class ConfigureRNN(QDialog):
         plt.xlabel('Residuals')
         plt.ylabel('Frequency')
         plt.text(0.99, 0.99, metrics_text, verticalalignment='top', horizontalalignment='right', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
-
-    def plot_train_predictions_vs_actuals(self, train_results, percentage=10, figsize=(12, 6), test_predictions=None):
-        num_entries = int(len(train_results) * (percentage / 100))
-        start_index = max(0, len(train_results) - num_entries)
-        
-        # Calculate error metrics
-        mae = mean_absolute_error(train_results['Actuals'][start_index:], test_predictions[start_index:])
-        mse = mean_squared_error(train_results['Actuals'][start_index:], test_predictions[start_index:])
-        rmse = np.sqrt(mse)
-        metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
-        
-        # Prepare a slice of the DataFrame for plotting
-        plot_data = train_results.iloc[start_index:].reset_index()
-        melted_data = pd.melt(plot_data, id_vars=['index'], value_vars=['Test Predictions', 'Actuals'])
-        
-        plt.figure(figsize=figsize)
-        sns.lineplot(data=melted_data, x='index', y='value', hue='variable')
-        plt.title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
-        plt.ylabel('Values')
-        plt.xlabel('')
-        plt.legend(title='Legend')
-        plt.text(0.01, 0.99, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
-    
 
 
     def normalize(self,data):
@@ -5290,37 +5465,21 @@ class ConfigureRNN(QDialog):
     ######################################################################################################
     #Normalize the various splits
 
-    def save_plots_as_pdf(self,dialog,test_results, test_predictions):
-        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Test_Prediction_Report.pdf"
+    def save_plots_as_pdf(self, dialog):
+        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Univariate_RNN_Train_Prediction_Report.pdf"
         file_path = os.path.join(os.getcwd(), filename)
 
         # Create a PDF canvas
         with PdfPages(file_path) as pdf:
-            # Add heading to the PDF
-            heading_text = "======== Test Prediction Report ==========="
-            pdf.savefig()
-            plt.clf()  # Clear the current figure
+            # Save each plot to the PDF
+            pdf.savefig(self.plot_train_predictions)
+            pdf.savefig(self.plot_train_residuals)
+            pdf.savefig(self.plot_train_histogram)
 
-            # Add heading to the PDF
-            plt.text(0.5, 0.9, heading_text, ha='center', va='center', fontsize=16)
-            pdf.savefig()
-            plt.clf()  # Clear the current figure
-
-            # Plot test predictions
-            self.plot_train_predictions_vs_actuals(test_results, percentage=98, test_predictions=test_predictions)
-            pdf.savefig()
-            plt.close()  # Close the figure after saving
-
-            # Plot test prediction errors
-            self.plot_train_residuals_relationship(test_results)
-            pdf.savefig()
-            plt.close()  # Close the figure after saving
-
-            # Plot magnitude-residual relationship
-            self.plot_train_residuals_histogram(test_results)
-            pdf.savefig()
-            plt.close()  # Close the figure after saving
-
+        # Close plots after saving
+        plt.close(self.plot_train_predictions)
+        plt.close(self.plot_train_residuals)
+        plt.close(self.plot_train_histogram)
 
         # Show notification
         QMessageBox.information(dialog, "PDF Saved Successfully", f"PDF saved successfully at: {file_path}")
@@ -5333,11 +5492,39 @@ class ConfigureRNN(QDialog):
                 subprocess.Popen(["open", file_path])  # macOS
             except:
                 subprocess.Popen(["start", "", file_path], shell=True)  # Windows
+    
+    def save_test_plots_as_pdf(self, dialog):
+        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Univariate_RNN_Test_Prediction_Report.pdf"
+        file_path = os.path.join(os.getcwd(), filename)
+
  
-    def df_to_X_y(self, df, window_size=1, column_name=None):
-       
+        # Create a PDF canvas
+        with PdfPages(file_path) as pdf:
+            # Save each plot to the PDF
+            pdf.savefig(self.plot_test_predictions)
+            pdf.savefig(self.plot_test_residuals)
+            pdf.savefig(self.plot_test_histogram)
+
+        # Close plots after saving
+        plt.close(self.plot_test_predictions)
+        plt.close(self.plot_test_residuals)
+        plt.close(self.plot_test_histogram)
+
+        # Show notification
+        QMessageBox.information(dialog, "PDF Saved Successfully", f"PDF saved successfully at: {file_path}")
+
+        # Open the saved PDF file
         try:
-            df_as_np = df[column_name].to_numpy()
+            subprocess.Popen(["xdg-open", file_path])  # Linux
+        except:
+            try:
+                subprocess.Popen(["open", file_path])  # macOS
+            except:
+                subprocess.Popen(["start", "", file_path], shell=True)  # Windows
+    
+    def df_to_X_y(self,df, window_size):
+        try:
+            df_as_np = df.to_numpy()
             X = []
             y = []
             for i in range(len(df_as_np) - window_size):
@@ -5349,8 +5536,41 @@ class ConfigureRNN(QDialog):
             return np.array(X), np.array(y)
         except Exception as e:
             print("An error occurred:", e)
-            return None,None
+            return None, None
+        
+    def split_data(self,X, y, train_percent, val_percent_of_train):
+        """
+        Splits the data into training, validation, and test sets without shuffling,
+        maintaining the order for time series analysis.
+        
+        Parameters:
+        X (np.array): The input features array.
+        y (np.array): The target/output array.
+        train_percent (float): The fraction of data to be used for training (0 to 1).
+        val_percent_of_train (float): The fraction of the training data to be used for validation (0 to 1).
+        
+        Returns:
+        tuple: A tuple containing:
+            - Training data (X_train, y_train)
+            - Validation data (X_val, y_val)
+            - Test data (X_test, y_test)
+        """
+        try:
+            total_samples = len(X)
+            initial_train_size = int(total_samples * train_percent)
+            val_size = int(initial_train_size * val_percent_of_train)
+            train_size = initial_train_size - val_size
+            test_size = total_samples - (train_size + val_size)  # Explicit test size calculation (for clarity)
 
+            X_train, y_train = X[:train_size], y[:train_size]
+            X_val, y_val = X[train_size:train_size + val_size], y[train_size:train_size + val_size]
+            X_test, y_test = X[train_size + val_size:], y[train_size + val_size:]
+
+            return (X_train, y_train), (X_val, y_val), (X_test, y_test)
+        
+        except Exception as e:
+            print("An error occurred during data splitting:", e)
+            return None, None, None
     def update_progress(self, epoch, logs=None):
         if logs is not None:
             progress = int((epoch / 10) * 100)
