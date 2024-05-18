@@ -210,6 +210,8 @@ class View(QMainWindow):
         self.best_params = {}  # Define global variable to store best parameters
         self.model_dataframe = None
         self.file_path = None
+        self.X_test=None
+        self.model=None
         self.df_model=None
         self.selected_column=None
         self.order=None
@@ -793,7 +795,11 @@ class View(QMainWindow):
         arima_based = QAction("&ARIMA Based", self)
         arima_based.setIcon(QIcon('images/forecast_icon.ico'))  # Replace 'images/facebook_prophet_icon.png' with your icon path
         arima_based.triggered.connect(self.forecast_dialogue)
+        univariate_based = QAction("&Univariate Based", self)
+        univariate_based.setIcon(QIcon('images/nueral_net.ico'))  # Replace 'images/facebook_prophet_icon.png' with your icon path
+        univariate_based.triggered.connect(self.forecast_dialogue_univariate)
         forecast_menu.addAction(arima_based)
+        forecast_menu.addAction(univariate_based)
     def multi_rnn(self):
         if self.controller.model.data_frame is  None:
          icon_path = os.path.abspath('images/configure_icon.ico')
@@ -869,6 +875,33 @@ class View(QMainWindow):
          return
 
         dialog = ForecastResult(self)
+        dialog.exec() 
+
+    def forecast_dialogue_univariate(self):
+        if self.controller.model.data_frame is  None:
+         icon_path = os.path.abspath('images/nueral_net.ico')
+         self.setWindowIcon(QIcon(icon_path))
+         QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
+         icon_path = os.path.abspath('images/bulb_icon.png')
+         self.setWindowIcon(QIcon(icon_path))
+         return
+        
+        if not isinstance(self.controller.model.data_frame.index, pd.DatetimeIndex):
+         icon_path = os.path.abspath('images/nueral_net.ico')
+         self.setWindowIcon(QIcon(icon_path))
+         QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
+         icon_path = os.path.abspath('images/bulb_icon.png')
+         self.setWindowIcon(QIcon(icon_path))
+         return
+        if self.X_test is None:
+         icon_path = os.path.abspath('images/nueral_net.ico')
+         self.setWindowIcon(QIcon(icon_path))
+         QMessageBox.warning(self, "Warning", "Please perform modeling for future forecasting. Navigate to menu Model > Nueral Network > Univariate RNN.")
+         icon_path = os.path.abspath('images/bulb_icon.png')
+         self.setWindowIcon(QIcon(icon_path))
+         return
+
+        dialog = ForecastResultUnivariate(self)
         dialog.exec() 
     def model_with_parameters(self):
         if self.controller.model.data_frame is  None:
@@ -3324,7 +3357,7 @@ class CollapsibleSection(QGroupBox):
 class ForecastResult(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Future Forecasting")
+        self.setWindowTitle("ARIMA Based - Future Forecasting")
         self.setWindowIcon(QIcon('images/forecast_icon.ico'))  # Setting window icon
         self.dataframe = self.parent().df_model
         self.selected_column = self.parent().selected_column
@@ -3439,6 +3472,151 @@ class ForecastResult(QDialog):
                     subprocess.Popen(["open", file_path])  # macOS
                 except:
                     subprocess.Popen(["start", "", file_path], shell=True)  # Windows
+
+
+class ForecastResultUnivariate(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Univariate RNN Based - Future Forecasting")
+        self.setWindowIcon(QIcon('images/nueral_net.ico'))  # Setting window icon
+       
+        self.initUI()
+
+    def initUI(self):
+        # Creating a scroll area to make the dialog scrollable
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        self.layout = QVBoxLayout(self)
+        self.setContentsMargins(20, 20, 20, 20)
+        self.layout.addWidget(scroll_area)
+        self.setStyleSheet = """
+            QInputDialog QLineEdit {
+                border: 2px solid #edebe3; /* Blue border */
+                border-radius: 7px;        /* Rounded corners */
+                padding: 3px;              /* Padding inside the widget */
+                color: #0078D7;            /* Blue text */
+                background-color: white;   /* White background */
+            }
+
+            QInputDialog QPushButton {
+                background-color: #96b1c2; /* Grey background */
+                color: white;              /* White text */
+                border-radius: 7px;        /* Rounded corners */
+                padding: 6px;              /* Padding for text */
+                font-weight: bold;         /* Bold font */
+            }
+            QInputDialog QPushButton:hover {
+                background-color: #1b4972; /* Darker blue on hover */
+            }
+        """
+        # Prompt user for the number of steps
+        n_steps, ok = QInputDialog.getInt(self, "Input", "Enter the number of steps to forecast:", 30, 1, 1000, 1)
+        if not ok:
+            return  # Exit if the user cancels the input
+
+        last_sequence = self.parent().X_test[-1]  # Grab the last sequence from your test set
+        
+        # Creating the content widget for the scroll area
+        content_widget = QWidget()
+        scroll_area.setWidget(content_widget)
+
+        # Using a QVBoxLayout for the content widget
+        content_layout = QVBoxLayout(content_widget)
+
+        self.resize(800, 600)  # Set initial size
+        self.setMinimumWidth(600)  # Set minimum width
+        self.setMinimumHeight(400)  # Set minimum height
+
+        # Flatten the test data
+        flattened_test_data = self.parent().X_test.flatten()
+        future_values = self.forecast_future(self.parent().model, last_sequence, n_steps)
+
+        # Calculate the number of points to take for the last 50%
+        num_points = len(flattened_test_data)
+        last_50_percent_points = num_points // 2
+
+        # Extract the last 50% of the flattened test data
+        test_data = flattened_test_data[-last_50_percent_points:]
+        
+        # Call the plotting function
+        # Forecasting and plotting
+        self.plot_forecast(content_layout, test_data, future_values)
+
+        # Add button to save PDF
+        save_button = QPushButton("Save as PDF", self)
+        save_button.clicked.connect(self.save_as_pdf)
+        content_layout.addWidget(save_button)
+
+
+    def create_plot_widget(self, plot_canvas):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.addWidget(plot_canvas.canvas)
+        widget.setMinimumHeight(400)  # Set minimum height for the widget containing the plot
+        return widget
+
+
+    def forecast_future(self,model, last_sequence, n_steps):
+        """ Forecast `n_steps` into the future using the provided LSTM `model` and
+            the most recent input sequence `last_sequence`. """
+        future_predictions = []
+        current_sequence = last_sequence.reshape(1, -1, 1)  # Reshape to match model input format
+
+        for _ in range(n_steps):
+            # Predict the next step and append to the result
+            next_value = model.predict(current_sequence)[0, 0]  # Predict and flatten the result
+            future_predictions.append(next_value)
+            
+            # Update the sequence to include the new prediction
+            current_sequence = np.roll(current_sequence, -1)
+            current_sequence[0, -1, 0] = next_value  # Insert the predicted value as the most recent input
+
+        return future_predictions
+
+    def plot_forecast(self, layout, test_data, future_values):
+        """ Plot the historical test data along with the forecasted values. """
+        self.fig = Figure(figsize=(12, 6))
+        canvas = FigureCanvas(self.fig)
+        layout.addWidget(canvas)
+
+        ax = self.fig.add_subplot(111)
+        n_test = len(test_data)
+        n_future = len(future_values)
+        
+        # Plotting the historical test data
+        ax.plot(range(n_test), test_data, label='Historical Test Data')
+        
+        # Plotting the forecasted future values
+        # We need to define the correct x-axis range for the future values
+        future_x = range(n_test, n_test + n_future)
+        ax.plot(future_x, future_values, label='Forecasted Future', color='red', linestyle='--')
+        
+        ax.set_title('Test Data and Forecasted Future')
+        ax.set_xlabel('Time Steps')
+        ax.set_ylabel('Values')
+        ax.legend()
+        canvas.draw()
+
+    def save_as_pdf(self):
+        # Open file dialog to select save location
+        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Univariate_RNN_Forecast_Result_Report.pdf"
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save as PDF", filename, "PDF Files (*.pdf)")
+
+        if file_path:
+            # Create a PDF file
+            with PdfPages(file_path) as pdf:
+                # Save the figure to PDF
+                pdf.savefig(self.fig)  # Use self.fig to save the correct figure
+                plt.close(self.fig)
+
+            # Open the saved PDF file
+            try:
+                subprocess.Popen(["xdg-open", file_path])  # Linux
+            except:
+                try:
+                    subprocess.Popen(["open", file_path])  # macOS
+                except:
+                    subprocess.Popen(["start", "", file_path], shell=True) 
 class ModelWithParameter(QDialog):
     def __init__(self, dataframe, parent=None):
         super().__init__(parent)
@@ -4998,14 +5176,22 @@ class SplitDatasetDialogRNN(QDialog):
 
 
 class ConfigureRNN(QDialog):
+    sliderValueChanged = pyqtSignal(int)
+    sliderValueChangedTrain = pyqtSignal(int)
+    sliderValueChangedVal = pyqtSignal(int)
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Model Architecture")
+        self.sliderValueChanged.connect(self.updateGraph)
+        self.sliderValueChangedTrain.connect(self.updateGraphTrain)
+        self.sliderValueChangedVal.connect(self.updateGraphVal)
         icon_path = os.path.abspath('images/configure_icon.ico')
         self.setWindowIcon(QIcon(icon_path))
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
                             Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
                             Qt.WindowType.CustomizeWindowHint) 
+                # Initialize the plot_test_predictions attribute
+
         self.setup_ui()
         self.setStyleSheet("""
             QPushButton {
@@ -5025,7 +5211,13 @@ class ConfigureRNN(QDialog):
                 color: #0078D7;
                 background-color: white;
             }""")
-
+# Create a Matplotlib figure
+        self.figure_train = Figure()
+        self.plot_train_predictions = FigureCanvas(self.figure_train)
+        self.figure_val = Figure()
+        self.plot_val_predictions = FigureCanvas(self.figure_val)
+        self.figure_test = Figure()
+        self.plot_test_predictions = FigureCanvas(self.figure_test)
     def setup_ui(self):
         self.layout = QVBoxLayout(self)
         self.layout.setSpacing(10)
@@ -5137,6 +5329,8 @@ class ConfigureRNN(QDialog):
         if self.tab_widget.currentIndex() == 1 and self.val_results is not None:
             self.generate_plots_val(self.val_results)
         if self.tab_widget.currentIndex() == 2 and self.test_results is not None:
+                    #self.update_predictions_graph_test(self.test_results, 98)
+
             self.generate_plots_test(self.test_results)
     def on_yes_clicked(self):
         QMessageBox.information(self, "Early Stopping", "You chose to apply early stopping.")
@@ -5159,12 +5353,12 @@ class ConfigureRNN(QDialog):
 
         actual_data = self.parent().actual_data
         print(train_percent, val_percent_of_train)
-        NN_df = actual_data[selected_column].copy()
+        NN_df = actual_data[selected_column]
         X1, y1 = self.df_to_X_y(NN_df, timesteps)
         print(X1.shape, y1.shape)
         X_train, X_val, X_test = self.split_data(X1, train_percent, val_percent_of_train)
         y_train, y_val, y_test = self.split_data(y1, train_percent, val_percent_of_train)
-
+        self.parent().X_test=X_test
         print('X_train:', X_train.shape, '--->>>  y_train:', y_train.shape)
         print('X_val:', X_val.shape, '--->>>  y_val:', y_val.shape)
         print('X_test:', X_test.shape, '--->>>  y_test:', y_test.shape)
@@ -5190,6 +5384,7 @@ class ConfigureRNN(QDialog):
         self.train_results=train_results
         self.val_results=val_results
         self.test_results=test_results
+        self.parent().model=self.model
     def build_model(self, input_shape, num_units, dense_activation,dense_units,epochs,X_train,y_train,X_val,y_val):
 
         model = Sequential()
@@ -5202,7 +5397,6 @@ class ConfigureRNN(QDialog):
             optimizer=Adam(learning_rate=0.0001),
             metrics=[RootMeanSquaredError()]
         )
-       
         # Set up Early Stopping
         early_stopping = EarlyStopping(
             monitor='val_loss',  # Monitor the validation loss
@@ -5235,24 +5429,31 @@ class ConfigureRNN(QDialog):
         scroll_contents = QWidget()
         scroll_layout = QVBoxLayout(scroll_contents)
         scroll_area.setWidget(scroll_contents)
-
         # Add slider to adjust the percentage
         slider_label = QLabel("Adjust Percentage:")
         scroll_layout.addWidget(slider_label)
+        # Add slider to adjust the percentage
         self.percentage_slider = QSlider(Qt.Orientation.Horizontal)
-        self.percentage_slider.setMinimum(0)
+        self.percentage_slider.setMinimum(10)
         self.percentage_slider.setMaximum(100)
         self.percentage_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         self.percentage_slider.setTickInterval(50)
         self.percentage_slider.setValue(98)
-        self.percentage_slider.sliderMoved.connect(lambda value: self.update_predictions_graph_test(test_results, value))
+        self.percentage_slider.sliderMoved.connect(lambda value: self.sliderValueChanged.emit(value))
+        self.percentage_slider.valueChanged.connect(self.update_tooltip)
+
         scroll_layout.addWidget(self.percentage_slider)
 
-        # Initialize the plot with default percentage
-        self.plot_test_predictions_vs_actuals(test_results, percentage=98)
-        self.plot_test_predictions = plt.gcf()
-        plot_widget_predictions = self.create_plot_widget(self.plot_test_predictions)
-        scroll_layout.addWidget(plot_widget_predictions)
+        self.test_results = test_results
+
+        # Plot test predictions vs actuals
+        self.plot_test_predictions_vs_actuals(test_results,percentage=98)
+        self.figure_test = Figure()
+        self.plot_test_predictions = FigureCanvas(self.figure_test)
+        self.plot_test_predictions.setMinimumSize(600, 400)
+        scroll_layout.addWidget(self.plot_test_predictions)
+        
+        self.plot_test_predictions.draw()
 
         self.plot_test_residuals_relationship(test_results)
         self.plot_test_residuals = plt.gcf()
@@ -5263,7 +5464,6 @@ class ConfigureRNN(QDialog):
         self.plot_test_histogram = plt.gcf()
         plot_widget_histogram = self.create_plot_widget(self.plot_test_histogram)
         scroll_layout.addWidget(plot_widget_histogram)
-
         # Add the scroll area to the main layout
         self.layout_test.addWidget(scroll_area)
 
@@ -5273,32 +5473,15 @@ class ConfigureRNN(QDialog):
         self.layout_test.addWidget(save_pdf_button)
         scroll_area.verticalScrollBar().setValue(scroll_area.verticalScrollBar().maximum())
 
-    def update_predictions_graph_test(self, test_results, value):
-        self.plot_test_predictions_vs_actuals(test_results, percentage=value)
-        self.percentage_slider.setValue(value)
-    def plot_test_predictions_vs_actuals(self,test_results, percentage=10, figsize=(12, 6)):
-        num_entries = int(len(test_results) * (percentage / 100))
-        start_index = max(0, len(test_results) - num_entries)
-        
-        # Calculate error metrics
-        mae = mean_absolute_error(test_results['Actuals'][start_index:], test_results['Test Predictions'][start_index:])
-        mse = mean_squared_error(test_results['Actuals'][start_index:], test_results['Test Predictions'][start_index:])
-        rmse = np.sqrt(mse)
-        metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
-        
-        # Prepare a slice of the DataFrame for plotting
-        plot_data = test_results.iloc[start_index:].reset_index()
-        melted_data = pd.melt(plot_data, id_vars=['index'], value_vars=['Test Predictions', 'Actuals'])
-        
-        plt.figure(figsize=figsize)
-        sns.lineplot(data=melted_data, x='index', y='value', hue='variable')
-        plt.title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
-        plt.ylabel('Values')
-        plt.xlabel('')
-        plt.legend(title='Legend')
-        plt.text(0.2, 0.97, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+    def update_tooltip(self, value):
+        self.percentage_slider.setToolTip(f"{value}%")
+
+    def update_tooltip_val(self, value):
+        self.percentage_slider_val.setToolTip(f"{value}%")
+    def update_tooltip_train(self, value):
+        self.percentage_slider_train.setToolTip(f"{value}%")
     def generate_plots(self, train_results):
-        # Clear any existing widgets in the layout
+          # Clear any existing widgets in the layout
         for i in reversed(range(self.layout_train.count())):
             self.layout_train.itemAt(i).widget().setParent(None)
 
@@ -5311,24 +5494,31 @@ class ConfigureRNN(QDialog):
         scroll_contents = QWidget()
         scroll_layout = QVBoxLayout(scroll_contents)
         scroll_area.setWidget(scroll_contents)
-
         # Add slider to adjust the percentage
         slider_label = QLabel("Adjust Percentage:")
         scroll_layout.addWidget(slider_label)
-        self.percentage_slider = QSlider(Qt.Orientation.Horizontal)
-        self.percentage_slider.setMinimum(0)
-        self.percentage_slider.setMaximum(100)
-        self.percentage_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
-        self.percentage_slider.setTickInterval(50)
-        self.percentage_slider.setValue(98)
-        self.percentage_slider.sliderMoved.connect(lambda value: self.update_predictions_graph(train_results, value))
-        scroll_layout.addWidget(self.percentage_slider)
+        # Add slider to adjust the percentage
+        self.percentage_slider_train = QSlider(Qt.Orientation.Horizontal)
+        self.percentage_slider_train.setMinimum(10)
+        self.percentage_slider_train.setMaximum(100)
+        self.percentage_slider_train.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.percentage_slider_train.setTickInterval(50)
+        self.percentage_slider_train.setValue(98)
+        self.percentage_slider_train.sliderMoved.connect(lambda value: self.sliderValueChangedTrain.emit(value))
+        self.percentage_slider_train.valueChanged.connect(self.update_tooltip_train)
 
-        # Initialize the plot with default percentage
-        self.plot_train_predictions_vs_actuals(train_results, percentage=98)
-        self.plot_train_predictions = plt.gcf()
-        plot_widget_predictions = self.create_plot_widget(self.plot_train_predictions)
-        scroll_layout.addWidget(plot_widget_predictions)
+        scroll_layout.addWidget(self.percentage_slider_train)
+
+        self.train_results = train_results
+
+        # Plot train predictions vs actuals
+        self.plot_train_predictions_vs_actuals(train_results,percentage=98)
+        self.figure_train = Figure()
+        self.plot_train_predictions = FigureCanvas(self.figure_train)
+        self.plot_train_predictions.setMinimumSize(600, 400)
+        scroll_layout.addWidget(self.plot_train_predictions)
+        
+        self.plot_train_predictions.draw()
 
         self.plot_train_residuals_relationship(train_results)
         self.plot_train_residuals = plt.gcf()
@@ -5339,7 +5529,6 @@ class ConfigureRNN(QDialog):
         self.plot_train_histogram = plt.gcf()
         plot_widget_histogram = self.create_plot_widget(self.plot_train_histogram)
         scroll_layout.addWidget(plot_widget_histogram)
-
         # Add the scroll area to the main layout
         self.layout_train.addWidget(scroll_area)
 
@@ -5353,6 +5542,10 @@ class ConfigureRNN(QDialog):
         self.plot_train_predictions_vs_actuals(train_results, percentage=value)
         self.percentage_slider.setValue(value)
 
+    def update_predictions_graph_train(self, train_results, value):
+        self.plot_train_predictions_vs_actuals(train_results, percentage=value)
+        self.percentage_slider_train.setValue(value)
+
     def create_plot_widget(self, plot_canvas):
         widget = QWidget()
         layout = QVBoxLayout(widget)
@@ -5362,7 +5555,7 @@ class ConfigureRNN(QDialog):
 
         
     def generate_plots_val(self, val_results):
-        # Clear any existing widgets in the layout
+            # Clear any existing widgets in the layout
         for i in reversed(range(self.layout_validation.count())):
             self.layout_validation.itemAt(i).widget().setParent(None)
 
@@ -5375,24 +5568,31 @@ class ConfigureRNN(QDialog):
         scroll_contents = QWidget()
         scroll_layout = QVBoxLayout(scroll_contents)
         scroll_area.setWidget(scroll_contents)
-
         # Add slider to adjust the percentage
         slider_label = QLabel("Adjust Percentage:")
         scroll_layout.addWidget(slider_label)
-        self.percentage_slider = QSlider(Qt.Orientation.Horizontal)
-        self.percentage_slider.setMinimum(0)
-        self.percentage_slider.setMaximum(100)
-        self.percentage_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
-        self.percentage_slider.setTickInterval(50)
-        self.percentage_slider.setValue(98)
-        self.percentage_slider.sliderMoved.connect(lambda value: self.update_predictions_graph_val(val_results, value))
-        scroll_layout.addWidget(self.percentage_slider)
+        # Add slider to adjust the percentage
+        self.percentage_slider_val = QSlider(Qt.Orientation.Horizontal)
+        self.percentage_slider_val.setMinimum(10)
+        self.percentage_slider_val.setMaximum(100)
+        self.percentage_slider_val.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.percentage_slider_val.setTickInterval(50)
+        self.percentage_slider_val.setValue(98)
+        self.percentage_slider_val.sliderMoved.connect(lambda value: self.sliderValueChangedVal.emit(value))
+        self.percentage_slider_val.valueChanged.connect(self.update_tooltip_val)
 
-        # Initialize the plot with default percentage
-        self.plot_val_predictions_vs_actuals(val_results, percentage=1)
-        self.plot_val_predictions = plt.gcf()
-        plot_widget_predictions = self.create_plot_widget(self.plot_val_predictions)
-        scroll_layout.addWidget(plot_widget_predictions)
+        scroll_layout.addWidget(self.percentage_slider_val)
+
+        self.val_results = val_results
+
+        # Plot test predictions vs actuals
+        self.plot_val_predictions_vs_actuals(val_results,percentage=98)
+        self.figure_val = Figure()
+        self.plot_val_predictions = FigureCanvas(self.figure_val)
+        self.plot_val_predictions.setMinimumSize(600, 400)
+        scroll_layout.addWidget(self.plot_val_predictions)
+        
+        self.plot_val_predictions.draw()
 
         self.plot_val_residuals_relationship(val_results)
         self.plot_val_residuals = plt.gcf()
@@ -5403,42 +5603,18 @@ class ConfigureRNN(QDialog):
         self.plot_val_histogram = plt.gcf()
         plot_widget_histogram = self.create_plot_widget(self.plot_val_histogram)
         scroll_layout.addWidget(plot_widget_histogram)
-
         # Add the scroll area to the main layout
         self.layout_validation.addWidget(scroll_area)
 
         # Add a button to save plots as PDF
         save_pdf_button = QPushButton("Save PDF")
-        save_pdf_button.clicked.connect(lambda: self.save_plots_as_pdf_val(self.validation_tab, val_results))
+        save_pdf_button.clicked.connect(lambda: self.save_plots_as_pdf_val(self.test_tab, val_results))
         self.layout_validation.addWidget(save_pdf_button)
         scroll_area.verticalScrollBar().setValue(scroll_area.verticalScrollBar().maximum())
 
     def update_predictions_graph_val(self, val_results, value):
         self.plot_val_predictions_vs_actuals(val_results, percentage=value)
         self.percentage_slider.setValue(value)
-
-
-    def plot_val_predictions_vs_actuals(self,val_results, percentage=10, figsize=(12, 6)):
-        num_entries = int(len(val_results) * (percentage / 100))
-        start_index = max(0, len(val_results) - num_entries)
-        
-        # Calculate error metrics
-        mae = mean_absolute_error(val_results['Actuals'][start_index:], val_results['Val Predictions'][start_index:])
-        mse = mean_squared_error(val_results['Actuals'][start_index:], val_results['Val Predictions'][start_index:])
-        rmse = np.sqrt(mse)
-        metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
-        
-        # Prepare a slice of the DataFrame for plotting
-        plot_data = val_results.iloc[start_index:].reset_index()
-        melted_data = pd.melt(plot_data, id_vars=['index'], value_vars=['Val Predictions', 'Actuals'])
-        
-        plt.figure(figsize=figsize)
-        sns.lineplot(data=melted_data, x='index', y='value', hue='variable')
-        plt.title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
-        plt.ylabel('Values')
-        plt.xlabel('')
-        plt.legend(title='Legend')
-        plt.text(0.2, 0.97, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
     def plot_val_residuals_relationship(self,val_results, figsize=(8, 6)):
         # Calculate residuals and squared residuals
         val_results['Residuals'] = (val_results['Actuals'] - val_results['Val Predictions'])
@@ -5505,7 +5681,21 @@ class ConfigureRNN(QDialog):
             subprocess.Popen(["xdg-open", file_path])  # Linux
         except:
             os.startfile(file_path)  # Window
-    
+    def updateGraph(self, sliderValue=98):
+        # Depending on the slider value, update the graph accordingly
+        # You can call the relevant plot method here with the new value
+        self.plot_test_predictions_vs_actuals(self.test_results, percentage=sliderValue)
+        self.plot_test_predictions.draw()
+    def updateGraphTrain(self, sliderValue=98):
+        # Depending on the slider value, update the graph accordingly
+        # You can call the relevant plot method here with the new value
+        self.plot_train_predictions_vs_actuals(self.train_results, percentage=sliderValue)
+        self.plot_train_predictions.draw()
+    def updateGraphVal(self, sliderValue=98):
+        # Depending on the slider value, update the graph accordingly
+        # You can call the relevant plot method here with the new value
+        self.plot_val_predictions_vs_actuals(self.val_results, percentage=sliderValue)
+        self.plot_val_predictions.draw()
     def save_plots_as_pdf_val(self, parent_widget, val_results):
         filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Univariate_RNN_Validation_Prediction_Report.pdf"
         file_path = os.path.join(os.getcwd(), filename)
@@ -5555,7 +5745,9 @@ class ConfigureRNN(QDialog):
             subprocess.Popen(["xdg-open", file_path])  # Linux
         except:
             os.startfile(file_path)  # Windows
-    def plot_test_predictions_vs_actuals(self,test_results, percentage=10, figsize=(12, 6)):
+    def plot_test_predictions_vs_actuals(self, test_results, percentage=10, figsize=(12, 6)):
+        self.figure_test.clear()  # Clear the figure
+        ax = self.figure_test.add_subplot(111)
         num_entries = int(len(test_results) * (percentage / 100))
         start_index = max(0, len(test_results) - num_entries)
         
@@ -5569,13 +5761,14 @@ class ConfigureRNN(QDialog):
         plot_data = test_results.iloc[start_index:].reset_index()
         melted_data = pd.melt(plot_data, id_vars=['index'], value_vars=['Test Predictions', 'Actuals'])
         
-        plt.figure(figsize=figsize)
-        sns.lineplot(data=melted_data, x='index', y='value', hue='variable')
-        plt.title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
-        plt.ylabel('Values')
-        plt.xlabel('')
-        plt.legend(title='Legend')
-        plt.text(0.01, 0.99, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+        sns.lineplot(data=melted_data, x='index', y='value', hue='variable', ax=ax)
+        ax.set_title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
+        ax.set_ylabel('Values')
+        ax.set_xlabel('')
+        ax.legend(title='Legend')
+        ax.text(0.2, 0.97, metrics_text, verticalalignment='top', horizontalalignment='left', transform=ax.transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+        self.plot_test_predictions.draw()
+
     def plot_test_residuals_relationship(self,test_results, figsize=(8, 6)):
         # Calculate squared residuals
         test_results['Residuals'] = (test_results['Actuals'] - test_results['Test Predictions'])
@@ -5635,12 +5828,21 @@ class ConfigureRNN(QDialog):
         scroll_layout = QVBoxLayout(scroll_contents)
         scroll_area.setWidget(scroll_contents)
 
+        self.percentage_slider = QSlider(Qt.Orientation.Horizontal)
+        self.percentage_slider.setMinimum(0)
+        self.percentage_slider.setMaximum(100)
+        self.percentage_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.percentage_slider.setTickInterval(50)
+        self.percentage_slider.setValue(98)
+        # Connect slider value changed signal to emit your custom signal
+        self.percentage_slider.sliderMoved.connect(lambda value: self.sliderValueChanged.emit(value))
+        self.test_results=test_results
         # Plot test predictions vs actuals
         self.plot_test_predictions_vs_actuals(test_results)
         self.plot_test_predictions = plt.gcf().canvas
         self.plot_test_predictions.setMinimumSize(600, 400)
         scroll_layout.addWidget(self.plot_test_predictions)
-
+        plt.close()
         # Plot residual relationships
         self.plot_test_residuals_relationship(test_results)
         self.plot_test_residuals = plt.gcf().canvas
@@ -5662,7 +5864,9 @@ class ConfigureRNN(QDialog):
         dialog_layout.addWidget(save_pdf_button)
 
         dialog.exec()
-    def plot_train_predictions_vs_actuals(self,train_results, percentage, figsize=(12, 6)):
+    def plot_train_predictions_vs_actuals(self, train_results, percentage, figsize=(12, 6)):
+        self.figure_train.clear()  # Clear the figure
+        ax = self.figure_train.add_subplot(111)
         num_entries = int(len(train_results) * (percentage / 100))
         start_index = max(0, len(train_results) - num_entries)
         
@@ -5676,13 +5880,38 @@ class ConfigureRNN(QDialog):
         plot_data = train_results.iloc[start_index:].reset_index()
         melted_data = pd.melt(plot_data, id_vars=['index'], value_vars=['Train Predictions', 'Actuals'])
         
-        plt.figure(figsize=figsize)
-        sns.lineplot(data=melted_data, x='index', y='value', hue='variable')
-        plt.title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
-        plt.ylabel('Values')
-        plt.xlabel('')
-        plt.legend(title='Legend')
-        plt.text(0.2, 0.97, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+        sns.lineplot(data=melted_data, x='index', y='value', hue='variable', ax=ax)
+        ax.set_title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
+        ax.set_ylabel('Values')
+        ax.set_xlabel('')
+        ax.legend(title='Legend')
+        ax.text(0.2, 0.97, metrics_text, verticalalignment='top', horizontalalignment='left', transform=ax.transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+        self.plot_train_predictions.draw()
+
+    def plot_val_predictions_vs_actuals(self, val_results, percentage=10, figsize=(12, 6)):
+        self.figure_val.clear()  # Clear the figure
+        ax = self.figure_val.add_subplot(111)
+        num_entries = int(len(val_results) * (percentage / 100))
+        start_index = max(0, len(val_results) - num_entries)
+        
+        # Calculate error metrics
+        mae = mean_absolute_error(val_results['Actuals'][start_index:], val_results['Val Predictions'][start_index:])
+        mse = mean_squared_error(val_results['Actuals'][start_index:], val_results['Val Predictions'][start_index:])
+        rmse = np.sqrt(mse)
+        metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
+        
+        # Prepare a slice of the DataFrame for plotting
+        plot_data = val_results.iloc[start_index:].reset_index()
+        melted_data = pd.melt(plot_data, id_vars=['index'], value_vars=['Val Predictions', 'Actuals'])
+        
+        sns.lineplot(data=melted_data, x='index', y='value', hue='variable', ax=ax)
+        ax.set_title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
+        ax.set_ylabel('Values')
+        ax.set_xlabel('')
+        ax.legend(title='Legend')
+        ax.text(0.2, 0.97, metrics_text, verticalalignment='top', horizontalalignment='left', transform=ax.transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+        self.plot_val_predictions.draw()
+
     def plot_train_residuals_relationship(self,train_results, figsize=(8, 6)):
         # Calculate squared residuals
         train_results['Residuals'] = (train_results['Actuals'] - train_results['Train Predictions'])
