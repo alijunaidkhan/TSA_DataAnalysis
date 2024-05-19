@@ -4913,18 +4913,12 @@ class SplitDatasetDialogRNN(QDialog):
         layout = QVBoxLayout()
         self.tab_widget = QTabWidget()
         self.tab_percentage = QWidget()
-        self.tab_date = QWidget()
-        self.tab_data_points = QWidget()
 
         self.tab_widget.addTab(self.tab_percentage, "Split by Percentage")
-        self.tab_widget.addTab(self.tab_date, "Split by Date")
-        self.tab_widget.addTab(self.tab_data_points, "Split by Number of Data Points")
 
         layout.addWidget(self.tab_widget)
 
         self.setup_percentage_tab()
-        self.setup_date_tab()
-        self.setup_data_points_tab()
 
         self.split_button = QPushButton("Split Dataset")
         self.split_button.clicked.connect(self.split_dataset)
@@ -4935,10 +4929,9 @@ class SplitDatasetDialogRNN(QDialog):
         self.validation_data = None
         self.test_data = None
         self.actual_data = self.dataframe  # Store the original dataframe
-        
+
         # Stylesheet for QDateEdit and QLineEdit
         self.setStyleSheet("""
-                            # Set global stylesheet for buttons and comboboxes
             QPushButton {
                 background-color: #96b1c2; /* grey background */
                 color: white;              /* White text */
@@ -4956,18 +4949,19 @@ class SplitDatasetDialogRNN(QDialog):
                 color: #0078D7;            /* Blue text */
                 background-color: white;   /* White background */
             }
-            QComboBox::drop-down {
-                border: none;              /* No border for the dropdown button */
-
-
-           QDateTime,QDateTimeEdit,QDate {
+            QComboBox {
                 border: 2px solid #edebe3; /* Blue border */
                 border-radius: 7px;       /* Rounded corners */
                 padding: 3px;              /* Padding inside the combobox */
                 color: #0078D7;            /* Blue text */
                 background-color: white;   /* White background */
             }
-
+            QComboBox::drop-down {
+                border: none;              /* No border for the dropdown button */
+              QTableWidget {
+                alternate-background-color: #e8e8e8; /* Beige for alternating rows */
+                color:black;
+            }
             QLineEdit {
                 border: 2px solid #edebe3; /* Blue border */
                 border-radius: 7px;       /* Rounded corners */
@@ -4977,85 +4971,13 @@ class SplitDatasetDialogRNN(QDialog):
             }
         """)
 
-    def setup_date_tab(self):
-        layout = QVBoxLayout()
-        self.date_label = QLabel("Select Split Date:")
-        layout.addWidget(self.date_label)
-
-        # Create a date picker for selecting the split date
-        self.date_edit = QDateTimeEdit()
-        self.date_edit.setDisplayFormat("dd/MM/yyyy")
-        self.date_edit.setCalendarPopup(True)
-        
-        # Ensure the date range is valid based on the DataFrame's index
-        if isinstance(self.dataframe.index, pd.DatetimeIndex):
-            min_date = self.dataframe.index.min().to_pydatetime()
-            max_date = self.dataframe.index.max().to_pydatetime()
-            self.date_edit.setMinimumDate(min_date)
-            self.date_edit.setMaximumDate(max_date)
-        else:
-            self.date_edit.setEnabled(False)  # Disable if not datetime index
-        
-        layout.addWidget(self.date_edit)
-        self.tab_date.setLayout(layout)
-    def setup_data_points_tab(self):
-        layout = QVBoxLayout()
-        self.data_points_label = QLabel("Enter Number of Data Points for Training:")
-        layout.addWidget(self.data_points_label)
-        
-        # Combo box to select the number of data points for training
-        self.data_points_combobox = QComboBox()
-        self.data_points_combobox.setEditable(True)
-        
-        max_points = len(self.dataframe)
-        for i in range(1, max_points, 100):  # Adjust step size based on your dataset size
-            self.data_points_combobox.addItem(str(i))
-        
-        layout.addWidget(self.data_points_combobox)
-        
-        # Validation data points label and combo box
-        self.validation_points_label = QLabel("Enter Number of Data Points for Validation (15% of Train):")
-        layout.addWidget(self.validation_points_label)
-        self.validation_points_combobox = QComboBox()
-        self.validation_points_combobox.setEditable(True)
-        
-        layout.addWidget(self.validation_points_combobox)
-        
-        # Test data points label and combo box
-        self.test_points_label = QLabel("Enter Number of Data Points for Test (Remaining after Train and Validation):")
-        layout.addWidget(self.test_points_label)
-        self.test_points_combobox = QComboBox()
-        self.test_points_combobox.setEditable(True)
-        
-        layout.addWidget(self.test_points_combobox)
-        
-        self.tab_data_points.setLayout(layout)
-
-        # Connect change signal of training data points combo box to a custom slot to update validation and test combo boxes
-        self.data_points_combobox.currentTextChanged.connect(self.update_validation_and_test_comboboxes)
-
-    def update_validation_and_test_comboboxes(self):
-        train_points = int(self.data_points_combobox.currentText())
-        max_points = len(self.dataframe)
-        validation_points = int(0.15 * train_points)  # 15% of training data
-        remaining_points = max_points - train_points
-        test_points = remaining_points   # Remaining data after allocating for validation
-
-        # Clear existing items and update validation points combo box
-        self.validation_points_combobox.clear()
-        self.validation_points_combobox.addItem(str(validation_points))
-
-        # Clear existing items and update test points combo box
-        self.test_points_combobox.clear()
-        self.test_points_combobox.addItem(str(test_points))
-
     def setup_percentage_tab(self):
         layout = QVBoxLayout()
 
         # Train set size
         train_layout = QHBoxLayout()
         self.training_set_label = QLabel("Train Set Size (%):")
-        self.training_set_combobox = self.create_combobox_with_range(60, 80, 5)
+        self.training_set_combobox = self.create_combobox_with_range(50, 70, 5, default_value=60)
         train_layout.addWidget(self.training_set_label)
         train_layout.addWidget(self.training_set_combobox)
         layout.addLayout(train_layout)
@@ -5063,115 +4985,115 @@ class SplitDatasetDialogRNN(QDialog):
         # Validation set size
         validation_layout = QHBoxLayout()
         self.validation_set_label = QLabel("Validation Set Size (%):")
-        self.validation_set_combobox = self.create_combobox_with_range(20, 25, 5)
+        self.validation_set_combobox = self.create_combobox_with_range(10, 30, 5, default_value=20)
         validation_layout.addWidget(self.validation_set_label)
         validation_layout.addWidget(self.validation_set_combobox)
         layout.addLayout(validation_layout)
 
-        # Test set size (automatically calculated, not editable)
+        # Test set size
         test_layout = QHBoxLayout()
         self.test_set_label = QLabel("Test Set Size (%):")
         self.test_set_combobox = QComboBox()
         self.test_set_combobox.setEditable(True)
+        self.test_set_combobox.addItem("20")  # Default to 20%
         test_layout.addWidget(self.test_set_label)
         test_layout.addWidget(self.test_set_combobox)
         layout.addLayout(test_layout)
 
         self.tab_percentage.setLayout(layout)
 
-        self.training_set_combobox.currentIndexChanged.connect(self.update_test_set_size)
-        self.validation_set_combobox.currentIndexChanged.connect(self.update_test_set_size)
-        self.update_test_set_size()
+        self.training_set_combobox.currentIndexChanged.connect(self.update_other_sets)
+        self.validation_set_combobox.currentIndexChanged.connect(self.update_other_sets)
+        self.test_set_combobox.currentIndexChanged.connect(self.update_other_sets)
+        self.update_other_sets()
 
-    def create_combobox_with_range(self, start, end, step):
+    def create_combobox_with_range(self, start, end, step, default_value=None):
         combobox = QComboBox()
-        combobox.setEditable(True)
+        combobox.setEditable(False)  # Ensure it has a dropdown list
         for i in range(start, end + 1, step):
             combobox.addItem(str(i))
+        if default_value is not None:
+            index = combobox.findText(str(default_value))
+            if index != -1:
+                combobox.setCurrentIndex(index)
         return combobox
 
-    def update_test_set_size(self):
+    def update_other_sets(self):
         try:
             train_size = int(self.training_set_combobox.currentText())
             validation_size = int(self.validation_set_combobox.currentText())
-            test_size = 100 - train_size 
-            self.test_set_combobox.clear()
-            self.test_set_combobox.addItem(str(test_size))
+            test_size = int(self.test_set_combobox.currentText())
+
+            total_size = train_size + validation_size + test_size
+
+            if total_size > 100:
+                remaining_size = 100 - train_size - validation_size - test_size
+                if remaining_size < 0:
+                    if self.sender() == self.training_set_combobox:
+                        validation_size = 20  # Default validation size
+                        test_size = 100 - train_size - validation_size
+                    elif self.sender() == self.validation_set_combobox:
+                        train_size = 60  # Default training size
+                        test_size = 100 - train_size - validation_size
+                    elif self.sender() == self.test_set_combobox:
+                        validation_size = 20  # Default validation size
+                        train_size = 100 - validation_size - test_size
+                else:
+                    if self.sender() == self.training_set_combobox:
+                        validation_size = int(remaining_size / 2)
+                        test_size = 100 - train_size - validation_size
+                    elif self.sender() == self.validation_set_combobox:
+                        train_size = int(remaining_size / 2)
+                        test_size = 100 - train_size - validation_size
+                    elif self.sender() == self.test_set_combobox:
+                        validation_size = int(remaining_size / 2)
+                        train_size = 100 - validation_size - test_size
+
+            # Update combobox values
+            self.training_set_combobox.setCurrentText(str(train_size))
+            self.validation_set_combobox.setCurrentText(str(validation_size))
+            self.test_set_combobox.setCurrentText(str(test_size))
+
         except Exception as e:
-            print(f"Error updating test set size: {e}")
-    def split_by_percentage(self, train_percent, val_percent_of_train):
+            print(f"Error updating validation and test sizes: {e}")
+
+    def split_by_percentage(self, train_percent, val_percent, test_percent):
         total_samples = len(self.dataframe)
-        train_size = int(total_samples * train_percent / 100)  # Convert percentage to fraction
-        val_size = int(train_size * val_percent_of_train / 100)  # Convert percentage to fraction
+        
+        train_size = int(total_samples * train_percent / 100)
+        val_size = int(total_samples * val_percent / 100)
+        test_size = total_samples - train_size - val_size
 
-        # Recompute train_size to exclude the validation set from the original train set
-        train_size -= val_size
-
-        # Slice the dataframe to create training, validation, and testing sets
         self.train_data = self.dataframe.iloc[:train_size]
         self.validation_data = self.dataframe.iloc[train_size:train_size + val_size]
         self.test_data = self.dataframe.iloc[train_size + val_size:]
 
         self.show_split_results()
+
     def split_dataset(self):
-        if self.tab_widget.currentIndex() == 0:
-            train_percent = float(self.training_set_combobox.currentText())
-            val_percent_of_train = float(self.validation_set_combobox.currentText())
-            self.split_by_percentage(train_percent, val_percent_of_train)
-        elif self.tab_widget.currentIndex() == 1:
-            # Pass the QDateTime object directly
-            self.split_by_date(self.date_edit.dateTime())
-        elif self.tab_widget.currentIndex() == 2:
-            train_points = float(self.data_points_combobox.currentText())
-            validation_points = float(self.validation_points_combobox.currentText())
-            self.split_by_data_points(train_points, validation_points)
+        train_percent = float(self.training_set_combobox.currentText())
+        val_percent = float(self.validation_set_combobox.currentText())
+        test_percent = float(self.test_set_combobox.currentText())
+        if train_percent + val_percent + test_percent != 100:
+            QMessageBox.warning(self, "Invalid Input", "The sum of Train, Validation, and Test sizes must equal 100%. Please adjust the values.")
+            return
+
+        self.split_by_percentage(train_percent, val_percent, test_percent)
+        
         if self.parent() is not None:
             self.parent().train_data = self.train_data
             self.parent().validation_data = self.validation_data
             self.parent().test_data = self.test_data
             self.parent().actual_data = self.dataframe
-            train_data_length = len(self.train_data)
-            dataframe_length = len(self.dataframe)
-            val_data_length=len(self.validation_data)
-            
             self.parent().train_percent=float(float(self.training_set_combobox.currentText())/100)
             self.parent().val_percent_of_train =float(float(self.validation_set_combobox.currentText())/100)
+
+
+
     def show_split_results(self):
         QMessageBox.information(self, "Success", f"Dataset split successful!\nTrain Data: {len(self.train_data)} rows\nValidation Data: {len(self.validation_data)} rows\nTest Data: {len(self.test_data)} rows")
         self.accept()
-    
-    def split_by_date(self, qdatetime):
-        # Convert QDateTime to a pandas-compatible datetime (numpy datetime64)
-        # Here, we include the time in the conversion process
-        split_datetime = pd.to_datetime(qdatetime.toString("yyyy-MM-dd hh:mm:ss"))
 
-        # Ensure the index is in datetime format if it's not already
-        if not isinstance(self.dataframe.index, pd.DatetimeIndex):
-            self.dataframe.index = pd.to_datetime(self.dataframe.index)
-
-        # Filter the dataset based on the datetime
-        mask = self.dataframe.index < split_datetime
-        train_data = self.dataframe.loc[mask]
-        remaining_data = self.dataframe.loc[~mask]
-
-        # Split the remaining data equally for validation and testing
-        split_index = len(remaining_data) // 2
-        self.validation_data = remaining_data.iloc[:split_index]
-        self.test_data = remaining_data.iloc[split_index:]
-
-        self.train_data = train_data
-        self.show_split_results()
-
-    def split_by_data_points(self, train_points, validation_points):
-        if train_points + validation_points > len(self.dataframe):
-            QMessageBox.warning(self, "Error", "Sum of training and validation points exceeds total data points.")
-            return
-
-        self.train_data = self.dataframe.iloc[:train_points]
-        self.validation_data = self.dataframe.iloc[train_points:train_points + validation_points]
-        self.test_data = self.dataframe.iloc[train_points + validation_points:]
-
-        self.show_split_results()
 
 
 
@@ -5210,7 +5132,17 @@ class ConfigureRNN(QDialog):
                 padding: 3px;
                 color: #0078D7;
                 background-color: white;
+            }            QProgressBar {
+                border: 2px solid grey;
+                border-radius: 5px;
+                text-align: center;
+                font-weight: bold;
+            }
+            QProgressBar::chunk {
+                background-color: #1b4972;
+                width: 20px;
             }""")
+
 # Create a Matplotlib figure
         self.figure_train = Figure()
         self.plot_train_predictions = FigureCanvas(self.figure_train)
@@ -5261,7 +5193,7 @@ class ConfigureRNN(QDialog):
         input_layout.addWidget(self.dense_activation)
 
         self.epochs_dropdown = QComboBox()
-        epochs_list = [10, 25, 50, 100, 200]  # List of available epochs
+        epochs_list = [ 25, 50, 100, 200]  # List of available epochs
         self.epochs_dropdown.addItems([str(epoch) for epoch in epochs_list])
         self.epochs_dropdown.setCurrentText("10")  # Set default epoch
         self.epochs_dropdown.setValidator(QIntValidator(10, 200))
@@ -5280,6 +5212,7 @@ class ConfigureRNN(QDialog):
         self.layout.addLayout(input_layout)
 
         # Second row with progress bar and train button
+   # Second row with progress bar and train button
         progress_layout = QHBoxLayout()
         self.progress_bar = QProgressBar()
         self.train_button = QPushButton("Train Model")
@@ -5287,6 +5220,7 @@ class ConfigureRNN(QDialog):
         progress_layout.addWidget(self.progress_bar)
         progress_layout.addWidget(self.train_button)
         self.layout.addLayout(progress_layout)
+
 
         # Third row with tabs (initially hidden)
         self.tab_widget = QTabWidget()
@@ -5302,6 +5236,7 @@ class ConfigureRNN(QDialog):
         # Validation Tab
         self.validation_tab = QWidget()
         self.layout_validation = QVBoxLayout(self.validation_tab)
+        self.window_size_set = False  # Add attribute to track if window size is set
 
         self.validation_tab.setLayout(self.layout_validation)
         self.use_early_stopping= 'no'
@@ -5342,6 +5277,11 @@ class ConfigureRNN(QDialog):
     def train_model(self):
         if not self.validate_data():
             return
+             
+
+        if not self.window_size_set:
+            self.window_size_dropdown.setEnabled(False)
+            self.window_size_set = True
         timesteps = int(self.window_size_dropdown.currentText())
         num_units = int(self.lstm_units_dropdown.currentText())
         dense_activation = self.dense_activation.currentText()
@@ -5364,10 +5304,12 @@ class ConfigureRNN(QDialog):
         print('X_test:', X_test.shape, '--->>>  y_test:', y_test.shape)
         input_shape = X_train.shape[1:]
 
-        progress_callback = ProgressCallback(self.progress_bar, self.epochs_dropdown)
-        progress_callback.on_epoch_end(0)
+   
 
         self.model = self.build_model(input_shape, num_units, dense_activation, dense_units, epochs, X_train, y_train, X_val, y_val)
+                
+        history = self.model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=epochs, callbacks=self.callbacks)
+        self.progress_bar.reset()
         train_predictions = self.model.predict(X_train).flatten()
         train_results = pd.DataFrame(data={'Train Predictions': train_predictions, 'Actuals': y_train})
         val_predictions = self.model.predict(X_val).flatten()
@@ -5406,14 +5348,19 @@ class ConfigureRNN(QDialog):
             restore_best_weights=True  # Restore model weights from the epoch with the best value of the monitored quantity
         )
         progress_callback = ProgressCallback(self.progress_bar,total_epochs=epochs)
+        self.progress_bar.setValue(0)
+
 
         # Set up the Model Checkpoint
         cp = ModelCheckpoint('model/model_checkpoint.keras', save_best_only=True)        # Check if the user wants to use EarlyStopping
         if self.use_early_stopping== 'yes':
             model.fit(X_train, y_train, validation_data=(X_val, y_val),epochs=epochs, callbacks=[cp,progress_callback, early_stopping])
-
+            self.callbacks=[cp,progress_callback, early_stopping]
         else:
             model.fit(X_train, y_train, validation_data=(X_val, y_val),epochs=epochs, callbacks=[cp,progress_callback])
+            self.callbacks=[cp,progress_callback]
+
+        
         return model
     def generate_plots_test(self, test_results):
         # Clear any existing widgets in the layout
