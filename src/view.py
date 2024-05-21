@@ -127,6 +127,8 @@ QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
 import datetime
 from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget,QCheckBox
 import os
+
+from sklearn.preprocessing import MinMaxScaler
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 import matplotlib
 from matplotlib import pyplot as plt
@@ -782,10 +784,10 @@ class View(QMainWindow):
         multi_rnn_action = QAction("&Multivariate RNN", self)
         multi_rnn_action.setIcon(QIcon('images/configure_icon.ico'))  # Replace with your icon path
         multi_rnn_action.triggered.connect(self.multi_rnn)
-        split_dataset_icon = QIcon('images/split_dataset.ico')  # Update the icon path as necessary
-        split_dataset_rnn= QAction(split_dataset_icon, "&Split Dataset", self)
-        split_dataset_rnn.triggered.connect(self.split_dataset_rnn)
-        rnn_submenu.addAction(split_dataset_rnn)
+        # split_dataset_icon = QIcon('images/split_dataset.ico')  # Update the icon path as necessary
+        # split_dataset_rnn= QAction(split_dataset_icon, "&Split Dataset", self)
+        # split_dataset_rnn.triggered.connect(self.split_dataset_rnn)
+        # rnn_submenu.addAction(split_dataset_rnn)
         rnn_submenu.addAction(configure_rnn_action)
         rnn_submenu.addAction(multi_rnn_action)
        
@@ -842,10 +844,8 @@ class View(QMainWindow):
          return
 
 
-        if self.validation_data is None:
-            QMessageBox.warning(self, "Data is empty", "Please split the data first to get Train and Validation Data.")
-            return
-        rnn_configuration_dialog = ConfigureRNN(self)
+
+        rnn_configuration_dialog = ConfigureRNN(self.controller.model.data_frame,self)
         rnn_configuration_dialog.show()
 
         # Add other actions to forecast_menu if needed
@@ -944,25 +944,7 @@ class View(QMainWindow):
 
         dialog = SplitDatasetDialog(self.controller.model.data_frame, self)
         dialog.exec()
-    def split_dataset_rnn(self):
-        if self.controller.model.data_frame is None:
-            icon_path = os.path.abspath('images/split_dataset.ico')
-            self.setWindowIcon(QIcon(icon_path))
-            QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
-            icon_path = os.path.abspath('images/bulb_icon.png')
-            self.setWindowIcon(QIcon(icon_path))
-            return
-
-        if not isinstance(self.controller.model.data_frame.index, pd.DatetimeIndex):
-            icon_path = os.path.abspath('images/split_dataset.ico')
-            self.setWindowIcon(QIcon(icon_path))
-            QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
-            icon_path = os.path.abspath('images/bulb_icon.png')
-            self.setWindowIcon(QIcon(icon_path))
-            return
-
-        dialog = SplitDatasetDialogRNN(self.controller.model.data_frame, self)
-        dialog.exec()
+    
     def create_status_bar(self):
         """
         Create the status bar with a custom style.
@@ -4900,116 +4882,16 @@ class SplitDatasetDialog(QDialog):
         self.parent().actual_data = self.dataframe
         QMessageBox.information(self, "Success", f"Dataset split successful!\nTrain Data: {len(self.train_data)} rows\nTest Data: {len(self.test_data)} rows")
         self.accept()
-class SplitDatasetDialogRNN(QDialog):
-    def __init__(self, dataframe, parent=None):
-        super().__init__(parent)
 
-        self.setWindowTitle("Split Dataset")
-        self.setWindowIcon(QIcon('images/split_dataset.ico'))
-        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
-        self.resize(500, 300)
-        self.dataframe = dataframe
 
-        layout = QVBoxLayout()
-        self.tab_widget = QTabWidget()
-        self.tab_percentage = QWidget()
-
-        self.tab_widget.addTab(self.tab_percentage, "Split by Percentage")
-
-        layout.addWidget(self.tab_widget)
-
-        self.setup_percentage_tab()
-
-        self.split_button = QPushButton("Split Dataset")
-        self.split_button.clicked.connect(self.split_dataset)
-        layout.addWidget(self.split_button)
-        self.setLayout(layout)
-
-        self.train_data = None
-        self.validation_data = None
-        self.test_data = None
-        self.actual_data = self.dataframe  # Store the original dataframe
-
-        # Stylesheet for QDateEdit and QLineEdit
-        self.setStyleSheet("""
-            QPushButton {
-                background-color: #96b1c2; /* grey background */
-                color: white;              /* White text */
-                border-radius: 7px;       /* Rounded corners */
-                padding: 6px;              /* Padding for text */
-                font-weight: bold;         /* Bold font */
-            }
-            QPushButton:hover {
-                background-color: #1b4972; /* Darker blue on hover */
-            }
-            QComboBox {
-                border: 2px solid #edebe3; /* Blue border */
-                border-radius: 7px;       /* Rounded corners */
-                padding: 3px;              /* Padding inside the combobox */
-                color: #0078D7;            /* Blue text */
-                background-color: white;   /* White background */
-            }
-            QComboBox {
-                border: 2px solid #edebe3; /* Blue border */
-                border-radius: 7px;       /* Rounded corners */
-                padding: 3px;              /* Padding inside the combobox */
-                color: #0078D7;            /* Blue text */
-                background-color: white;   /* White background */
-            }
-            QComboBox::drop-down {
-                border: none;              /* No border for the dropdown button */
-              QTableWidget {
-                alternate-background-color: #e8e8e8; /* Beige for alternating rows */
-                color:black;
-            }
-            QLineEdit {
-                border: 2px solid #edebe3; /* Blue border */
-                border-radius: 7px;       /* Rounded corners */
-                padding: 3px;              /* Padding inside the combobox */
-                color: #0078D7;            /* Blue text */
-                background-color: white;   /* White background */
-            }
-        """)
-
-    def setup_percentage_tab(self):
-        layout = QVBoxLayout()
-
-        # Train set size
-        train_layout = QHBoxLayout()
-        self.training_set_label = QLabel("Train Set Size (%):")
-        self.training_set_combobox = self.create_combobox_with_range(50, 70, 5, default_value=60)
-        train_layout.addWidget(self.training_set_label)
-        train_layout.addWidget(self.training_set_combobox)
-        layout.addLayout(train_layout)
-
-        # Validation set size
-        validation_layout = QHBoxLayout()
-        self.validation_set_label = QLabel("Validation Set Size (%):")
-        self.validation_set_combobox = self.create_combobox_with_range(10, 30, 5, default_value=20)
-        validation_layout.addWidget(self.validation_set_label)
-        validation_layout.addWidget(self.validation_set_combobox)
-        layout.addLayout(validation_layout)
-
-        # Test set size
-        test_layout = QHBoxLayout()
-        self.test_set_label = QLabel("Test Set Size (%):")
-        self.test_set_combobox = QComboBox()
-        self.test_set_combobox.setEditable(True)
-        self.test_set_combobox.addItem("20")  # Default to 20%
-        test_layout.addWidget(self.test_set_label)
-        test_layout.addWidget(self.test_set_combobox)
-        layout.addLayout(test_layout)
-
-        self.tab_percentage.setLayout(layout)
-
-        self.training_set_combobox.currentIndexChanged.connect(self.update_other_sets)
-        self.validation_set_combobox.currentIndexChanged.connect(self.update_other_sets)
-        self.test_set_combobox.currentIndexChanged.connect(self.update_other_sets)
-        self.update_other_sets()
-
+class ConfigureRNN(QDialog):
+    sliderValueChanged = pyqtSignal(int)
+    sliderValueChangedTrain = pyqtSignal(int)
+    sliderValueChangedVal = pyqtSignal(int)
+    
     def create_combobox_with_range(self, start, end, step, default_value=None):
         combobox = QComboBox()
-        combobox.setEditable(False)  # Ensure it has a dropdown list
+        combobox.setEditable(True)  # Ensure it has a dropdown list
         for i in range(start, end + 1, step):
             combobox.addItem(str(i))
         if default_value is not None:
@@ -5018,101 +4900,20 @@ class SplitDatasetDialogRNN(QDialog):
                 combobox.setCurrentIndex(index)
         return combobox
 
-    def update_other_sets(self):
-        try:
-            train_size = int(self.training_set_combobox.currentText())
-            validation_size = int(self.validation_set_combobox.currentText())
-            test_size = int(self.test_set_combobox.currentText())
-
-            total_size = train_size + validation_size + test_size
-
-            if total_size > 100:
-                remaining_size = 100 - train_size - validation_size - test_size
-                if remaining_size < 0:
-                    if self.sender() == self.training_set_combobox:
-                        validation_size = 20  # Default validation size
-                        test_size = 100 - train_size - validation_size
-                    elif self.sender() == self.validation_set_combobox:
-                        train_size = 60  # Default training size
-                        test_size = 100 - train_size - validation_size
-                    elif self.sender() == self.test_set_combobox:
-                        validation_size = 20  # Default validation size
-                        train_size = 100 - validation_size - test_size
-                else:
-                    if self.sender() == self.training_set_combobox:
-                        validation_size = int(remaining_size / 2)
-                        test_size = 100 - train_size - validation_size
-                    elif self.sender() == self.validation_set_combobox:
-                        train_size = int(remaining_size / 2)
-                        test_size = 100 - train_size - validation_size
-                    elif self.sender() == self.test_set_combobox:
-                        validation_size = int(remaining_size / 2)
-                        train_size = 100 - validation_size - test_size
-
-            # Update combobox values
-            self.training_set_combobox.setCurrentText(str(train_size))
-            self.validation_set_combobox.setCurrentText(str(validation_size))
-            self.test_set_combobox.setCurrentText(str(test_size))
-
-        except Exception as e:
-            print(f"Error updating validation and test sizes: {e}")
-
-    def split_by_percentage(self, train_percent, val_percent, test_percent):
-        total_samples = len(self.dataframe)
-        
-        train_size = int(total_samples * train_percent / 100)
-        val_size = int(total_samples * val_percent / 100)
-        test_size = total_samples - train_size - val_size
-
-        self.train_data = self.dataframe.iloc[:train_size]
-        self.validation_data = self.dataframe.iloc[train_size:train_size + val_size]
-        self.test_data = self.dataframe.iloc[train_size + val_size:]
-
-        self.show_split_results()
-
-    def split_dataset(self):
-        train_percent = float(self.training_set_combobox.currentText())
-        val_percent = float(self.validation_set_combobox.currentText())
-        test_percent = float(self.test_set_combobox.currentText())
-        if train_percent + val_percent + test_percent != 100:
-            QMessageBox.warning(self, "Invalid Input", "The sum of Train, Validation, and Test sizes must equal 100%. Please adjust the values.")
-            return
-
-        self.split_by_percentage(train_percent, val_percent, test_percent)
-        
-        if self.parent() is not None:
-            self.parent().train_data = self.train_data
-            self.parent().validation_data = self.validation_data
-            self.parent().test_data = self.test_data
-            self.parent().actual_data = self.dataframe
-            self.parent().train_percent=float(float(self.training_set_combobox.currentText())/100)
-            self.parent().val_percent_of_train =float(float(self.validation_set_combobox.currentText())/100)
-
-
-
-    def show_split_results(self):
-        QMessageBox.information(self, "Success", f"Dataset split successful!\nTrain Data: {len(self.train_data)} rows\nValidation Data: {len(self.validation_data)} rows\nTest Data: {len(self.test_data)} rows")
-        self.accept()
-
-
-
-
-class ConfigureRNN(QDialog):
-    sliderValueChanged = pyqtSignal(int)
-    sliderValueChangedTrain = pyqtSignal(int)
-    sliderValueChangedVal = pyqtSignal(int)
-    def __init__(self, parent=None):
+    def __init__(self,dataframe, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Model Architecture")
-        self.sliderValueChanged.connect(self.updateGraph)
-        self.sliderValueChangedTrain.connect(self.updateGraphTrain)
-        self.sliderValueChangedVal.connect(self.updateGraphVal)
+        
+        # self.sliderValueChanged.connect(self.updateGraph)
+        # self.sliderValueChangedTrain.connect(self.updateGraphTrain)
+        # self.sliderValueChangedVal.connect(self.updateGraphVal)
         icon_path = os.path.abspath('images/configure_icon.ico')
         self.setWindowIcon(QIcon(icon_path))
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
                             Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
                             Qt.WindowType.CustomizeWindowHint) 
                 # Initialize the plot_test_predictions attribute
+        self.dataframe=dataframe
 
         self.setup_ui()
         self.setStyleSheet("""
@@ -5133,131 +4934,180 @@ class ConfigureRNN(QDialog):
                 color: #0078D7;
                 background-color: white;
             }            QProgressBar {
-                border: 2px solid grey;
-                border-radius: 5px;
+                border: 1px solid #d3d3d3;
+                border-radius: 10px;
                 text-align: center;
                 font-weight: bold;
+                background-color: #e0e0e0;
+                padding: 1px;
             }
+
             QProgressBar::chunk {
-                background-color: #1b4972;
-                width: 20px;
-            }""")
+                background: qlineargradient(
+                    spread:pad, 
+                    x1:0, y1:0, x2:1, y2:0, 
+                    stop:0 #1e90ff, 
+                    stop:1 #4682b4
+                );
+                border-radius: 8px;
+            }
+""")
 
 # Create a Matplotlib figure
-        self.figure_train = Figure()
-        self.plot_train_predictions = FigureCanvas(self.figure_train)
-        self.figure_val = Figure()
-        self.plot_val_predictions = FigureCanvas(self.figure_val)
-        self.figure_test = Figure()
-        self.plot_test_predictions = FigureCanvas(self.figure_test)
+        # self.figure_train = Figure()
+        # self.plot_train_predictions = FigureCanvas(self.figure_train)
+        # self.figure_val = Figure()
+        # self.plot_val_predictions = FigureCanvas(self.figure_val)
+        # self.figure_test = Figure()
+        # self.plot_test_predictions = FigureCanvas(self.figure_test)
+ 
+    def update_test_set_combobox(self):
+ 
+            training_set_text = self.train_split_combo.currentText()
+            test_set_size = 100 - int(training_set_text)-int(self.val_split_combo.currentText())
+            self.test_split_combo.setCurrentText(str(test_set_size))
+            val_set_size = 100 - int(training_set_text)-test_set_size
+            self.val_split_combo.setCurrentText(str(val_set_size))
     def setup_ui(self):
-        self.layout = QVBoxLayout(self)
-        self.layout.setSpacing(10)
-        self.resize(800, 600)  # Adjust the height to accommodate the tabs
+        main_layout = QVBoxLayout(self)
 
+     # Scroll Area
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        
         # First row with input widgets
         input_layout = QHBoxLayout()
-        self.column_selection = QComboBox()
-        self.column_selection.addItems([str(col) for col in self.parent().train_data.columns if self.parent().train_data[col].dtype in [np.float64, np.int64]])
-        input_layout.addWidget(QLabel("Select Numeric Column:"))
-        input_layout.addWidget(self.column_selection)
 
+        # Series Column
+        series_groupbox = QGroupBox("Series")
+        series_layout = QVBoxLayout()
+        self.column_selection = QComboBox()
+        self.column_selection.addItems([str(col) for col in self.dataframe.columns if self.dataframe[col].dtype in [np.number]])
+      
+        series_layout.addWidget(QLabel("Select Column:"))
+        series_layout.addWidget(self.column_selection)
+        series_layout.addSpacing(120)  # Add space after the combobox
+        series_groupbox.setLayout(series_layout)
+        input_layout.addWidget(series_groupbox)
+
+        # Split Column
+        split_groupbox = QGroupBox("Data Splitting")
+        split_layout = QVBoxLayout()
+        self.train_split_combo = self.create_combobox_with_range(50, 70, 5, default_value=60)
+        split_layout.addWidget(QLabel("Train Split:"))
+        split_layout.addWidget(self.train_split_combo)
+        self.train_split_combo.currentIndexChanged.connect(self.update_test_set_combobox)
+        
+        self.val_split_combo = self.create_combobox_with_range(10, 30, 5, default_value=20)
+        self.val_split_combo.currentIndexChanged.connect(self.update_test_set_combobox)
+        split_layout.addWidget(QLabel("Validation Split:"))
+        split_layout.addWidget(self.val_split_combo)
+        
+        self.test_split_combo = self.create_combobox_with_range(10, 30, 5, default_value=20)
+        self.test_split_combo.currentIndexChanged.connect(self.update_test_set_combobox)
+        split_layout.addWidget(QLabel("Test Split:"))
+        split_layout.addWidget(self.test_split_combo)
+        split_groupbox.setLayout(split_layout)
+        input_layout.addWidget(split_groupbox)
+
+        # Hyperparameters Column
+        hyperparams_groupbox = QGroupBox("Hyperparameters")
+        hyperparams_layout = QVBoxLayout()
         self.window_size_dropdown = QComboBox()
-        window_sizes = [2, 3, 4, 5, 6, 7, 8, 9, 10]  # List of available window sizes
-        self.window_size_dropdown.addItems([str(size) for size in window_sizes])
-        self.window_size_dropdown.setValidator(QIntValidator(2, 10))
-        self.window_size_dropdown.setCurrentText("2")  # Set default window size
-        input_layout.addWidget(QLabel("Timesteps:"))
-        input_layout.addWidget(self.window_size_dropdown)
+        self.window_size_dropdown.addItems([str(size) for size in range(2, 11)])
+        hyperparams_layout.addWidget(QLabel("Time steps:"))
+        hyperparams_layout.addWidget(self.window_size_dropdown)
 
         self.lstm_units_dropdown = QComboBox()
-        self.lstm_units_dropdown.setValidator(QIntValidator(32, 512))
-        lstm_units = [32, 64, 256, 512]  # List of available LSTM units
-        self.lstm_units_dropdown.addItems([str(unit) for unit in lstm_units])
-        self.lstm_units_dropdown.setCurrentText("64")  # Set default LSTM units
-        input_layout.addWidget(QLabel("LSTM Units:"))
-        input_layout.addWidget(self.lstm_units_dropdown)
+        self.lstm_units_dropdown.addItems([str(unit) for unit in [32, 64, 256, 512]])
+        hyperparams_layout.addWidget(QLabel("LSTM Units:"))
+        hyperparams_layout.addWidget(self.lstm_units_dropdown)
 
         self.dense_units_dropdown = QComboBox()
-        self.dense_units_dropdown.setValidator(QIntValidator(8, 128))
-        dense_units = [8, 16, 32, 128]  # List of available Dense units
-        self.dense_units_dropdown.addItems([str(unit) for unit in dense_units])
-        self.dense_units_dropdown.setCurrentText("8")  # Set default Dense units
-        input_layout.addWidget(QLabel("Dense Units:"))
-        input_layout.addWidget(self.dense_units_dropdown)
+        self.dense_units_dropdown.addItems([str(unit) for unit in [8, 16, 32, 128]])
+        hyperparams_layout.addWidget(QLabel("Dense Units:"))
+        hyperparams_layout.addWidget(self.dense_units_dropdown)
+        hyperparams_groupbox.setLayout(hyperparams_layout)
+        input_layout.addWidget(hyperparams_groupbox)
 
+        # Other Hyperparameters Column
+        other_hyperparams_groupbox = QGroupBox("Other Hyperparameters")
+        other_hyperparams_layout = QVBoxLayout()
         self.dense_activation = QComboBox()
-        self.dense_activation.setCurrentText("relu")  # Set default activation
         self.dense_activation.addItems(['relu', 'sigmoid', 'tanh', 'linear'])
-        input_layout.addWidget(QLabel("Activation Function:"))
-        input_layout.addWidget(self.dense_activation)
+        other_hyperparams_layout.addWidget(QLabel("Activation Function:"))
+        other_hyperparams_layout.addWidget(self.dense_activation)
 
         self.epochs_dropdown = QComboBox()
-        epochs_list = [ 25, 50, 100, 200]  # List of available epochs
-        self.epochs_dropdown.addItems([str(epoch) for epoch in epochs_list])
-        self.epochs_dropdown.setCurrentText("10")  # Set default epoch
-        self.epochs_dropdown.setValidator(QIntValidator(10, 200))
-        input_layout.addWidget(QLabel("Epoch:"))
-        input_layout.addWidget(self.epochs_dropdown)
+        self.epochs_dropdown.addItems([str(epoch) for epoch in [25, 50, 100, 200]])
+        other_hyperparams_layout.addWidget(QLabel("Epochs:"))
+        other_hyperparams_layout.addWidget(self.epochs_dropdown)
+        self.early_stopping_checkbox = QCheckBox("Early Stopping")
+        other_hyperparams_layout.addWidget(self.early_stopping_checkbox)
+        other_hyperparams_groupbox.setLayout(other_hyperparams_layout)
+        input_layout.addWidget(other_hyperparams_groupbox)
 
-        early_stopping_layout = QHBoxLayout()
-        self.early_stopping_button_yes = QPushButton("Yes")
-        self.early_stopping_button_yes.clicked.connect(self.on_yes_clicked)
-        self.early_stopping_button_no = QPushButton("No")
-        self.early_stopping_button_no.clicked.connect(self.on_no_clicked)
-        early_stopping_layout.addWidget(self.early_stopping_button_yes)
-        early_stopping_layout.addWidget(self.early_stopping_button_no)
-        input_layout.addWidget(QLabel("Use Early Stopping:"))
-        input_layout.addLayout(early_stopping_layout)
-        self.layout.addLayout(input_layout)
+        scroll_layout.addLayout(input_layout)
 
-        # Second row with progress bar and train button
-   # Second row with progress bar and train button
-        progress_layout = QHBoxLayout()
+        # Second row with run button and progress bar in the middle
+        run_progress_layout = QHBoxLayout()
+        run_progress_layout.addStretch(1)
+        self.run_button = QPushButton("Run Model")
+        self.run_button.clicked.connect(self.train_model)
+        run_progress_layout.addWidget(self.run_button)
+        run_progress_layout.addStretch(1)
+        scroll_layout.addLayout(run_progress_layout)
+
+        # Add a new row for the progress bar
         self.progress_bar = QProgressBar()
-        self.train_button = QPushButton("Train Model")
-        self.train_button.clicked.connect(self.train_model)
-        progress_layout.addWidget(self.progress_bar)
-        progress_layout.addWidget(self.train_button)
-        self.layout.addLayout(progress_layout)
+        scroll_layout.addWidget(self.progress_bar)
 
-
-        # Third row with tabs (initially hidden)
+        # Third row with tabs
         self.tab_widget = QTabWidget()
-        self.layout.addWidget(self.tab_widget)
-       # self.tab_widget.currentChanged.connect(self.train_model)
-        self.tab_widget.setCurrentIndex(0) 
-        # Train Tab
+        scroll_layout.addWidget(self.tab_widget)
+
         self.train_tab = QWidget()
         self.layout_train = QVBoxLayout(self.train_tab)
-
-        # Set the layout for the train tab
         self.train_tab.setLayout(self.layout_train)
-        # Validation Tab
+        self.tab_widget.addTab(self.train_tab, "Train")
+
         self.validation_tab = QWidget()
         self.layout_validation = QVBoxLayout(self.validation_tab)
-        self.window_size_set = False  # Add attribute to track if window size is set
-
         self.validation_tab.setLayout(self.layout_validation)
-        self.use_early_stopping= 'no'
-        # Test TabQtab
+        self.tab_widget.addTab(self.validation_tab, "Validation")
+
         self.test_tab = QWidget()
         self.layout_test = QVBoxLayout(self.test_tab)
-
         self.test_tab.setLayout(self.layout_test)
+        self.tab_widget.addTab(self.test_tab, "Test")
 
-        # Add tabs to tab widget
-        self.tab_widget .addTab(self.train_tab, "Train")
-        self.tab_widget .addTab(self.validation_tab, "Validation")
-        self.tab_widget .addTab(self.test_tab, "Test")
-
-        # Add tab widget to main layout
-        self.layout.addWidget(self.tab_widget)
-        self.train_results=None
-        self.val_results=None
-        self.test_results=None
         self.tab_widget.currentChanged.connect(self.handleTabChange)
-        
+
+        # Summary section
+        summary_groupbox = QGroupBox("Summary")
+        summary_layout = QVBoxLayout()
+        self.summary_label = QLabel("Please Run the model to get model Summary.")
+        summary_layout.addWidget(self.summary_label)
+        summary_groupbox.setLayout(summary_layout)
+        scroll_layout.addWidget(summary_groupbox)
+
+        scroll_area.setWidget(scroll_content)
+        main_layout.addWidget(scroll_area)
+
+        self.window_size_set = False
+
+        if self.early_stopping_checkbox.isChecked:
+            self.use_early_stopping = "yes"
+        else:
+            self.use_early_stopping = "no"
+
+        self.tab_widget.currentChanged.connect(self.handleTabChange)
+        self.train_results = None
+        self.val_results = None
+        self.test_results = None
+        self.tab_widget.currentChanged.connect(self.handleTabChange)
     def handleTabChange(self, index):
         if self.tab_widget.currentIndex() == 0 and self.train_results is not None:
             self.generate_plots(self.train_results)
@@ -5267,14 +5117,35 @@ class ConfigureRNN(QDialog):
                     #self.update_predictions_graph_test(self.test_results, 98)
 
             self.generate_plots_test(self.test_results)
-    def on_yes_clicked(self):
-        QMessageBox.information(self, "Early Stopping", "You chose to apply early stopping.")
-        self.use_early_stopping = "yes"
+    def generate_model_summary(self, model, history, test_loss, test_accuracy):
+        summary_text = f"""
+        Model Summary:
+        -----------------------
+        - Column: {self.column_selection.currentText()}
+        - Time Steps: {self.window_size_dropdown.currentText()}
+        - LSTM Units: {self.lstm_units_dropdown.currentText()}
+        - Dense Units: {self.dense_units_dropdown.currentText()}
+        - Activation Function: {self.dense_activation.currentText()}
+        - Epochs: {self.epochs_dropdown.currentText()}
+        - Early Stopping: {'Enabled' if self.early_stopping_checkbox.isChecked() else 'Disabled'}
 
-    def on_no_clicked(self):
-        QMessageBox.information(self, "Early Stopping", "You chose not to apply early stopping.")
-        self.use_early_stopping = "no"    
+        Training Results:
+        -----------------------
+        - Final Training Loss: {history.history['loss'][-1]:.4f}
+        - Final Training Accuracy: {history.history['accuracy'][-1]:.4f}
+        - Final Validation Loss: {history.history['val_loss'][-1]:.4f}
+        - Final Validation Accuracy: {history.history['val_accuracy'][-1]:.4f}
+
+        Test Results:
+        -----------------------
+        - Test Loss: {test_loss:.4f}
+        - Test Accuracy: {test_accuracy:.4f}
+        """
+
+        self.summary_label.setText(summary_text)
     def train_model(self):
+        self.progress_bar.reset()
+
         if not self.validate_data():
             return
              
@@ -5288,10 +5159,10 @@ class ConfigureRNN(QDialog):
         epochs = int(self.epochs_dropdown.currentText())
         dense_units = int(self.dense_units_dropdown.currentText())
         selected_column = self.column_selection.currentText()
-        train_percent = self.parent().train_percent
-        val_percent_of_train = self.parent().val_percent_of_train
+        train_percent = float(float(self.train_split_combo.currentText())/100)
+        val_percent_of_train = float(float(self.val_split_combo.currentText())/100)
 
-        actual_data = self.parent().actual_data
+        actual_data = self.dataframe
         print(train_percent, val_percent_of_train)
         NN_df = actual_data[selected_column]
         X1, y1 = self.df_to_X_y(NN_df, timesteps)
@@ -5302,20 +5173,40 @@ class ConfigureRNN(QDialog):
         print('X_train:', X_train.shape, '--->>>  y_train:', y_train.shape)
         print('X_val:', X_val.shape, '--->>>  y_val:', y_val.shape)
         print('X_test:', X_test.shape, '--->>>  y_test:', y_test.shape)
-        input_shape = X_train.shape[1:]
+
+        scaler = MinMaxScaler(feature_range=(-1, 1))
+
+        # Fit on training data
+        scaler.fit(X_train.reshape(-1, X_train.shape[2]))  # Reshape to 2D array for fitting
+
+        # Transform training, validation, and test data
+        X_train_scaled = scaler.transform(X_train.reshape(-1, X_train.shape[2])).reshape(X_train.shape)
+        X_val_scaled = scaler.transform(X_val.reshape(-1, X_val.shape[2])).reshape(X_val.shape)
+        X_test_scaled = scaler.transform(X_test.reshape(-1, X_test.shape[2])).reshape(X_test.shape)
+        input_shape = X_train_scaled.shape[1:]
 
    
 
-        self.model = self.build_model(input_shape, num_units, dense_activation, dense_units, epochs, X_train, y_train, X_val, y_val)
+        self.model = self.build_model(input_shape, num_units, dense_activation, dense_units, epochs, X_train_scaled, y_train, X_val_scaled, y_val)
                 
-        history = self.model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=epochs, callbacks=self.callbacks)
-        self.progress_bar.reset()
-        train_predictions = self.model.predict(X_train).flatten()
+        #history = self.model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=epochs, callbacks=self.callbacks)
+        train_predictions = self.model.predict(X_train_scaled).flatten()
         train_results = pd.DataFrame(data={'Train Predictions': train_predictions, 'Actuals': y_train})
-        val_predictions = self.model.predict(X_val).flatten()
+        val_predictions = self.model.predict(X_val_scaled).flatten()
         val_results = pd.DataFrame(data={'Val Predictions':val_predictions, 'Actuals':y_val})
-        test_predictions = self.model.predict(X_test).flatten()
+        test_predictions = self.model.predict(X_test_scaled).flatten()
         test_results = pd.DataFrame(data={'Test Predictions':test_predictions, 'Actuals':y_test})
+       
+
+            
+
+        evaluation_results = self.model.evaluate(X_test_scaled, y_test, verbose=0)
+        test_loss = evaluation_results[0]
+        test_rmse = evaluation_results[1]  # Assuming RootMeanSquaredError is the only metric used
+            
+
+        # Generate and display the model summary
+        self.generate_model_summary(self.model, self.history, test_loss, test_rmse)
         # Only generate plots if the train tab is active
         if self.tab_widget.currentIndex() == 0:
             self.generate_plots(train_results)
@@ -5327,7 +5218,7 @@ class ConfigureRNN(QDialog):
         self.val_results=val_results
         self.test_results=test_results
         self.parent().model=self.model
-    def build_model(self, input_shape, num_units, dense_activation,dense_units,epochs,X_train,y_train,X_val,y_val):
+    def build_model(self, input_shape, num_units, dense_activation,dense_units,epochs,X_train_scaled,y_train,X_val_scaled,y_val):
 
         model = Sequential()
         model.add(InputLayer(shape=input_shape))
@@ -5337,15 +5228,16 @@ class ConfigureRNN(QDialog):
         model.compile(
             loss=MeanSquaredError(),
             optimizer=Adam(learning_rate=0.0001),
-            metrics=[RootMeanSquaredError()]
+            metrics=['accuracy', RootMeanSquaredError()]  # Include accuracy as a metric
         )
-        # Set up Early Stopping
+
+        # Set up Early Stopping and callbacks
         early_stopping = EarlyStopping(
-            monitor='val_loss',  # Monitor the validation loss
-            patience=5,          # Number of epochs with no improvement after which training will be stopped
-            verbose=1,           # Log each time training stops
-            mode='min',          # Stop training when the quantity monitored stops decreasing
-            restore_best_weights=True  # Restore model weights from the epoch with the best value of the monitored quantity
+            monitor='val_loss',
+            patience=5,
+            verbose=1,
+            mode='min',
+            restore_best_weights=True
         )
         progress_callback = ProgressCallback(self.progress_bar,total_epochs=epochs)
         self.progress_bar.setValue(0)
@@ -5353,12 +5245,21 @@ class ConfigureRNN(QDialog):
 
         # Set up the Model Checkpoint
         cp = ModelCheckpoint('model/model_checkpoint.keras', save_best_only=True)        # Check if the user wants to use EarlyStopping
-        if self.use_early_stopping== 'yes':
-            model.fit(X_train, y_train, validation_data=(X_val, y_val),epochs=epochs, callbacks=[cp,progress_callback, early_stopping])
-            self.callbacks=[cp,progress_callback, early_stopping]
+        if self.use_early_stopping == 'yes':
+            self.history =     model.fit(
+            X_train_scaled, y_train, 
+            validation_data=(X_val_scaled, y_val),
+            epochs=epochs, 
+            callbacks=[cp, early_stopping,progress_callback]
+             )
+            self.callbacks = [cp, progress_callback, early_stopping]
         else:
-            model.fit(X_train, y_train, validation_data=(X_val, y_val),epochs=epochs, callbacks=[cp,progress_callback])
-            self.callbacks=[cp,progress_callback]
+            self.history = model.fit(
+            X_train_scaled, y_train, 
+            validation_data=(X_val_scaled, y_val),
+            epochs=epochs, 
+            callbacks=[cp, progress_callback])
+            self.callbacks = [cp, progress_callback]
 
         
         return model
@@ -5377,30 +5278,28 @@ class ConfigureRNN(QDialog):
         scroll_layout = QVBoxLayout(scroll_contents)
         scroll_area.setWidget(scroll_contents)
         # Add slider to adjust the percentage
-        slider_label = QLabel("Adjust Percentage:")
-        scroll_layout.addWidget(slider_label)
+        # slider_label = QLabel("Adjust Percentage:")
+        # scroll_layout.addWidget(slider_label)
         # Add slider to adjust the percentage
-        self.percentage_slider = QSlider(Qt.Orientation.Horizontal)
-        self.percentage_slider.setMinimum(10)
-        self.percentage_slider.setMaximum(100)
-        self.percentage_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
-        self.percentage_slider.setTickInterval(50)
-        self.percentage_slider.setValue(98)
-        self.percentage_slider.sliderMoved.connect(lambda value: self.sliderValueChanged.emit(value))
-        self.percentage_slider.valueChanged.connect(self.update_tooltip)
+        # self.percentage_slider = QSlider(Qt.Orientation.Horizontal)
+        # self.percentage_slider.setMinimum(10)
+        # self.percentage_slider.setMaximum(100)
+        # self.percentage_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        # self.percentage_slider.setTickInterval(50)
+        # self.percentage_slider.setValue(98)
+        # self.percentage_slider.sliderMoved.connect(lambda value: self.sliderValueChanged.emit(value))
+        # self.percentage_slider.valueChanged.connect(self.update_tooltip)
 
-        scroll_layout.addWidget(self.percentage_slider)
+        # scroll_layout.addWidget(self.percentage_slider)
 
         self.test_results = test_results
 
         # Plot test predictions vs actuals
-        self.plot_test_predictions_vs_actuals(test_results,percentage=98)
-        self.figure_test = Figure()
-        self.plot_test_predictions = FigureCanvas(self.figure_test)
-        self.plot_test_predictions.setMinimumSize(600, 400)
-        scroll_layout.addWidget(self.plot_test_predictions)
+        self.plot_test_predictions_vs_actuals(test_results,percentage=100)
+        self.plot_test_predictions = plt.gcf()
+        plot_test_widget_predictions = self.create_plot_widget(self.plot_test_predictions)
+        scroll_layout.addWidget(plot_test_widget_predictions)
         
-        self.plot_test_predictions.draw()
 
         self.plot_test_residuals_relationship(test_results)
         self.plot_test_residuals = plt.gcf()
@@ -5413,20 +5312,22 @@ class ConfigureRNN(QDialog):
         scroll_layout.addWidget(plot_widget_histogram)
         # Add the scroll area to the main layout
         self.layout_test.addWidget(scroll_area)
-
+        scroll_contents.setMinimumHeight(800)  # Adjust the value as needed
         # Add a button to save plots as PDF
+        scroll_area.setMinimumSize(800, 600)  # Adjust the size as needed
+
         save_pdf_button = QPushButton("Save PDF")
         save_pdf_button.clicked.connect(lambda: self.save_plots_as_pdf_test(self.test_tab, test_results))
         self.layout_test.addWidget(save_pdf_button)
         scroll_area.verticalScrollBar().setValue(scroll_area.verticalScrollBar().maximum())
 
-    def update_tooltip(self, value):
-        self.percentage_slider.setToolTip(f"{value}%")
+    # def update_tooltip(self, value):
+    #     self.percentage_slider.setToolTip(f"{value}%")
 
-    def update_tooltip_val(self, value):
-        self.percentage_slider_val.setToolTip(f"{value}%")
-    def update_tooltip_train(self, value):
-        self.percentage_slider_train.setToolTip(f"{value}%")
+    # def update_tooltip_val(self, value):
+    #     self.percentage_slider_val.setToolTip(f"{value}%")
+    # def update_tooltip_train(self, value):
+    #     self.percentage_slider_train.setToolTip(f"{value}%")
     def generate_plots(self, train_results):
           # Clear any existing widgets in the layout
         for i in reversed(range(self.layout_train.count())):
@@ -5436,37 +5337,36 @@ class ConfigureRNN(QDialog):
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         self.layout_train.addWidget(scroll_area)
-
+      
         # Create a widget to hold the contents of the scroll area
         scroll_contents = QWidget()
+        scroll_contents.resize=True
         scroll_layout = QVBoxLayout(scroll_contents)
+        
         scroll_area.setWidget(scroll_contents)
-        # Add slider to adjust the percentage
-        slider_label = QLabel("Adjust Percentage:")
-        scroll_layout.addWidget(slider_label)
-        # Add slider to adjust the percentage
-        self.percentage_slider_train = QSlider(Qt.Orientation.Horizontal)
-        self.percentage_slider_train.setMinimum(10)
-        self.percentage_slider_train.setMaximum(100)
-        self.percentage_slider_train.setTickPosition(QSlider.TickPosition.TicksBelow)
-        self.percentage_slider_train.setTickInterval(50)
-        self.percentage_slider_train.setValue(98)
-        self.percentage_slider_train.sliderMoved.connect(lambda value: self.sliderValueChangedTrain.emit(value))
-        self.percentage_slider_train.valueChanged.connect(self.update_tooltip_train)
+        # # Add slider to adjust the percentage
+        # slider_label = QLabel("Adjust Percentage:")
+        # scroll_layout.addWidget(slider_label)
+        # # Add slider to adjust the percentage
+        # self.percentage_slider_train = QSlider(Qt.Orientation.Horizontal)
+        # self.percentage_slider_train.setMinimum(10)
+        # self.percentage_slider_train.setMaximum(100)
+        # self.percentage_slider_train.setTickPosition(QSlider.TickPosition.TicksBelow)
+        # self.percentage_slider_train.setTickInterval(50)
+        # self.percentage_slider_train.setValue(98)
+        # self.percentage_slider_train.sliderMoved.connect(lambda value: self.sliderValueChangedTrain.emit(value))
+        # self.percentage_slider_train.valueChanged.connect(self.update_tooltip_train)
 
-        scroll_layout.addWidget(self.percentage_slider_train)
+        # scroll_layout.addWidget(self.percentage_slider_train)
 
         self.train_results = train_results
-
-        # Plot train predictions vs actuals
-        self.plot_train_predictions_vs_actuals(train_results,percentage=98)
-        self.figure_train = Figure()
-        self.plot_train_predictions = FigureCanvas(self.figure_train)
-        self.plot_train_predictions.setMinimumSize(600, 400)
-        scroll_layout.addWidget(self.plot_train_predictions)
         
-        self.plot_train_predictions.draw()
-
+        # Plot test predictions vs actuals
+        self.plot_train_predictions_vs_actuals(train_results,percentage=100)
+        self.plot_train_predictions = plt.gcf()
+        plot_widget_train_predictions = self.create_plot_widget(self.plot_train_predictions)
+        scroll_layout.addWidget(plot_widget_train_predictions)
+        
         self.plot_train_residuals_relationship(train_results)
         self.plot_train_residuals = plt.gcf()
         plot_widget_residuals = self.create_plot_widget(self.plot_train_residuals)
@@ -5478,6 +5378,8 @@ class ConfigureRNN(QDialog):
         scroll_layout.addWidget(plot_widget_histogram)
         # Add the scroll area to the main layout
         self.layout_train.addWidget(scroll_area)
+        scroll_contents.setMinimumHeight(800)  # Adjust the value as needed
+        scroll_area.setMinimumSize(800, 600)  # Adjust the size as needed
 
         # Add a button to save plots as PDF
         save_pdf_button = QPushButton("Save PDF")
@@ -5485,13 +5387,7 @@ class ConfigureRNN(QDialog):
         self.layout_train.addWidget(save_pdf_button)
         scroll_area.verticalScrollBar().setValue(scroll_area.verticalScrollBar().maximum())
 
-    def update_predictions_graph(self, train_results, value):
-        self.plot_train_predictions_vs_actuals(train_results, percentage=value)
-        self.percentage_slider.setValue(value)
 
-    def update_predictions_graph_train(self, train_results, value):
-        self.plot_train_predictions_vs_actuals(train_results, percentage=value)
-        self.percentage_slider_train.setValue(value)
 
     def create_plot_widget(self, plot_canvas):
         widget = QWidget()
@@ -5513,33 +5409,33 @@ class ConfigureRNN(QDialog):
 
         # Create a widget to hold the contents of the scroll area
         scroll_contents = QWidget()
+        scroll_contents.resize=True
         scroll_layout = QVBoxLayout(scroll_contents)
         scroll_area.setWidget(scroll_contents)
         # Add slider to adjust the percentage
-        slider_label = QLabel("Adjust Percentage:")
-        scroll_layout.addWidget(slider_label)
-        # Add slider to adjust the percentage
-        self.percentage_slider_val = QSlider(Qt.Orientation.Horizontal)
-        self.percentage_slider_val.setMinimum(10)
-        self.percentage_slider_val.setMaximum(100)
-        self.percentage_slider_val.setTickPosition(QSlider.TickPosition.TicksBelow)
-        self.percentage_slider_val.setTickInterval(50)
-        self.percentage_slider_val.setValue(98)
-        self.percentage_slider_val.sliderMoved.connect(lambda value: self.sliderValueChangedVal.emit(value))
-        self.percentage_slider_val.valueChanged.connect(self.update_tooltip_val)
+        # slider_label = QLabel("Adjust Percentage:")
+        # scroll_layout.addWidget(slider_label)
+        # # Add slider to adjust the percentage
+        # self.percentage_slider_val = QSlider(Qt.Orientation.Horizontal)
+        # self.percentage_slider_val.setMinimum(10)
+        # self.percentage_slider_val.setMaximum(100)
+        # self.percentage_slider_val.setTickPosition(QSlider.TickPosition.TicksBelow)
+        # self.percentage_slider_val.setTickInterval(50)
+        # self.percentage_slider_val.setValue(98)
+        # self.percentage_slider_val.sliderMoved.connect(lambda value: self.sliderValueChangedVal.emit(value))
+        # self.percentage_slider_val.valueChanged.connect(self.update_tooltip_val)
 
-        scroll_layout.addWidget(self.percentage_slider_val)
+        # scroll_layout.addWidget(self.percentage_slider_val)
 
         self.val_results = val_results
 
         # Plot test predictions vs actuals
-        self.plot_val_predictions_vs_actuals(val_results,percentage=98)
-        self.figure_val = Figure()
-        self.plot_val_predictions = FigureCanvas(self.figure_val)
-        self.plot_val_predictions.setMinimumSize(600, 400)
-        scroll_layout.addWidget(self.plot_val_predictions)
+        self.plot_val_predictions_vs_actuals(val_results,percentage=100)
+        self.plot_val_predictions = plt.gcf()
+        plot_val_predictions_widget = self.create_plot_widget(self.plot_val_predictions)
+        scroll_layout.addWidget(plot_val_predictions_widget)
         
-        self.plot_val_predictions.draw()
+        
 
         self.plot_val_residuals_relationship(val_results)
         self.plot_val_residuals = plt.gcf()
@@ -5552,6 +5448,8 @@ class ConfigureRNN(QDialog):
         scroll_layout.addWidget(plot_widget_histogram)
         # Add the scroll area to the main layout
         self.layout_validation.addWidget(scroll_area)
+        scroll_contents.setMinimumHeight(800)  # Adjust the value as needed
+        scroll_area.setMinimumSize(800, 600)  # Adjust the size as needed
 
         # Add a button to save plots as PDF
         save_pdf_button = QPushButton("Save PDF")
@@ -5582,7 +5480,6 @@ class ConfigureRNN(QDialog):
         plt.grid(True)
         # Positioning the text
         plt.text(0.01, 0.99, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
-        
 
     def plot_val_residuals_histogram(self,val_results, bins=20, figsize=(8, 6), include_kde=True):
         # Assume residuals have been calculated already or calculate here
@@ -5603,7 +5500,6 @@ class ConfigureRNN(QDialog):
 
         # Add metrics text to plot
         plt.text(0.99, 0.99, metrics_text, verticalalignment='top', horizontalalignment='right', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
-    
     def save_plots_as_pdf(self, parent_widget, train_results):
         filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Univariate_RNN_Train_Prediction_Report.pdf"
         file_path = os.path.join(os.getcwd(), filename)
@@ -5628,21 +5524,21 @@ class ConfigureRNN(QDialog):
             subprocess.Popen(["xdg-open", file_path])  # Linux
         except:
             os.startfile(file_path)  # Window
-    def updateGraph(self, sliderValue=98):
-        # Depending on the slider value, update the graph accordingly
-        # You can call the relevant plot method here with the new value
-        self.plot_test_predictions_vs_actuals(self.test_results, percentage=sliderValue)
-        self.plot_test_predictions.draw()
-    def updateGraphTrain(self, sliderValue=98):
-        # Depending on the slider value, update the graph accordingly
-        # You can call the relevant plot method here with the new value
-        self.plot_train_predictions_vs_actuals(self.train_results, percentage=sliderValue)
-        self.plot_train_predictions.draw()
-    def updateGraphVal(self, sliderValue=98):
-        # Depending on the slider value, update the graph accordingly
-        # You can call the relevant plot method here with the new value
-        self.plot_val_predictions_vs_actuals(self.val_results, percentage=sliderValue)
-        self.plot_val_predictions.draw()
+    # def updateGraph(self, sliderValue=98):
+    #     # Depending on the slider value, update the graph accordingly
+    #     # You can call the relevant plot method here with the new value
+    #     self.plot_test_predictions_vs_actuals(self.test_results, percentage=sliderValue)
+    #     self.plot_test_predictions.draw()
+    # def updateGraphTrain(self, sliderValue=98):
+    #     # Depending on the slider value, update the graph accordingly
+    #     # You can call the relevant plot method here with the new value
+    #     self.plot_train_predictions_vs_actuals(self.train_results, percentage=sliderValue)
+    #     self.plot_train_predictions.draw()
+    # def updateGraphVal(self, sliderValue=98):
+    #     # Depending on the slider value, update the graph accordingly
+    #     # You can call the relevant plot method here with the new value
+    #     self.plot_val_predictions_vs_actuals(self.val_results, percentage=sliderValue)
+    #     self.plot_val_predictions.draw()
     def save_plots_as_pdf_val(self, parent_widget, val_results):
         filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Univariate_RNN_Validation_Prediction_Report.pdf"
         file_path = os.path.join(os.getcwd(), filename)
@@ -5692,9 +5588,7 @@ class ConfigureRNN(QDialog):
             subprocess.Popen(["xdg-open", file_path])  # Linux
         except:
             os.startfile(file_path)  # Windows
-    def plot_test_predictions_vs_actuals(self, test_results, percentage=10, figsize=(12, 6)):
-        self.figure_test.clear()  # Clear the figure
-        ax = self.figure_test.add_subplot(111)
+    def plot_test_predictions_vs_actuals(self,test_results, percentage=10, figsize=(12, 6)):
         num_entries = int(len(test_results) * (percentage / 100))
         start_index = max(0, len(test_results) - num_entries)
         
@@ -5708,13 +5602,14 @@ class ConfigureRNN(QDialog):
         plot_data = test_results.iloc[start_index:].reset_index()
         melted_data = pd.melt(plot_data, id_vars=['index'], value_vars=['Test Predictions', 'Actuals'])
         
-        sns.lineplot(data=melted_data, x='index', y='value', hue='variable', ax=ax)
-        ax.set_title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
-        ax.set_ylabel('Values')
-        ax.set_xlabel('')
-        ax.legend(title='Legend')
-        ax.text(0.2, 0.97, metrics_text, verticalalignment='top', horizontalalignment='left', transform=ax.transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
-        self.plot_test_predictions.draw()
+        plt.figure(figsize=figsize)
+        sns.lineplot(data=melted_data, x='index', y='value', hue='variable')
+        plt.title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
+        plt.ylabel('Values')
+        plt.xlabel('')
+        plt.legend(title='Legend')
+        plt.text(0.2, 0.97, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+
 
     def plot_test_residuals_relationship(self,test_results, figsize=(8, 6)):
         # Calculate squared residuals
@@ -5733,6 +5628,8 @@ class ConfigureRNN(QDialog):
         plt.grid(True)
         # Positioning the text, might need adjustment based on actual data range
         plt.text(0.01, 0.99, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+    
+    
     def plot_test_residuals_histogram(self,test_results, bins=20, figsize=(8, 6), include_kde=True):
         mae = mean_absolute_error(test_results['Actuals'], test_results['Test Predictions'])
         mse = mean_squared_error(test_results['Actuals'], test_results['Test Predictions'])
@@ -5746,7 +5643,6 @@ class ConfigureRNN(QDialog):
         plt.xlabel('Residuals')
         plt.ylabel('Frequency')
         plt.text(0.99, 0.99, metrics_text, verticalalignment='top', horizontalalignment='right', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
-    
 
     def test_prediction(self,dialog, test_results):
 
@@ -5811,9 +5707,7 @@ class ConfigureRNN(QDialog):
         dialog_layout.addWidget(save_pdf_button)
 
         dialog.exec()
-    def plot_train_predictions_vs_actuals(self, train_results, percentage, figsize=(12, 6)):
-        self.figure_train.clear()  # Clear the figure
-        ax = self.figure_train.add_subplot(111)
+    def plot_train_predictions_vs_actuals(self,train_results, percentage=10, figsize=(12, 6)):
         num_entries = int(len(train_results) * (percentage / 100))
         start_index = max(0, len(train_results) - num_entries)
         
@@ -5827,17 +5721,14 @@ class ConfigureRNN(QDialog):
         plot_data = train_results.iloc[start_index:].reset_index()
         melted_data = pd.melt(plot_data, id_vars=['index'], value_vars=['Train Predictions', 'Actuals'])
         
-        sns.lineplot(data=melted_data, x='index', y='value', hue='variable', ax=ax)
-        ax.set_title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
-        ax.set_ylabel('Values')
-        ax.set_xlabel('')
-        ax.legend(title='Legend')
-        ax.text(0.2, 0.97, metrics_text, verticalalignment='top', horizontalalignment='left', transform=ax.transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
-        self.plot_train_predictions.draw()
-
-    def plot_val_predictions_vs_actuals(self, val_results, percentage=10, figsize=(12, 6)):
-        self.figure_val.clear()  # Clear the figure
-        ax = self.figure_val.add_subplot(111)
+        plt.figure(figsize=figsize)
+        sns.lineplot(data=melted_data, x='index', y='value', hue='variable')
+        plt.title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
+        plt.ylabel('Values')
+        plt.xlabel('')
+        plt.legend(title='Legend')
+        plt.text(0.2, 0.97, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+    def plot_val_predictions_vs_actuals(self,val_results, percentage=10, figsize=(12, 6)):
         num_entries = int(len(val_results) * (percentage / 100))
         start_index = max(0, len(val_results) - num_entries)
         
@@ -5851,14 +5742,14 @@ class ConfigureRNN(QDialog):
         plot_data = val_results.iloc[start_index:].reset_index()
         melted_data = pd.melt(plot_data, id_vars=['index'], value_vars=['Val Predictions', 'Actuals'])
         
-        sns.lineplot(data=melted_data, x='index', y='value', hue='variable', ax=ax)
-        ax.set_title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
-        ax.set_ylabel('Values')
-        ax.set_xlabel('')
-        ax.legend(title='Legend')
-        ax.text(0.2, 0.97, metrics_text, verticalalignment='top', horizontalalignment='left', transform=ax.transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
-        self.plot_val_predictions.draw()
-
+        plt.figure(figsize=figsize)
+        sns.lineplot(data=melted_data, x='index', y='value', hue='variable')
+        plt.title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
+        plt.ylabel('Values')
+        plt.xlabel('')
+        plt.legend(title='Legend')
+        plt.text(0.2, 0.97, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+        
     def plot_train_residuals_relationship(self,train_results, figsize=(8, 6)):
         # Calculate squared residuals
         train_results['Residuals'] = (train_results['Actuals'] - train_results['Train Predictions'])
@@ -5876,6 +5767,7 @@ class ConfigureRNN(QDialog):
         plt.grid(True)
         # Positioning the text, might need adjustment based on actual data range
         plt.text(0.01, 0.99, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+    
     def plot_train_residuals_histogram(self,train_results, bins=20, figsize=(8, 6), include_kde=True):
         # Calculate residuals
         #train_results['Residuals'] = train_results['Actuals'] - train_results['Train Predictions']
@@ -5895,22 +5787,16 @@ class ConfigureRNN(QDialog):
 
         # Add metrics text to plot
         plt.text(0.99, 0.99, metrics_text, verticalalignment='top', horizontalalignment='right', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
-    def df_to_X_y(self,df, timesteps):
-        """ Convert a DataFrame into input/output data for training a model, considering a specified number of timesteps.
-            Each data point in the timesteps is wrapped in a list to fit expected input shape for LSTM layers.
-        """
+    def df_to_X_y(self,df, window_size=5):
         df_as_np = df.to_numpy()
         X = []
         y = []
-        for i in range(len(df_as_np) - timesteps):
-            # Creating a list of lists for each timestep
-            row = [[a] for a in df_as_np[i:i+timesteps]]
+        for i in range(len(df_as_np)-window_size):
+            row = [[a] for a in df_as_np[i:i+window_size]]
             X.append(row)
-            # Assuming the label is the next single data point
-            label = df_as_np[i+timesteps]
+            label = df_as_np[i+window_size]
             y.append(label)
         return np.array(X), np.array(y)
-
     def split_data(self,data, train_size, val_size):
         """
         Split the data into train, validation, and test sets based on percentage sizes.
@@ -5935,10 +5821,9 @@ class ConfigureRNN(QDialog):
 
 
     def validate_data(self):
-        if self.parent().train_data is None or self.parent().validation_data is None:
-            QMessageBox.warning(self, "Data Error", "Training or validation data not set.")
-            return False
+
         return True
+
 
 class ProgressCallback(Callback):
     def __init__(self, progress_bar, total_epochs):
@@ -5947,7 +5832,5 @@ class ProgressCallback(Callback):
         self.total_epochs = total_epochs
 
     def on_epoch_end(self, epoch, logs=None):
-        # Update the progress bar based on the actual number of epochs completed
-        if logs is not None:
-            progress = int((epoch + 1) / self.total_epochs * 100)
-            self.progress_bar.setValue(progress)
+        progress = int((epoch + 1) / self.total_epochs * 100)
+        self.progress_bar.setValue(progress)
