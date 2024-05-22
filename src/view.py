@@ -5020,8 +5020,9 @@ class ConfigureRNN(QDialog):
         series_groupbox = QGroupBox("Series")
         series_layout = QVBoxLayout()
         self.column_selection = QComboBox()
-        self.column_selection.addItems([str(col) for col in self.dataframe.columns if self.dataframe[col].dtype in [np.number]])
-      
+        self.column_selection.addItems(
+            [str(col) for col in self.dataframe.columns if np.issubdtype(self.dataframe[col].dtype, np.number)]
+        )      
         series_layout.addWidget(QLabel("Select Column:"))
         series_layout.addWidget(self.column_selection)
         series_layout.addSpacing(120)  # Add space after the combobox
@@ -5150,6 +5151,7 @@ class ConfigureRNN(QDialog):
             self.use_early_stopping = "yes"
         else:
             self.use_early_stopping = "no"
+        self.tab_widget.setCurrentIndex(0)
 
         self.tab_widget.currentChanged.connect(self.handleTabChange)
         self.train_results = None
@@ -5158,30 +5160,52 @@ class ConfigureRNN(QDialog):
         self.tab_widget.currentChanged.connect(self.handleTabChange)
     def handleTabChange(self, index):
         if self.tab_widget.currentIndex() == 0 and self.train_results is not None:
+            self.mae = mean_absolute_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
+            self.mse = mean_squared_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
+            self.rmse = np.sqrt(self.mse)
             self.generate_plots(self.train_results)
         if self.tab_widget.currentIndex() == 1 and self.val_results is not None:
+            self.mae = mean_absolute_error(self.val_results['Actuals'], self.val_results['Val Predictions'])
+            self.mse = mean_squared_error(self.val_results['Actuals'], self.val_results['Val Predictions'])
+            self.rmse = np.sqrt(self.mse)
             self.generate_plots_val(self.val_results)
+
         if self.tab_widget.currentIndex() == 2 and self.test_results is not None:
                     #self.update_predictions_graph_test(self.test_results, 98)
-
+            self.mae = mean_absolute_error(self.test_results['Actuals'], self.test_results['Test Predictions'])
+            self.mse = mean_squared_error(self.test_results['Actuals'], self.test_results['Test Predictions'])
+            self.rmse = np.sqrt(self.mse)
             self.generate_plots_test(self.test_results)
-    def generate_model_summary(self, model, history, test_loss, test_accuracy):
+            
+    def generate_model_summary(self, model, history, test_loss, test_accuracy, y_train, y_val, y_test, mae, mse, rmse):
         # Splitting the summary into three sections
         model_summary = f"""
         Model Summary:
         -----------------------
-        - Column: {self.column_selection.currentText()}
+        - Model Type: LSTM RNN
+        - Input: {self.column_selection.currentText()}
+        - Output: {self.column_selection.currentText()}
         - Time Steps: {self.window_size_dropdown.currentText()}
         - LSTM Units: {self.lstm_units_dropdown.currentText()}
         - Dense Units: {self.dense_units_dropdown.currentText()}
         """
         training_results = f"""
-        Training Results:
+        Final Results:
         -----------------------
         - Final Training Loss: {history.history['loss'][-1]:.4f}
         - Final Training Accuracy: {history.history['accuracy'][-1]:.4f}
         - Final Validation Loss: {history.history['val_loss'][-1]:.4f}
         - Final Validation Accuracy: {history.history['val_accuracy'][-1]:.4f}
+        """
+        training_results2 = f"""
+        Training Results:
+        -----------------------
+        - Train Samples: {y_train.shape[0]:.4f}
+        - Validation Samples: {y_val.shape[0]:.4f}
+        - Test Samples: {y_test.shape[0]:.4f}
+        - Mean Absolute Error: {mae:.4f}
+        - Mean Squared Error: {mse:.4f}
+        - Root Mean Squared Error: {rmse:.4f}
         """
         test_results = f"""
         Test Results:
@@ -5192,22 +5216,28 @@ class ConfigureRNN(QDialog):
         
         # Formatting the sections into three columns
         model_summary_lines = model_summary.strip().split('\n')
+        training_results_lines2 = training_results2.strip().split('\n')
+
         training_results_lines = training_results.strip().split('\n')
         test_results_lines = test_results.strip().split('\n')
         
-        max_lines = max(len(model_summary_lines), len(training_results_lines), len(test_results_lines))
+        max_lines = max(len(model_summary_lines), len(training_results_lines2), len(training_results_lines), len(test_results_lines))
         
         column1_width = max(len(line) for line in model_summary_lines)
+        column_width = max(len(line) for line in training_results_lines2)
+
         column2_width = max(len(line) for line in training_results_lines)
         column3_width = max(len(line) for line in test_results_lines)
         
         summary_text = ""
         for i in range(max_lines):
             column1 = model_summary_lines[i] if i < len(model_summary_lines) else ""
+            column = training_results_lines2[i] if i < len(model_summary_lines) else ""
+
             column2 = training_results_lines[i] if i < len(training_results_lines) else ""
             column3 = test_results_lines[i] if i < len(test_results_lines) else ""
             
-            summary_text += f"{column1:<{column1_width}}\t{column2:<{column2_width}}\t{column3:<{column3_width}}\n"
+            summary_text += f"{column1:<{column1_width}}\t{column:<{column_width}}\t{column2:<{column2_width}}\t{column3:<{column3_width}}\n"
 
         self.summary_label.setText(summary_text)
 
@@ -5269,23 +5299,43 @@ class ConfigureRNN(QDialog):
             
 
         evaluation_results = self.model.evaluate(X_test_scaled, y_test, verbose=0)
-        test_loss = evaluation_results[0]
-        test_rmse = evaluation_results[1]  # Assuming RootMeanSquaredError is the only metric used
-            
-
+        self.test_loss = evaluation_results[0]
+        self.test_rmse = evaluation_results[1]  # Assuming RootMeanSquaredError is the only metric used
+        self.y_test=y_test
+        self.y_train=y_train
+        self.y_val=y_val
+        self.refresh_train_tab()
         # Generate and display the model summary
-        self.generate_model_summary(self.model, self.history, test_loss, test_rmse)
         # Only generate plots if the train tab is active
-        if self.tab_widget.currentIndex() == 0:
-            self.generate_plots(train_results)
-        if self.tab_widget.currentIndex() == 1:
-            self.generate_plots_val(val_results)
-        if self.tab_widget.currentIndex() == 2:
-            self.generate_plots_test(test_results)
+        if self.tab_widget.currentIndex() == 0 and self.train_results is not None:
+            self.mae = mean_absolute_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
+            self.mse = mean_squared_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
+            self.rmse = np.sqrt(self.mse)
+            self.generate_plots(self.train_results)
+        if self.tab_widget.currentIndex() == 1 and self.val_results is not None:
+            self.mae = mean_absolute_error(self.val_results['Actuals'], self.val_results['Val Predictions'])
+            self.mse = mean_squared_error(self.val_results['Actuals'], self.val_results['Val Predictions'])
+            self.rmse = np.sqrt(self.mse)
+            self.generate_plots_val(self.val_results)
+
+        if self.tab_widget.currentIndex() == 2 and self.test_results is not None:
+                    #self.update_predictions_graph_test(self.test_results, 98)
+            self.mae = mean_absolute_error(self.test_results['Actuals'], self.test_results['Test Predictions'])
+            self.mse = mean_squared_error(self.test_results['Actuals'], self.test_results['Test Predictions'])
+            self.rmse = np.sqrt(self.mse)
+            self.generate_plots_test(self.test_results)
         self.train_results=train_results
         self.val_results=val_results
         self.test_results=test_results
         self.parent().model=self.model
+    def refresh_train_tab(self):
+        if self.tab_widget.currentIndex() == 0 and self.train_results is not None:
+            # Clear any existing widgets in the layout
+            for i in reversed(range(self.layout_train.count())):
+                self.layout_train.itemAt(i).widget().setParent(None)
+
+            # Generate the plots again with updated data
+            self.generate_plots(self.train_results)
     def build_model(self, input_shape, num_units, dense_activation,dense_units,epochs,X_train_scaled,y_train,X_val_scaled,y_val):
 
         model = Sequential()
@@ -5332,6 +5382,8 @@ class ConfigureRNN(QDialog):
         
         return model
     def generate_plots_test(self, test_results):
+        self.generate_model_summary(self.model, self.history, self.test_loss, self.test_rmse,self.y_train, self.y_val, self.y_test, self.mae, self.mse, self.rmse)
+
         # Clear any existing widgets in the layout
         for i in reversed(range(self.layout_test.count())):
             self.layout_test.itemAt(i).widget().setParent(None)
@@ -5343,7 +5395,6 @@ class ConfigureRNN(QDialog):
 
         # Create a widget to hold the contents of the scroll area
         scroll_contents = QWidget()
-        scroll_contents.setMinimumHeight(800)  # Adjust the value as needed
 
         scroll_layout = QVBoxLayout(scroll_contents)
         scroll_area.setWidget(scroll_contents)
@@ -5370,7 +5421,8 @@ class ConfigureRNN(QDialog):
         self.plot_test_predictions = plt.gcf()
         plot_test_widget_predictions = self.create_plot_widget(self.plot_test_predictions)
         scroll_layout.addWidget(plot_test_widget_predictions)
-        
+        scroll_area.setMinimumSize(800, 600)  # Adjust the size as needed
+
 
         self.plot_test_residuals_relationship(test_results)
         self.plot_test_residuals = plt.gcf()
@@ -5383,7 +5435,7 @@ class ConfigureRNN(QDialog):
         scroll_layout.addWidget(plot_widget_histogram)
         # Add the scroll area to the main layout
         self.layout_test.addWidget(scroll_area)
-        scroll_contents.setMinimumHeight(800)  # Adjust the value as needed
+        scroll_area.setMinimumSize(800, 600)  # Adjust the size as needed
 
 
         save_pdf_button = QPushButton("Save PDF")
@@ -5399,6 +5451,8 @@ class ConfigureRNN(QDialog):
     # def update_tooltip_train(self, value):
     #     self.percentage_slider_train.setToolTip(f"{value}%")
     def generate_plots(self, train_results):
+        self.generate_model_summary(self.model, self.history, self.test_loss, self.test_rmse,self.y_train, self.y_val, self.y_test, self.mae, self.mse, self.rmse)
+
           # Clear any existing widgets in the layout
         for i in reversed(range(self.layout_train.count())):
             self.layout_train.itemAt(i).widget().setParent(None)
@@ -5470,6 +5524,8 @@ class ConfigureRNN(QDialog):
 
         
     def generate_plots_val(self, val_results):
+        self.generate_model_summary(self.model, self.history, self.test_loss, self.test_rmse,self.y_train, self.y_val, self.y_test, self.mae, self.mse, self.rmse)
+
             # Clear any existing widgets in the layout
         for i in reversed(range(self.layout_validation.count())):
             self.layout_validation.itemAt(i).widget().setParent(None)
@@ -5481,11 +5537,12 @@ class ConfigureRNN(QDialog):
 
         # Create a widget to hold the contents of the scroll area
         scroll_contents = QWidget()
-        scroll_contents.setMinimumHeight(800)  # Adjust the value as needed
 
         scroll_contents.resize=True
         scroll_layout = QVBoxLayout(scroll_contents)
         scroll_area.setWidget(scroll_contents)
+        scroll_area.setMinimumSize(800, 600)  # Adjust the size as needed
+
         # Add slider to adjust the percentage
         # slider_label = QLabel("Adjust Percentage:")
         # scroll_layout.addWidget(slider_label)
@@ -5502,7 +5559,6 @@ class ConfigureRNN(QDialog):
         # scroll_layout.addWidget(self.percentage_slider_val)
 
         self.val_results = val_results
-        scroll_area.setMinimumSize(800, 600)  # Adjust the size as needed
 
         # Plot test predictions vs actuals
         self.plot_val_predictions_vs_actuals(val_results,percentage=100)
