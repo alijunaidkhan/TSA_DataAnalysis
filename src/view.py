@@ -142,6 +142,7 @@ QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
 """
 
 import datetime
+import shutil
 from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget,QCheckBox
 import os
 
@@ -4935,7 +4936,11 @@ class ConfigureRNN(QDialog):
             if index != -1:
                 combobox.setCurrentIndex(index)
         return combobox
-
+    def delete_model_directory(self):
+        model_dir = 'model'
+        if os.path.exists(model_dir):
+            shutil.rmtree(model_dir)
+            print(f"Deleted the existing model directory: {model_dir}")
     def __init__(self,dataframe, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Model Architecture")
@@ -5241,7 +5246,12 @@ class ConfigureRNN(QDialog):
 
         self.summary_label.setText(summary_text)
 
+    def closeEvent(self, event):
+        self.delete_model_directory()
+        event.accept()
+        print("Deleted the model directory upon closing the application.")
     def train_model(self):
+        self.delete_model_directory()
         self.progress_bar.reset()
 
         if not self.validate_data():
