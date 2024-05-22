@@ -7,7 +7,24 @@ dark_stylesheet = """
     font-family: 'Segoe UI', Arial, sans-serif; /* Use a more readable and elegant font */
     font-size: 9pt; /* Adjust size for better readability */
 }
+      QProgressBar {
+                border: 1px solid #d3d3d3;
+                border-radius: 10px;
+                text-align: center;
+                font-weight: bold;
+                background-color: #e0e0e0;
+                padding: 1px;
+            }
 
+            QProgressBar::chunk {
+                background: qlineargradient(
+                    spread:pad, 
+                    x1:0, y1:0, x2:1, y2:0, 
+                    stop:0 #1e90ff, 
+                    stop:1 #4682b4
+                );
+                border-radius: 8px;
+            }
 QPushButton {
     background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #505050, stop:1 #383838);
     color: #FFFFFF;
@@ -252,6 +269,7 @@ class View(QMainWindow):
         self.closeEvent = self.close_event
 
         self.init_ui()
+   
         self.progressBar = QProgressBar(self)
         self.progressBar.setGeometry(700, 100, 200, 20)  # Adjust the size and position as needed
         self.progressBar.setMaximum(100)  # Set the maximum value of progress bar
@@ -384,6 +402,24 @@ class View(QMainWindow):
             }
             QComboBox::drop-down {
                 border: none;              /* No border for the dropdown button */
+                  QProgressBar {
+                border: 1px solid #d3d3d3;
+                border-radius: 10px;
+                text-align: center;
+                font-weight: bold;
+                background-color: #e0e0e0;
+                padding: 1px;
+            }
+
+            QProgressBar::chunk {
+                background: qlineargradient(
+                    spread:pad, 
+                    x1:0, y1:0, x2:1, y2:0, 
+                    stop:0 #1e90ff, 
+                    stop:1 #4682b4
+                );
+                border-radius: 8px;
+            }
 
         """)
 
@@ -3534,7 +3570,7 @@ class ForecastResultUnivariate(QDialog):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.addWidget(plot_canvas.canvas)
-        widget.setMinimumHeight(400)  # Set minimum height for the widget containing the plot
+        widget.setMinimumHeight(700)  # Set minimum height for the widget containing the plot
         return widget
 
 
@@ -5070,16 +5106,28 @@ class ConfigureRNN(QDialog):
 
         self.train_tab = QWidget()
         self.layout_train = QVBoxLayout(self.train_tab)
+        spacer_item = QWidget()
+        spacer_item.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.layout_train.addWidget(spacer_item)
+
         self.train_tab.setLayout(self.layout_train)
         self.tab_widget.addTab(self.train_tab, "Train")
 
         self.validation_tab = QWidget()
         self.layout_validation = QVBoxLayout(self.validation_tab)
+        spacer_item = QWidget()
+        spacer_item.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.layout_validation.addWidget(spacer_item)
+
         self.validation_tab.setLayout(self.layout_validation)
         self.tab_widget.addTab(self.validation_tab, "Validation")
 
         self.test_tab = QWidget()
         self.layout_test = QVBoxLayout(self.test_tab)
+        spacer_item = QWidget()
+        spacer_item.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.layout_test.addWidget(spacer_item)
+
         self.test_tab.setLayout(self.layout_test)
         self.tab_widget.addTab(self.test_tab, "Test")
 
@@ -5118,31 +5166,51 @@ class ConfigureRNN(QDialog):
 
             self.generate_plots_test(self.test_results)
     def generate_model_summary(self, model, history, test_loss, test_accuracy):
-        summary_text = f"""
+        # Splitting the summary into three sections
+        model_summary = f"""
         Model Summary:
         -----------------------
         - Column: {self.column_selection.currentText()}
         - Time Steps: {self.window_size_dropdown.currentText()}
         - LSTM Units: {self.lstm_units_dropdown.currentText()}
         - Dense Units: {self.dense_units_dropdown.currentText()}
-        - Activation Function: {self.dense_activation.currentText()}
-        - Epochs: {self.epochs_dropdown.currentText()}
-        - Early Stopping: {'Enabled' if self.early_stopping_checkbox.isChecked() else 'Disabled'}
-
+        """
+        training_results = f"""
         Training Results:
         -----------------------
         - Final Training Loss: {history.history['loss'][-1]:.4f}
         - Final Training Accuracy: {history.history['accuracy'][-1]:.4f}
         - Final Validation Loss: {history.history['val_loss'][-1]:.4f}
         - Final Validation Accuracy: {history.history['val_accuracy'][-1]:.4f}
-
+        """
+        test_results = f"""
         Test Results:
         -----------------------
         - Test Loss: {test_loss:.4f}
         - Test Accuracy: {test_accuracy:.4f}
         """
+        
+        # Formatting the sections into three columns
+        model_summary_lines = model_summary.strip().split('\n')
+        training_results_lines = training_results.strip().split('\n')
+        test_results_lines = test_results.strip().split('\n')
+        
+        max_lines = max(len(model_summary_lines), len(training_results_lines), len(test_results_lines))
+        
+        column1_width = max(len(line) for line in model_summary_lines)
+        column2_width = max(len(line) for line in training_results_lines)
+        column3_width = max(len(line) for line in test_results_lines)
+        
+        summary_text = ""
+        for i in range(max_lines):
+            column1 = model_summary_lines[i] if i < len(model_summary_lines) else ""
+            column2 = training_results_lines[i] if i < len(training_results_lines) else ""
+            column3 = test_results_lines[i] if i < len(test_results_lines) else ""
+            
+            summary_text += f"{column1:<{column1_width}}\t{column2:<{column2_width}}\t{column3:<{column3_width}}\n"
 
         self.summary_label.setText(summary_text)
+
     def train_model(self):
         self.progress_bar.reset()
 
@@ -5169,7 +5237,7 @@ class ConfigureRNN(QDialog):
         print(X1.shape, y1.shape)
         X_train, X_val, X_test = self.split_data(X1, train_percent, val_percent_of_train)
         y_train, y_val, y_test = self.split_data(y1, train_percent, val_percent_of_train)
-        self.parent().X_test=X_test
+
         print('X_train:', X_train.shape, '--->>>  y_train:', y_train.shape)
         print('X_val:', X_val.shape, '--->>>  y_val:', y_val.shape)
         print('X_test:', X_test.shape, '--->>>  y_test:', y_test.shape)
@@ -5184,7 +5252,7 @@ class ConfigureRNN(QDialog):
         X_val_scaled = scaler.transform(X_val.reshape(-1, X_val.shape[2])).reshape(X_val.shape)
         X_test_scaled = scaler.transform(X_test.reshape(-1, X_test.shape[2])).reshape(X_test.shape)
         input_shape = X_train_scaled.shape[1:]
-
+        self.parent().X_test=X_test_scaled
    
 
         self.model = self.build_model(input_shape, num_units, dense_activation, dense_units, epochs, X_train_scaled, y_train, X_val_scaled, y_val)
@@ -5275,6 +5343,8 @@ class ConfigureRNN(QDialog):
 
         # Create a widget to hold the contents of the scroll area
         scroll_contents = QWidget()
+        scroll_contents.setMinimumHeight(800)  # Adjust the value as needed
+
         scroll_layout = QVBoxLayout(scroll_contents)
         scroll_area.setWidget(scroll_contents)
         # Add slider to adjust the percentage
@@ -5291,6 +5361,7 @@ class ConfigureRNN(QDialog):
         # self.percentage_slider.valueChanged.connect(self.update_tooltip)
 
         # scroll_layout.addWidget(self.percentage_slider)
+        scroll_area.setMinimumSize(800, 600)  # Adjust the size as needed
 
         self.test_results = test_results
 
@@ -5313,8 +5384,7 @@ class ConfigureRNN(QDialog):
         # Add the scroll area to the main layout
         self.layout_test.addWidget(scroll_area)
         scroll_contents.setMinimumHeight(800)  # Adjust the value as needed
-        # Add a button to save plots as PDF
-        scroll_area.setMinimumSize(800, 600)  # Adjust the size as needed
+
 
         save_pdf_button = QPushButton("Save PDF")
         save_pdf_button.clicked.connect(lambda: self.save_plots_as_pdf_test(self.test_tab, test_results))
@@ -5340,6 +5410,9 @@ class ConfigureRNN(QDialog):
       
         # Create a widget to hold the contents of the scroll area
         scroll_contents = QWidget()
+        #scroll_contents.setMinimumHeight(800)  # Adjust the value as needed
+        scroll_area.setMinimumSize(800, 600)  # Adjust the size as needed
+
         scroll_contents.resize=True
         scroll_layout = QVBoxLayout(scroll_contents)
         
@@ -5366,7 +5439,8 @@ class ConfigureRNN(QDialog):
         self.plot_train_predictions = plt.gcf()
         plot_widget_train_predictions = self.create_plot_widget(self.plot_train_predictions)
         scroll_layout.addWidget(plot_widget_train_predictions)
-        
+        scroll_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        scroll_contents.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.plot_train_residuals_relationship(train_results)
         self.plot_train_residuals = plt.gcf()
         plot_widget_residuals = self.create_plot_widget(self.plot_train_residuals)
@@ -5378,8 +5452,6 @@ class ConfigureRNN(QDialog):
         scroll_layout.addWidget(plot_widget_histogram)
         # Add the scroll area to the main layout
         self.layout_train.addWidget(scroll_area)
-        scroll_contents.setMinimumHeight(800)  # Adjust the value as needed
-        scroll_area.setMinimumSize(800, 600)  # Adjust the size as needed
 
         # Add a button to save plots as PDF
         save_pdf_button = QPushButton("Save PDF")
@@ -5393,7 +5465,7 @@ class ConfigureRNN(QDialog):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.addWidget(plot_canvas.canvas)
-        widget.setMinimumHeight(400)  # Set minimum height for the widget containing the plot
+        widget.setMinimumHeight(700)  # Set minimum height for the widget containing the plot
         return widget
 
         
@@ -5409,6 +5481,8 @@ class ConfigureRNN(QDialog):
 
         # Create a widget to hold the contents of the scroll area
         scroll_contents = QWidget()
+        scroll_contents.setMinimumHeight(800)  # Adjust the value as needed
+
         scroll_contents.resize=True
         scroll_layout = QVBoxLayout(scroll_contents)
         scroll_area.setWidget(scroll_contents)
@@ -5428,6 +5502,7 @@ class ConfigureRNN(QDialog):
         # scroll_layout.addWidget(self.percentage_slider_val)
 
         self.val_results = val_results
+        scroll_area.setMinimumSize(800, 600)  # Adjust the size as needed
 
         # Plot test predictions vs actuals
         self.plot_val_predictions_vs_actuals(val_results,percentage=100)
@@ -5448,8 +5523,6 @@ class ConfigureRNN(QDialog):
         scroll_layout.addWidget(plot_widget_histogram)
         # Add the scroll area to the main layout
         self.layout_validation.addWidget(scroll_area)
-        scroll_contents.setMinimumHeight(800)  # Adjust the value as needed
-        scroll_area.setMinimumSize(800, 600)  # Adjust the size as needed
 
         # Add a button to save plots as PDF
         save_pdf_button = QPushButton("Save PDF")
