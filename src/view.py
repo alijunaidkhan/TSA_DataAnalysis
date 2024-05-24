@@ -232,6 +232,9 @@ class View(QMainWindow):
         self.file_path = None
         self.X_test=None
         self.model=None
+        self.model_multi=None
+        self.X_test_multi=None
+
         self.df_model=None
         self.selected_column=None
         self.order=None
@@ -816,10 +819,10 @@ class View(QMainWindow):
 
         # Add configurations or settings specific to RNN model
         configure_rnn_action = QAction("&Univariate RNN", self)
-        configure_rnn_action.setIcon(QIcon('images/configure_icon.ico'))  # Replace with your icon path
+        configure_rnn_action.setIcon(QIcon('images/univariate_icon.ico'))  # Replace with your icon path
         configure_rnn_action.triggered.connect(self.configure_rnn)
         multi_rnn_action = QAction("&Multivariate RNN", self)
-        multi_rnn_action.setIcon(QIcon('images/configure_icon.ico'))  # Replace with your icon path
+        multi_rnn_action.setIcon(QIcon('images/multivariate_icon.ico'))  # Replace with your icon path
         multi_rnn_action.triggered.connect(self.multi_rnn)
         # split_dataset_icon = QIcon('images/split_dataset.ico')  # Update the icon path as necessary
         # split_dataset_rnn= QAction(split_dataset_icon, "&Split Dataset", self)
@@ -837,11 +840,15 @@ class View(QMainWindow):
         univariate_based = QAction("&Univariate Based", self)
         univariate_based.setIcon(QIcon('images/nueral_net.ico'))  # Replace 'images/facebook_prophet_icon.png' with your icon path
         univariate_based.triggered.connect(self.forecast_dialogue_univariate)
+        multivariate_based = QAction("&Multivariate Based", self)
+        multivariate_based.setIcon(QIcon('images/multi_forecast.ico'))  # Replace 'images/facebook_prophet_icon.png' with your icon path
+        multivariate_based.triggered.connect(self.forecast_dialogue_multivariate)
         forecast_menu.addAction(arima_based)
         forecast_menu.addAction(univariate_based)
+        forecast_menu.addAction(multivariate_based)
     def multi_rnn(self):
         if self.controller.model.data_frame is  None:
-         icon_path = os.path.abspath('images/configure_icon.ico')
+         icon_path = os.path.abspath('images/multivariate_icon.ico')
          self.setWindowIcon(QIcon(icon_path))
          QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
          icon_path = os.path.abspath('images/bulb_icon.png')
@@ -849,7 +856,7 @@ class View(QMainWindow):
          return
         
         if not isinstance(self.controller.model.data_frame.index, pd.DatetimeIndex):
-         icon_path = os.path.abspath('images/configure_icon.ico')
+         icon_path = os.path.abspath('images/multivariate_icon.ico')
          self.setWindowIcon(QIcon(icon_path))
          QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
          icon_path = os.path.abspath('images/bulb_icon.png')
@@ -857,15 +864,12 @@ class View(QMainWindow):
          return
 
 
-        if self.validation_data is None:
-            QMessageBox.warning(self, "Data is empty", "Please split the data first to get Train and Validation Data.")
-            return
-       # rnn_configuration_dialog = MultiRNN(self)
-       # rnn_configuration_dialog.show()
+        rnn_configuration_dialog = MultiRNN(self.controller.model.data_frame,self)
+        rnn_configuration_dialog.show()
 
     def configure_rnn(self):
         if self.controller.model.data_frame is  None:
-         icon_path = os.path.abspath('images/configure_icon.ico')
+         icon_path = os.path.abspath('images/univariate_icon.ico')
          self.setWindowIcon(QIcon(icon_path))
          QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
          icon_path = os.path.abspath('images/bulb_icon.png')
@@ -873,7 +877,7 @@ class View(QMainWindow):
          return
         
         if not isinstance(self.controller.model.data_frame.index, pd.DatetimeIndex):
-         icon_path = os.path.abspath('images/configure_icon.ico')
+         icon_path = os.path.abspath('images/univariate_icon.ico')
          self.setWindowIcon(QIcon(icon_path))
          QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
          icon_path = os.path.abspath('images/bulb_icon.png')
@@ -939,6 +943,32 @@ class View(QMainWindow):
          return
 
         dialog = ForecastResultUnivariate(self)
+        dialog.exec() 
+    def forecast_dialogue_multivariate(self):
+        if self.controller.model.data_frame is  None:
+         icon_path = os.path.abspath('images/multi_forecast.ico')
+         self.setWindowIcon(QIcon(icon_path))
+         QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
+         icon_path = os.path.abspath('images/bulb_icon.png')
+         self.setWindowIcon(QIcon(icon_path))
+         return
+        
+        if not isinstance(self.controller.model.data_frame.index, pd.DatetimeIndex):
+         icon_path = os.path.abspath('images/multi_forecast.ico')
+         self.setWindowIcon(QIcon(icon_path))
+         QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
+         icon_path = os.path.abspath('images/bulb_icon.png')
+         self.setWindowIcon(QIcon(icon_path))
+         return
+        if self.X_test_multi is None:
+         icon_path = os.path.abspath('images/multi_forecast.ico')
+         self.setWindowIcon(QIcon(icon_path))
+         QMessageBox.warning(self, "Warning", "Please perform modeling for future forecasting. Navigate to menu Model > Nueral Network > Multivariate RNN.")
+         icon_path = os.path.abspath('images/bulb_icon.png')
+         self.setWindowIcon(QIcon(icon_path))
+         return
+
+        dialog = ForecastResultMultivariate(self)
         dialog.exec() 
     def model_with_parameters(self):
         if self.controller.model.data_frame is  None:
@@ -1582,6 +1612,9 @@ class CheckableComboBox(QComboBox):
         super().__init__()
         self.view().pressed.connect(self.handleItemPressed)
         self.setModel(QStandardItemModel(self))
+
+    def isChecked(self, index):
+        return self.model().item(index).checkState() == Qt.CheckState.Checked
 
     def check_first_item_only(self):
         """Ensure only the first item is checked by default."""
@@ -3635,6 +3668,163 @@ class ForecastResultUnivariate(QDialog):
                 try:
                     subprocess.Popen(["open", file_path])  # macOS
                 except:
+                    subprocess.Popen(["start", "", file_path], shell=True)
+
+
+
+class ForecastResultMultivariate(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Multivariate RNN Based - Future Forecasting")
+        self.setWindowIcon(QIcon('images/multi_forecast.ico'))  # Setting window icon
+       
+        self.initUI()
+
+    def initUI(self):
+        # Creating a scroll area to make the dialog scrollable
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        self.layout = QVBoxLayout(self)
+        self.setContentsMargins(20, 20, 20, 20)
+        self.layout.addWidget(scroll_area)
+        self.setStyleSheet = """
+            QInputDialog QLineEdit {
+                border: 2px solid #edebe3; /* Blue border */
+                border-radius: 7px;        /* Rounded corners */
+                padding: 3px;              /* Padding inside the widget */
+                color: #0078D7;            /* Blue text */
+                background-color: white;   /* White background */
+            }
+
+            QInputDialog QPushButton {
+                background-color: #96b1c2; /* Grey background */
+                color: white;              /* White text */
+                border-radius: 7px;        /* Rounded corners */
+                padding: 6px;              /* Padding for text */
+                font-weight: bold;         /* Bold font */
+            }
+            QInputDialog QPushButton:hover {
+                background-color: #1b4972; /* Darker blue on hover */
+            }
+        """
+        # Prompt user for the number of steps
+        n_steps, ok = QInputDialog.getInt(self, "Input", "Enter the number of steps to forecast:", 30, 1, 1000, 1)
+        if not ok:
+            return  # Exit if the user cancels the input
+
+        last_sequence = self.parent().X_test_multi[-10]  # Grab the last sequence from your test set
+        n_features = self.parent().X_test_multi.shape[2]  # Assuming the number of features per timestep is consistent
+
+        # Creating the content widget for the scroll area
+        content_widget = QWidget()
+        scroll_area.setWidget(content_widget)
+
+        # Using a QVBoxLayout for the content widget
+        content_layout = QVBoxLayout(content_widget)
+
+        self.resize(800, 600)  # Set initial size
+        self.setMinimumWidth(600)  # Set minimum width
+        self.setMinimumHeight(400)  # Set minimum height
+
+        # Flatten the test data
+        flattened_test_data = self.parent().X_test_multi.flatten()
+        future_values = self.forecast_future(self.parent().model_multi, last_sequence, n_steps,n_features)
+        self.forecasted_values_label = QLabel(f"Forecasted Values: {future_values}")
+        content_layout.addWidget(self.forecasted_values_label)
+
+        # Calculate the number of points to take for the last 50%
+        num_points = len(flattened_test_data)
+        last_50_percent_points = num_points // 2
+
+        # Extract the last 50% of the flattened test data
+        test_data = flattened_test_data[-last_50_percent_points:]
+        
+        # Call the plotting function
+        # Forecasting and plotting
+        self.plot_forecast(content_layout, test_data, future_values)
+
+        # Add button to save PDF
+        save_button = QPushButton("Save as PDF", self)
+        save_button.clicked.connect(self.save_as_pdf)
+        content_layout.addWidget(save_button)
+
+
+    def create_plot_widget(self, plot_canvas):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.addWidget(plot_canvas.canvas)
+        widget.setMinimumHeight(700)  # Set minimum height for the widget containing the plot
+        return widget
+
+    def forecast_future(self,model, last_sequence, n_steps, n_features):
+        """ Forecast `n_steps` into the future using the provided LSTM `model` and
+            the most recent input sequence `last_sequence`.
+            
+            Parameters:
+            - model: Trained LSTM model.
+            - last_sequence: The last known data sequence, used as the starting point for forecasting.
+            - n_steps: Number of future steps to predict.
+            - n_features: Number of features per timestep in the input data.
+            
+            Returns:
+            - A list containing the forecasted values.
+        """
+        future_predictions = []
+        current_sequence = last_sequence.reshape(1, -1, n_features)  # Reshape to match model input format
+
+        for _ in range(n_steps):
+            # Predict the next step and append to the result
+            next_value = model.predict(current_sequence)[0, 0]  # Predict and flatten the result
+            future_predictions.append(next_value)
+            
+            # Update the sequence to include the new prediction
+            current_sequence = np.roll(current_sequence, -1, axis=1)
+            current_sequence[0, -1, :] = next_value  # Insert the predicted value(s) as the most recent input
+
+        return future_predictions
+    def plot_forecast(self,layout,test_data, future_values):
+
+        self.fig = Figure(figsize=(12, 6))
+        canvas = FigureCanvas(self.fig)
+        layout.addWidget(canvas)
+
+        ax = self.fig.add_subplot(111)
+        n_test = len(test_data)
+        n_future = len(future_values)
+        
+        # Plotting the historical test data
+        ax.plot(range(n_test), test_data, label='Historical Test Data')
+        
+        # Plotting the forecasted future values
+        # We need to define the correct x-axis range for the future values
+        future_x = range(n_test, n_test + n_future)
+        ax.plot(future_x, future_values, label='Forecasted Future', color='red', linestyle='--')
+        
+        ax.set_title('Test Data and Forecasted Future')
+        ax.set_xlabel('Time Steps')
+        ax.set_ylabel('Values')
+        ax.legend()
+        canvas.draw()
+
+    def save_as_pdf(self):
+        # Open file dialog to select save location
+        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Multivariate_RNN_Forecast_Result_Report.pdf"
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save as PDF", filename, "PDF Files (*.pdf)")
+
+        if file_path:
+            # Create a PDF file
+            with PdfPages(file_path) as pdf:
+                # Save the figure to PDF
+                pdf.savefig(self.fig)  # Use self.fig to save the correct figure
+                plt.close(self.fig)
+
+            # Open the saved PDF file
+            try:
+                subprocess.Popen(["xdg-open", file_path])  # Linux
+            except:
+                try:
+                    subprocess.Popen(["open", file_path])  # macOS
+                except:
                     subprocess.Popen(["start", "", file_path], shell=True) 
 class ModelWithParameter(QDialog):
     def __init__(self, dataframe, parent=None):
@@ -5071,6 +5261,7 @@ class ConfigureRNN(QDialog):
         self.dense_units_dropdown.addItems([str(unit) for unit in [8, 16, 32, 128]])
         hyperparams_layout.addWidget(QLabel("Dense Units:"))
         hyperparams_layout.addWidget(self.dense_units_dropdown)
+        
         hyperparams_groupbox.setLayout(hyperparams_layout)
         input_layout.addWidget(hyperparams_groupbox)
 
@@ -5281,7 +5472,6 @@ class ConfigureRNN(QDialog):
         print('X_train:', X_train.shape, '--->>>  y_train:', y_train.shape)
         print('X_val:', X_val.shape, '--->>>  y_val:', y_val.shape)
         print('X_test:', X_test.shape, '--->>>  y_test:', y_test.shape)
-
         scaler = MinMaxScaler(feature_range=(-1, 1))
 
         # Fit on training data
@@ -5973,3 +6163,1093 @@ class ProgressCallback(Callback):
     def on_epoch_end(self, epoch, logs=None):
         progress = int((epoch + 1) / self.total_epochs * 100)
         self.progress_bar.setValue(progress)
+
+class MultiRNN(QDialog):
+    sliderValueChanged = pyqtSignal(int)
+    sliderValueChangedTrain = pyqtSignal(int)
+    sliderValueChangedVal = pyqtSignal(int)
+    
+    def create_combobox_with_range(self, start, end, step, default_value=None):
+        combobox = QComboBox()
+        combobox.setEditable(True)  # Ensure it has a dropdown list
+        for i in range(start, end + 1, step):
+            combobox.addItem(str(i))
+        if default_value is not None:
+            index = combobox.findText(str(default_value))
+            if index != -1:
+                combobox.setCurrentIndex(index)
+        return combobox
+    def delete_model_directory(self):
+        model_dir = 'model_multi'
+        if os.path.exists(model_dir):
+            shutil.rmtree(model_dir)
+            print(f"Deleted the existing model directory: {model_dir}")
+    def __init__(self,dataframe, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Model Architecture")
+        
+        # self.sliderValueChanged.connect(self.updateGraph)
+        # self.sliderValueChangedTrain.connect(self.updateGraphTrain)
+        # self.sliderValueChangedVal.connect(self.updateGraphVal)
+        icon_path = os.path.abspath('images/multivariate_icon.ico')
+        self.setWindowIcon(QIcon(icon_path))
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
+                            Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
+                            Qt.WindowType.CustomizeWindowHint) 
+                # Initialize the plot_test_predictions attribute
+       
+        self.dataframe = dataframe.copy()
+        self.dataframe.columns = self.dataframe.columns.str.strip()
+        self.setup_ui()
+        self.setStyleSheet("""
+            QPushButton {
+                background-color: #96b1c2; /* grey background */
+                color: white;              /* White text */
+                border-radius: 7px;       /* Rounded corners */
+                padding: 6px;              /* Padding for text */
+                font-weight: bold;         /* Bold font */
+            }
+            QPushButton:hover {
+                background-color: #1b4972; /* Darker blue on hover */
+            }
+            QLineEdit {
+                border: 2px solid #edebe3;
+                border-radius: 7px;
+                padding: 3px;
+                color: #0078D7;
+                background-color: white;
+            }            QProgressBar {
+                border: 1px solid #d3d3d3;
+                border-radius: 10px;
+                text-align: center;
+                font-weight: bold;
+                background-color: #e0e0e0;
+                padding: 1px;
+            }
+
+            QProgressBar::chunk {
+                background: qlineargradient(
+                    spread:pad, 
+                    x1:0, y1:0, x2:1, y2:0, 
+                    stop:0 #1e90ff, 
+                    stop:1 #4682b4
+                );
+                border-radius: 8px;
+            }
+""")
+
+# Create a Matplotlib figure
+        # self.figure_train = Figure()
+        # self.plot_train_predictions = FigureCanvas(self.figure_train)
+        # self.figure_val = Figure()
+        # self.plot_val_predictions = FigureCanvas(self.figure_val)
+        # self.figure_test = Figure()
+        # self.plot_test_predictions = FigureCanvas(self.figure_test)
+ 
+    def update_test_set_combobox(self):
+ 
+            training_set_text = self.train_split_combo.currentText()
+            test_set_size = 100 - int(training_set_text)-int(self.val_split_combo.currentText())
+            self.test_split_combo.setCurrentText(str(test_set_size))
+            val_set_size = 100 - int(training_set_text)-test_set_size
+            self.val_split_combo.setCurrentText(str(val_set_size))
+    def setup_ui(self):
+        main_layout = QVBoxLayout(self)
+
+     # Scroll Area
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        
+        # First row with input widgets
+        input_layout = QHBoxLayout()
+
+        # Series Column
+        series_groupbox = QGroupBox("Series")
+        series_layout = QVBoxLayout()
+        self.column_selection = QComboBox()
+        self.column_selection.addItems(
+            [str(col) for col in self.dataframe.columns if np.issubdtype(self.dataframe[col].dtype, np.number)]
+        )      
+        series_layout.addWidget(QLabel("Target Column:"))
+        series_layout.addWidget(self.column_selection)
+                
+        self.column_selection2 = CheckableComboBox()  # Using CheckableComboBox instead of QComboBox
+        self.column_selection2.check_first_item_only()  
+        # Ensure only the first item is checked by default
+        for col in self.dataframe.columns:
+            self.column_selection2.addItem(col, True)  # Assuming all columns are numeric
+        series_layout.addWidget(QLabel("Input Columns:"))
+        series_layout.addWidget(self.column_selection2)
+  
+        series_layout.addSpacing(60)  # Add space after the combobox
+        series_groupbox.setLayout(series_layout)
+        input_layout.addWidget(series_groupbox)
+
+        # Split Column
+        split_groupbox = QGroupBox("Data Splitting")
+        split_layout = QVBoxLayout()
+        self.train_split_combo = self.create_combobox_with_range(50, 70, 5, default_value=60)
+        split_layout.addWidget(QLabel("Train Split:"))
+        split_layout.addWidget(self.train_split_combo)
+        self.train_split_combo.currentIndexChanged.connect(self.update_test_set_combobox)
+        
+        self.val_split_combo = self.create_combobox_with_range(10, 30, 5, default_value=20)
+        self.val_split_combo.currentIndexChanged.connect(self.update_test_set_combobox)
+        split_layout.addWidget(QLabel("Validation Split:"))
+        split_layout.addWidget(self.val_split_combo)
+        
+        self.test_split_combo = self.create_combobox_with_range(10, 30, 5, default_value=20)
+        self.test_split_combo.currentIndexChanged.connect(self.update_test_set_combobox)
+        split_layout.addWidget(QLabel("Test Split:"))
+        split_layout.addWidget(self.test_split_combo)
+        split_groupbox.setLayout(split_layout)
+        input_layout.addWidget(split_groupbox)
+
+        # Hyperparameters Column
+        hyperparams_groupbox = QGroupBox("Hyperparameters")
+        hyperparams_layout = QVBoxLayout()
+        self.window_size_dropdown = self.create_combobox_with_range(2, 12, 1, default_value=2)
+        hyperparams_layout.addWidget(QLabel("Time steps:"))
+        hyperparams_layout.addWidget(self.window_size_dropdown)
+
+        self.lstm_units_dropdown = self.create_combobox_with_range(32, 512, 32, default_value=32)
+        hyperparams_layout.addWidget(QLabel("LSTM Units:"))
+        hyperparams_layout.addWidget(self.lstm_units_dropdown)
+
+        self.dense_units_dropdown = QComboBox()
+        self.dense_units_dropdown.addItems([str(unit) for unit in [8, 16, 32, 128]])
+        hyperparams_layout.addWidget(QLabel("Dense Units:"))
+        hyperparams_layout.addWidget(self.dense_units_dropdown)
+        self.batch_size_dropdown = QComboBox()
+        self.batch_size_dropdown.addItems([str(size) for size in [16, 32, 64, 128]])
+        hyperparams_layout.addWidget(QLabel("Batch Size:"))
+        hyperparams_layout.addWidget(self.batch_size_dropdown)
+        hyperparams_groupbox.setLayout(hyperparams_layout)
+        input_layout.addWidget(hyperparams_groupbox)
+
+        # Other Hyperparameters Column
+        other_hyperparams_groupbox = QGroupBox("Other Hyperparameters")
+        other_hyperparams_layout = QVBoxLayout()
+        self.dense_activation = QComboBox()
+        self.dense_activation.addItems(['relu', 'sigmoid', 'tanh', 'linear'])
+        other_hyperparams_layout.addWidget(QLabel("Activation Function:"))
+        other_hyperparams_layout.addWidget(self.dense_activation)
+
+        self.epochs_dropdown = self.create_combobox_with_range(25, 200, 25, default_value=25)
+
+        other_hyperparams_layout.addWidget(QLabel("Epochs:"))
+        other_hyperparams_layout.addWidget(self.epochs_dropdown)
+        self.early_stopping_checkbox = QCheckBox("Early Stopping")
+        other_hyperparams_layout.addWidget(self.early_stopping_checkbox)
+        other_hyperparams_groupbox.setLayout(other_hyperparams_layout)
+        input_layout.addWidget(other_hyperparams_groupbox)
+
+        scroll_layout.addLayout(input_layout)
+
+        # Second row with run button and progress bar in the middle
+        run_progress_layout = QHBoxLayout()
+        run_progress_layout.addStretch(1)
+        self.run_button = QPushButton("Run Model")
+        self.run_button.clicked.connect(self.train_model)
+        run_progress_layout.addWidget(self.run_button)
+        run_progress_layout.addStretch(1)
+        scroll_layout.addLayout(run_progress_layout)
+
+        # Add a new row for the progress bar
+        self.progress_bar = QProgressBar()
+        scroll_layout.addWidget(self.progress_bar)
+
+        # Third row with tabs
+        self.tab_widget = QTabWidget()
+        scroll_layout.addWidget(self.tab_widget)
+
+        self.train_tab = QWidget()
+        self.layout_train = QVBoxLayout(self.train_tab)
+        spacer_item = QWidget()
+        spacer_item.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.layout_train.addWidget(spacer_item)
+
+        self.train_tab.setLayout(self.layout_train)
+        self.tab_widget.addTab(self.train_tab, "Train")
+
+        self.validation_tab = QWidget()
+        self.layout_validation = QVBoxLayout(self.validation_tab)
+        spacer_item = QWidget()
+        spacer_item.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.layout_validation.addWidget(spacer_item)
+
+        self.validation_tab.setLayout(self.layout_validation)
+        self.tab_widget.addTab(self.validation_tab, "Validation")
+
+        self.test_tab = QWidget()
+        self.layout_test = QVBoxLayout(self.test_tab)
+        spacer_item = QWidget()
+        spacer_item.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.layout_test.addWidget(spacer_item)
+
+        self.test_tab.setLayout(self.layout_test)
+        self.tab_widget.addTab(self.test_tab, "Test")
+
+        self.tab_widget.currentChanged.connect(self.handleTabChange)
+
+        # Summary section
+        summary_groupbox = QGroupBox("Summary")
+        summary_layout = QVBoxLayout()
+        self.summary_label = QLabel("Please Run the model to get model Summary.")
+        summary_layout.addWidget(self.summary_label)
+        summary_groupbox.setLayout(summary_layout)
+        scroll_layout.addWidget(summary_groupbox)
+
+        scroll_area.setWidget(scroll_content)
+        main_layout.addWidget(scroll_area)
+
+        self.window_size_set = False
+
+        if self.early_stopping_checkbox.isChecked:
+            self.use_early_stopping = "yes"
+        else:
+            self.use_early_stopping = "no"
+        self.tab_widget.setCurrentIndex(0)
+
+        self.tab_widget.currentChanged.connect(self.handleTabChange)
+        self.train_results = None
+        self.val_results = None
+        self.test_results = None
+        self.tab_widget.currentChanged.connect(self.handleTabChange)
+    def handleTabChange(self, index):
+        if self.tab_widget.currentIndex() == 0 and self.train_results is not None:
+            self.mae = mean_absolute_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
+            self.mse = mean_squared_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
+            self.rmse = np.sqrt(self.mse)
+            self.generate_plots(self.train_results)
+        if self.tab_widget.currentIndex() == 1 and self.val_results is not None:
+            self.mae = mean_absolute_error(self.val_results['Actuals'], self.val_results['Val Predictions'])
+            self.mse = mean_squared_error(self.val_results['Actuals'], self.val_results['Val Predictions'])
+            self.rmse = np.sqrt(self.mse)
+            self.generate_plots_val(self.val_results)
+
+        if self.tab_widget.currentIndex() == 2 and self.test_results is not None:
+                    #self.update_predictions_graph_test(self.test_results, 98)
+            self.mae = mean_absolute_error(self.test_results['Actuals'], self.test_results['Test Predictions'])
+            self.mse = mean_squared_error(self.test_results['Actuals'], self.test_results['Test Predictions'])
+            self.rmse = np.sqrt(self.mse)
+            self.generate_plots_test(self.test_results)
+            
+    def generate_model_summary(self, model, history, test_loss, test_accuracy, y_train, y_val, y_test, mae, mse, rmse):
+        model_summary = f"""
+        Model Summary:
+        -----------------------
+        - Model Type: LSTM RNN
+        - Input: {self.column_selection2.currentText()}
+        - Output: {self.column_selection.currentText()}
+        - Time Steps: {self.window_size_dropdown.currentText()}
+        - LSTM Units: {self.lstm_units_dropdown.currentText()}
+        - Dense Units: {self.dense_units_dropdown.currentText()}
+        - Batch Size: {self.batch_size_dropdown.currentText()}
+        """
+
+        training_results = f"""
+        Training Results:
+        -----------------------
+        - Train Samples: {y_train.shape}
+        - Validation Samples: {y_val.shape}
+        - Test Samples: {y_test.shape}
+        - Mean Absolute Error: {mae:.4f}
+        - Mean Squared Error: {mse:.4f}
+        - Root Mean Squared Error: {rmse:.4f}
+        """
+        
+        final_training_results = f"""
+        Final Training Results:
+        -----------------------
+        - Final Training Loss: {history.history['loss'][-1]:.4f}
+        - Final Training Accuracy: {history.history['accuracy'][-1]:.4f}
+        - Final Validation Loss: {history.history['val_loss'][-1]:.4f}
+        - Final Validation Accuracy: {history.history['val_accuracy'][-1]:.4f}
+        """
+        
+        test_results = f"""
+        Test Results:
+        -----------------------
+        - Test Loss: {test_loss:.4f}
+        - Test Accuracy: {test_accuracy:.4f}
+        """
+
+        # Combine all sections
+        summary_text = '\n'.join([model_summary, training_results, final_training_results, test_results])
+        self.summary_label.setText(summary_text)
+
+    def closeEvent(self, event):
+        self.delete_model_directory()
+        event.accept()
+        print("Deleted the model directory upon closing the application.")
+    def train_model(self):
+        self.delete_model_directory()
+        self.progress_bar.reset()
+
+        if not self.validate_data():
+            return
+             
+
+        if not self.window_size_set:
+            self.window_size_dropdown.setEnabled(False)
+            self.window_size_set = True
+        timesteps = int(self.window_size_dropdown.currentText())
+        num_units = int(self.lstm_units_dropdown.currentText())
+        dense_activation = self.dense_activation.currentText()
+        epochs = int(self.epochs_dropdown.currentText())
+        dense_units = int(self.dense_units_dropdown.currentText())
+        batch_size = int(self.batch_size_dropdown.currentText())
+        selected_column = self.column_selection.currentText()
+        train_percent = float(float(self.train_split_combo.currentText())/100)
+        val_percent_of_train = float(float(self.val_split_combo.currentText())/100)
+
+    # Define the required columns (target column first, input columns next)
+        required_cols = [self.column_selection.currentText()] + [self.column_selection2.itemText(i) for i in range(1, self.column_selection2.count()) if self.column_selection2.isChecked(i)]
+
+        actual_data = self.dataframe
+        actual_data = actual_data[required_cols]
+        actual_data.rename(columns=lambda x: x.strip(), inplace=True)
+        NN_df = actual_data[required_cols]
+        NN_df.isna().sum()
+        NN_df = NN_df.fillna(method='ffill')
+        X, y = self.df_to_X_y(NN_df, timesteps,selected_column)
+        print(X.shape, y.shape)
+        X_train, X_val, X_test = self.split_data(X, train_percent, val_percent_of_train)
+        y_train, y_val, y_test = self.split_data(y, train_percent, val_percent_of_train)
+
+        print('X_train:', X_train.shape, '--->>>  y_train:', y_train.shape)
+        print('X_val:', X_val.shape, '--->>>  y_val:', y_val.shape)
+        print('X_test:', X_test.shape, '--->>>  y_test:', y_test.shape)
+
+        scaler = MinMaxScaler(feature_range=(-1, 1))
+
+        # Fit on training data
+        scaler.fit(X_train.reshape(-1, X_train.shape[2]))  # Reshape to 2D array for fitting
+
+        # Transform training, validation, and test data
+        X_train_scaled = scaler.transform(X_train.reshape(-1, X_train.shape[2])).reshape(X_train.shape)
+        X_val_scaled = scaler.transform(X_val.reshape(-1, X_val.shape[2])).reshape(X_val.shape)
+        X_test_scaled = scaler.transform(X_test.reshape(-1, X_test.shape[2])).reshape(X_test.shape)
+        input_shape = X_train_scaled.shape[1:]
+        self.parent().X_test_multi=X_test_scaled
+   
+
+        self.model = self.build_model(input_shape,batch_size, num_units, dense_activation, dense_units, epochs, X_train_scaled, y_train, X_val_scaled, y_val)
+                
+        #history = self.model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=epochs, callbacks=self.callbacks)
+        train_predictions = self.model.predict(X_train_scaled).flatten()
+        train_results = pd.DataFrame(data={'Train Predictions': train_predictions, 'Actuals': y_train})
+        val_predictions = self.model.predict(X_val_scaled).flatten()
+        val_results = pd.DataFrame(data={'Val Predictions':val_predictions, 'Actuals':y_val})
+        test_predictions = self.model.predict(X_test_scaled).flatten()
+        test_results = pd.DataFrame(data={'Test Predictions':test_predictions, 'Actuals':y_test})
+       
+
+            
+
+        evaluation_results = self.model.evaluate(X_test_scaled, y_test, verbose=0)
+        self.test_loss = evaluation_results[0]
+        self.test_rmse = evaluation_results[1]  # Assuming RootMeanSquaredError is the only metric used
+        self.y_test=y_test
+        self.y_train=y_train
+        self.y_val=y_val
+        self.refresh_train_tab()
+        # Generate and display the model summary
+        # Only generate plots if the train tab is active
+        if self.tab_widget.currentIndex() == 0 and self.train_results is not None:
+            self.mae = mean_absolute_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
+            self.mse = mean_squared_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
+            self.rmse = np.sqrt(self.mse)
+            self.generate_plots(self.train_results)
+        if self.tab_widget.currentIndex() == 1 and self.val_results is not None:
+            self.mae = mean_absolute_error(self.val_results['Actuals'], self.val_results['Val Predictions'])
+            self.mse = mean_squared_error(self.val_results['Actuals'], self.val_results['Val Predictions'])
+            self.rmse = np.sqrt(self.mse)
+            self.generate_plots_val(self.val_results)
+
+        if self.tab_widget.currentIndex() == 2 and self.test_results is not None:
+                    #self.update_predictions_graph_test(self.test_results, 98)
+            self.mae = mean_absolute_error(self.test_results['Actuals'], self.test_results['Test Predictions'])
+            self.mse = mean_squared_error(self.test_results['Actuals'], self.test_results['Test Predictions'])
+            self.rmse = np.sqrt(self.mse)
+            self.generate_plots_test(self.test_results)
+        self.train_results=train_results
+        self.val_results=val_results
+        self.test_results=test_results
+        self.parent().model_multi=self.model
+    def refresh_train_tab(self):
+        if self.tab_widget.currentIndex() == 0 and self.train_results is not None:
+            # Clear any existing widgets in the layout
+            for i in reversed(range(self.layout_train.count())):
+                self.layout_train.itemAt(i).widget().setParent(None)
+
+            # Generate the plots again with updated data
+            self.generate_plots(self.train_results)
+    def build_model(self, input_shape, batch_size,num_units, dense_activation,dense_units,epochs,X_train_scaled,y_train,X_val_scaled,y_val):
+
+        model = Sequential()
+        model.add(InputLayer(shape=input_shape))
+        model.add(LSTM(units=num_units))  # User-adjustable number of LSTM units
+        model.add(Dense(dense_units, activation=dense_activation))  # User-adjustable number of dense units
+        model.add(Dense(1, activation='linear'))  # Output Dense Layer
+        model.compile(
+            loss=MeanSquaredError(),
+            optimizer=Adam(learning_rate=0.0001),
+            metrics=['accuracy', RootMeanSquaredError()]  # Include accuracy as a metric
+        )
+
+        # Set up Early Stopping and callbacks
+        early_stopping = EarlyStopping(
+            monitor='val_loss',
+            patience=3,
+            verbose=1,
+            mode='min',
+            restore_best_weights=True
+        )
+        progress_callback = ProgressCallback(self.progress_bar,total_epochs=epochs)
+        self.progress_bar.setValue(0)
+
+
+        # Set up the Model Checkpoint
+        cp = ModelCheckpoint('model_multi/model_checkpoint.keras', save_best_only=True)        # Check if the user wants to use EarlyStopping
+        if self.use_early_stopping == 'yes':
+            self.history =     model.fit(
+            X_train_scaled, y_train, 
+            validation_data=(X_val_scaled, y_val),
+            epochs=epochs, 
+            batch_size=batch_size,
+            callbacks=[cp, early_stopping,progress_callback]
+             )
+            self.callbacks = [cp, progress_callback, early_stopping]
+        else:
+            self.history = model.fit(
+            X_train_scaled, y_train, 
+            validation_data=(X_val_scaled, y_val),
+            epochs=epochs, 
+            batch_size=batch_size,
+
+            callbacks=[cp, progress_callback])
+            self.callbacks = [cp, progress_callback]
+
+        
+        return model
+    def generate_plots_test(self, test_results):
+        self.generate_model_summary(self.model, self.history, self.test_loss, self.test_rmse,self.y_train, self.y_val, self.y_test, self.mae, self.mse, self.rmse)
+
+        # Clear any existing widgets in the layout
+        for i in reversed(range(self.layout_test.count())):
+            self.layout_test.itemAt(i).widget().setParent(None)
+
+        # Create a scroll area widget to contain all plots
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        self.layout_test.addWidget(scroll_area)
+
+        # Create a widget to hold the contents of the scroll area
+        scroll_contents = QWidget()
+
+        scroll_layout = QVBoxLayout(scroll_contents)
+        scroll_area.setWidget(scroll_contents)
+        # Add slider to adjust the percentage
+        # slider_label = QLabel("Adjust Percentage:")
+        # scroll_layout.addWidget(slider_label)
+        # Add slider to adjust the percentage
+        # self.percentage_slider = QSlider(Qt.Orientation.Horizontal)
+        # self.percentage_slider.setMinimum(10)
+        # self.percentage_slider.setMaximum(100)
+        # self.percentage_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        # self.percentage_slider.setTickInterval(50)
+        # self.percentage_slider.setValue(98)
+        # self.percentage_slider.sliderMoved.connect(lambda value: self.sliderValueChanged.emit(value))
+        # self.percentage_slider.valueChanged.connect(self.update_tooltip)
+
+        # scroll_layout.addWidget(self.percentage_slider)
+        scroll_area.setMinimumSize(800, 600)  # Adjust the size as needed
+
+        self.test_results = test_results
+
+        # Plot test predictions vs actuals
+        self.plot_test_predictions_vs_actuals(test_results,percentage=100)
+        self.plot_test_predictions = plt.gcf()
+        plot_test_widget_predictions = self.create_plot_widget(self.plot_test_predictions)
+        scroll_layout.addWidget(plot_test_widget_predictions)
+        scroll_area.setMinimumSize(800, 600)  # Adjust the size as needed
+
+
+        self.plot_test_residuals_relationship(test_results)
+        self.plot_test_residuals = plt.gcf()
+        plot_widget_residuals = self.create_plot_widget(self.plot_test_residuals)
+        scroll_layout.addWidget(plot_widget_residuals)
+
+        self.plot_test_residuals_histogram(test_results, bins=100, include_kde=True)
+        self.plot_test_histogram = plt.gcf()
+        plot_widget_histogram = self.create_plot_widget(self.plot_test_histogram)
+        scroll_layout.addWidget(plot_widget_histogram)
+        # Add the scroll area to the main layout
+        self.layout_test.addWidget(scroll_area)
+        scroll_area.setMinimumSize(800, 600)  # Adjust the size as needed
+
+
+        save_pdf_button = QPushButton("Save PDF")
+        save_pdf_button.clicked.connect(lambda: self.save_plots_as_pdf_test(self.test_tab, test_results))
+        self.layout_test.addWidget(save_pdf_button)
+        scroll_area.verticalScrollBar().setValue(scroll_area.verticalScrollBar().maximum())
+
+    # def update_tooltip(self, value):
+    #     self.percentage_slider.setToolTip(f"{value}%")
+
+    # def update_tooltip_val(self, value):
+    #     self.percentage_slider_val.setToolTip(f"{value}%")
+    # def update_tooltip_train(self, value):
+    #     self.percentage_slider_train.setToolTip(f"{value}%")
+    def generate_plots(self, train_results):
+        self.generate_model_summary(self.model, self.history, self.test_loss, self.test_rmse,self.y_train, self.y_val, self.y_test, self.mae, self.mse, self.rmse)
+
+          # Clear any existing widgets in the layout
+        for i in reversed(range(self.layout_train.count())):
+            self.layout_train.itemAt(i).widget().setParent(None)
+
+        # Create a scroll area widget to contain all plots
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        self.layout_train.addWidget(scroll_area)
+      
+        # Create a widget to hold the contents of the scroll area
+        scroll_contents = QWidget()
+        #scroll_contents.setMinimumHeight(800)  # Adjust the value as needed
+        scroll_area.setMinimumSize(800, 600)  # Adjust the size as needed
+
+        scroll_contents.resize=True
+        scroll_layout = QVBoxLayout(scroll_contents)
+        
+        scroll_area.setWidget(scroll_contents)
+        # # Add slider to adjust the percentage
+        # slider_label = QLabel("Adjust Percentage:")
+        # scroll_layout.addWidget(slider_label)
+        # # Add slider to adjust the percentage
+        # self.percentage_slider_train = QSlider(Qt.Orientation.Horizontal)
+        # self.percentage_slider_train.setMinimum(10)
+        # self.percentage_slider_train.setMaximum(100)
+        # self.percentage_slider_train.setTickPosition(QSlider.TickPosition.TicksBelow)
+        # self.percentage_slider_train.setTickInterval(50)
+        # self.percentage_slider_train.setValue(98)
+        # self.percentage_slider_train.sliderMoved.connect(lambda value: self.sliderValueChangedTrain.emit(value))
+        # self.percentage_slider_train.valueChanged.connect(self.update_tooltip_train)
+
+        # scroll_layout.addWidget(self.percentage_slider_train)
+
+        self.train_results = train_results
+        
+        # Plot test predictions vs actuals
+        self.plot_train_predictions_vs_actuals(train_results,percentage=100)
+        self.plot_train_predictions = plt.gcf()
+        plot_widget_train_predictions = self.create_plot_widget(self.plot_train_predictions)
+        scroll_layout.addWidget(plot_widget_train_predictions)
+        scroll_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        scroll_contents.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.plot_train_residuals_relationship(train_results)
+        self.plot_train_residuals = plt.gcf()
+        plot_widget_residuals = self.create_plot_widget(self.plot_train_residuals)
+        scroll_layout.addWidget(plot_widget_residuals)
+
+        self.plot_train_residuals_histogram(train_results, bins=100, include_kde=True)
+        self.plot_train_histogram = plt.gcf()
+        plot_widget_histogram = self.create_plot_widget(self.plot_train_histogram)
+        scroll_layout.addWidget(plot_widget_histogram)
+        # Add the scroll area to the main layout
+        self.layout_train.addWidget(scroll_area)
+
+        # Add a button to save plots as PDF
+        save_pdf_button = QPushButton("Save PDF")
+        save_pdf_button.clicked.connect(lambda: self.save_plots_as_pdf(self.train_tab, train_results))
+        self.layout_train.addWidget(save_pdf_button)
+        scroll_area.verticalScrollBar().setValue(scroll_area.verticalScrollBar().maximum())
+
+
+
+    def create_plot_widget(self, plot_canvas):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.addWidget(plot_canvas.canvas)
+        widget.setMinimumHeight(700)  # Set minimum height for the widget containing the plot
+        return widget
+
+        
+    def generate_plots_val(self, val_results):
+        self.generate_model_summary(self.model, self.history, self.test_loss, self.test_rmse,self.y_train, self.y_val, self.y_test, self.mae, self.mse, self.rmse)
+
+            # Clear any existing widgets in the layout
+        for i in reversed(range(self.layout_validation.count())):
+            self.layout_validation.itemAt(i).widget().setParent(None)
+
+        # Create a scroll area widget to contain all plots
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        self.layout_validation.addWidget(scroll_area)
+
+        # Create a widget to hold the contents of the scroll area
+        scroll_contents = QWidget()
+
+        scroll_contents.resize=True
+        scroll_layout = QVBoxLayout(scroll_contents)
+        scroll_area.setWidget(scroll_contents)
+        scroll_area.setMinimumSize(800, 600)  # Adjust the size as needed
+
+        # Add slider to adjust the percentage
+        # slider_label = QLabel("Adjust Percentage:")
+        # scroll_layout.addWidget(slider_label)
+        # # Add slider to adjust the percentage
+        # self.percentage_slider_val = QSlider(Qt.Orientation.Horizontal)
+        # self.percentage_slider_val.setMinimum(10)
+        # self.percentage_slider_val.setMaximum(100)
+        # self.percentage_slider_val.setTickPosition(QSlider.TickPosition.TicksBelow)
+        # self.percentage_slider_val.setTickInterval(50)
+        # self.percentage_slider_val.setValue(98)
+        # self.percentage_slider_val.sliderMoved.connect(lambda value: self.sliderValueChangedVal.emit(value))
+        # self.percentage_slider_val.valueChanged.connect(self.update_tooltip_val)
+
+        # scroll_layout.addWidget(self.percentage_slider_val)
+
+        self.val_results = val_results
+
+        # Plot test predictions vs actuals
+        self.plot_val_predictions_vs_actuals(val_results,percentage=100)
+        self.plot_val_predictions = plt.gcf()
+        plot_val_predictions_widget = self.create_plot_widget(self.plot_val_predictions)
+        scroll_layout.addWidget(plot_val_predictions_widget)
+        
+        
+
+        self.plot_val_residuals_relationship(val_results)
+        self.plot_val_residuals = plt.gcf()
+        plot_widget_residuals = self.create_plot_widget(self.plot_val_residuals)
+        scroll_layout.addWidget(plot_widget_residuals)
+
+        self.plot_val_residuals_histogram(val_results, bins=100, include_kde=True)
+        self.plot_val_histogram = plt.gcf()
+        plot_widget_histogram = self.create_plot_widget(self.plot_val_histogram)
+        scroll_layout.addWidget(plot_widget_histogram)
+        # Add the scroll area to the main layout
+        self.layout_validation.addWidget(scroll_area)
+
+        # Add a button to save plots as PDF
+        save_pdf_button = QPushButton("Save PDF")
+        save_pdf_button.clicked.connect(lambda: self.save_plots_as_pdf_val(self.test_tab, val_results))
+        self.layout_validation.addWidget(save_pdf_button)
+        scroll_area.verticalScrollBar().setValue(scroll_area.verticalScrollBar().maximum())
+
+    def update_predictions_graph_val(self, val_results, value):
+        self.plot_val_predictions_vs_actuals(val_results, percentage=value)
+        self.percentage_slider.setValue(value)
+    def plot_val_residuals_relationship(self,val_results, figsize=(8, 6)):
+        # Calculate residuals and squared residuals
+        val_results['Residuals'] = (val_results['Actuals'] - val_results['Val Predictions'])
+        val_results['Squared Residuals'] = val_results['Residuals'] ** 2
+        
+        # Calculate error metrics
+        mae = mean_absolute_error(val_results['Actuals'], val_results['Val Predictions'])
+        mse = mean_squared_error(val_results['Actuals'], val_results['Val Predictions'])
+        rmse = np.sqrt(mse)
+        metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
+
+        # Create the plot
+        plt.figure(figsize=figsize)
+        sns.scatterplot(x=val_results['Actuals'], y=val_results['Squared Residuals'], alpha=0.5)
+        plt.title('Magnitude-Residual Relationship for Validation Set')
+        plt.xlabel('Actual Values')
+        plt.ylabel('Squared Residuals')
+        plt.grid(True)
+        # Positioning the text
+        plt.text(0.01, 0.99, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+    
+
+    def plot_val_residuals_histogram(self,val_results, bins=20, figsize=(8, 6), include_kde=True):
+        # Assume residuals have been calculated already or calculate here
+        val_results['Residuals'] = val_results['Actuals'] - val_results['Val Predictions']
+
+        # Calculate error metrics
+        mae = mean_absolute_error(val_results['Actuals'], val_results['Val Predictions'])
+        mse = mean_squared_error(val_results['Actuals'], val_results['Val Predictions'])
+        rmse = np.sqrt(mse)
+        metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
+
+        # Create histogram plot
+        plt.figure(figsize=figsize)
+        sns.histplot(val_results['Residuals'], bins=bins, kde=include_kde, edgecolor='black', color='g', alpha=0.7)
+        plt.title('Validation Residuals')
+        plt.xlabel('Residuals')
+        plt.ylabel('Frequency')
+
+        # Add metrics text to plot
+        plt.text(0.99, 0.99, metrics_text, verticalalignment='top', horizontalalignment='right', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+    def save_plots_as_pdf(self, parent_widget, train_results):
+        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Multivariate_RNN_Train_Prediction_Report.pdf"
+        file_path = os.path.join(os.getcwd(), filename)
+
+        # Create a PDF canvas
+        with PdfPages(file_path) as pdf:
+            # Save each plot to the PDF
+            pdf.savefig(self.plot_train_predictions)
+            pdf.savefig(self.plot_train_residuals)
+            pdf.savefig(self.plot_train_histogram)
+
+        # Close plots after saving
+        plt.close(self.plot_train_predictions)
+        plt.close(self.plot_train_residuals)
+        plt.close(self.plot_train_histogram)
+
+        # Show notification
+        QMessageBox.information(parent_widget, "PDF Saved Successfully", f"PDF saved successfully at: {file_path}")
+
+        # Open the saved PDF file
+        try:
+            subprocess.Popen(["xdg-open", file_path])  # Linux
+        except:
+            os.startfile(file_path)  # Window
+    # def updateGraph(self, sliderValue=98):
+    #     # Depending on the slider value, update the graph accordingly
+    #     # You can call the relevant plot method here with the new value
+    #     self.plot_test_predictions_vs_actuals(self.test_results, percentage=sliderValue)
+    #     self.plot_test_predictions.draw()
+    # def updateGraphTrain(self, sliderValue=98):
+    #     # Depending on the slider value, update the graph accordingly
+    #     # You can call the relevant plot method here with the new value
+    #     self.plot_train_predictions_vs_actuals(self.train_results, percentage=sliderValue)
+    #     self.plot_train_predictions.draw()
+    # def updateGraphVal(self, sliderValue=98):
+    #     # Depending on the slider value, update the graph accordingly
+    #     # You can call the relevant plot method here with the new value
+    #     self.plot_val_predictions_vs_actuals(self.val_results, percentage=sliderValue)
+    #     self.plot_val_predictions.draw()
+    def save_plots_as_pdf_val(self, parent_widget, val_results):
+        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Multivariate_RNN_Validation_Prediction_Report.pdf"
+        file_path = os.path.join(os.getcwd(), filename)
+
+        # Create a PDF canvas
+        with PdfPages(file_path) as pdf:
+            # Save each plot to the PDF
+            pdf.savefig(self.plot_val_predictions)
+            pdf.savefig(self.plot_val_residuals)
+            pdf.savefig(self.plot_val_histogram)
+
+        # Close plots after saving
+        plt.close(self.plot_val_predictions)
+        plt.close(self.plot_val_residuals)
+        plt.close(self.plot_val_histogram)
+
+        # Show notification
+        QMessageBox.information(parent_widget, "PDF Saved Successfully", f"PDF saved successfully at: {file_path}")
+
+        # Open the saved PDF file
+        try:
+            subprocess.Popen(["xdg-open", file_path])  # Linux
+        except:
+            os.startfile(file_path)  # Windows
+    
+    def save_plots_as_pdf_test(self, parent_widget, test_results):
+        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Univariate_RNN_Test_Prediction_Report.pdf"
+        file_path = os.path.join(os.getcwd(), filename)
+
+        # Create a PDF canvas
+        with PdfPages(file_path) as pdf:
+            # Save each plot to the PDF
+            pdf.savefig(self.plot_test_predictions)
+            pdf.savefig(self.plot_test_residuals)
+            pdf.savefig(self.plot_test_histogram)
+
+        # Close plots after saving
+        plt.close(self.plot_test_predictions)
+        plt.close(self.plot_test_residuals)
+        plt.close(self.plot_test_histogram)
+
+        # Show notification
+        QMessageBox.information(parent_widget, "PDF Saved Successfully", f"PDF saved successfully at: {file_path}")
+
+        # Open the saved PDF file
+        try:
+            subprocess.Popen(["xdg-open", file_path])  # Linux
+        except:
+            os.startfile(file_path)  # Windows
+    def plot_test_predictions_vs_actuals(self,test_results, percentage=10, figsize=(12, 6)):
+        num_entries = int(len(test_results) * (percentage / 100))
+        start_index = max(0, len(test_results) - num_entries)
+        
+        # Calculate error metrics
+        mae = mean_absolute_error(test_results['Actuals'][start_index:], test_results['Test Predictions'][start_index:])
+        mse = mean_squared_error(test_results['Actuals'][start_index:], test_results['Test Predictions'][start_index:])
+        rmse = np.sqrt(mse)
+        metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
+        
+        # Prepare a slice of the DataFrame for plotting
+        plot_data = test_results.iloc[start_index:].reset_index()
+        melted_data = pd.melt(plot_data, id_vars=['index'], value_vars=['Test Predictions', 'Actuals'])
+        
+        plt.figure(figsize=figsize)
+        sns.lineplot(data=melted_data, x='index', y='value', hue='variable')
+        plt.title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
+        plt.ylabel('Values')
+        plt.xlabel('')
+        plt.legend(title='Legend')
+        plt.text(0.2, 0.97, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+        
+    def plot_test_residuals_relationship(self,test_results, figsize=(8, 6)):
+        # Calculate residuals and squared residuals
+        test_results['Residuals'] = test_results['Actuals'] - test_results['Test Predictions']
+        test_results['Squared Residuals'] = test_results['Residuals']**2
+        
+        # Calculate error metrics
+        mae = mean_absolute_error(test_results['Actuals'], test_results['Test Predictions'])
+        mse = mean_squared_error(test_results['Actuals'], test_results['Test Predictions'])
+        rmse = np.sqrt(mse)
+        metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
+
+        # Create the plot
+        plt.figure(figsize=figsize)
+        sns.scatterplot(x=test_results['Actuals'], y=test_results['Squared Residuals'], alpha=0.5)
+        plt.title('Magnitude-Residual Relationship for Test Set')
+        plt.xlabel('Actual Values')
+        plt.ylabel('Squared Residuals')
+        plt.grid(True)
+        # Positioning the text
+        plt.text(0.01, 0.99, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+        
+    
+    def plot_test_residuals_histogram(self,test_results, bins=20, figsize=(8, 6), include_kde=True):
+        # Calculate residuals if not already calculated
+        if 'Residuals' not in test_results.columns:
+            test_results['Residuals'] = test_results['Actuals'] - test_results['Test Predictions']
+
+        # Calculate error metrics
+        mae = mean_absolute_error(test_results['Actuals'], test_results['Test Predictions'])
+        mse = mean_squared_error(test_results['Actuals'], test_results['Test Predictions'])
+        rmse = np.sqrt(mse)
+        metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
+
+        # Create histogram plot
+        plt.figure(figsize=figsize)
+        sns.histplot(test_results['Residuals'], bins=bins, kde=include_kde, edgecolor='black', color='g', alpha=0.7)
+        plt.title('Test Residuals')
+        plt.xlabel('Residuals')
+        plt.ylabel('Frequency')
+
+        # Add metrics text to plot
+        plt.text(0.99, 0.99, metrics_text, verticalalignment='top', horizontalalignment='right', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+        
+    def test_prediction(self,dialog, test_results):
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Multivariate RNN Test Results")
+        dialog.setMaximumSize(800, 900)  # Increased height to accommodate larger graphs
+        dialog_layout = QVBoxLayout(dialog)
+
+
+
+
+        # Add heading for test results report
+        heading_label = QLabel("======== Multivariate RNN Test Results Report ===========")
+        heading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        dialog_layout.addWidget(heading_label)
+
+        # Add scroll area for plots
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        dialog_layout.addWidget(scroll_area)
+
+        # Add scroll contents
+        scroll_contents = QWidget()
+        scroll_layout = QVBoxLayout(scroll_contents)
+        scroll_area.setWidget(scroll_contents)
+
+        self.percentage_slider = QSlider(Qt.Orientation.Horizontal)
+        self.percentage_slider.setMinimum(0)
+        self.percentage_slider.setMaximum(100)
+        self.percentage_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.percentage_slider.setTickInterval(50)
+        self.percentage_slider.setValue(98)
+        # Connect slider value changed signal to emit your custom signal
+        self.percentage_slider.sliderMoved.connect(lambda value: self.sliderValueChanged.emit(value))
+        self.test_results=test_results
+        # Plot test predictions vs actuals
+        self.plot_test_predictions_vs_actuals(test_results)
+        self.plot_test_predictions = plt.gcf().canvas
+        self.plot_test_predictions.setMinimumSize(600, 400)
+        scroll_layout.addWidget(self.plot_test_predictions)
+        plt.close()
+        # Plot residual relationships
+        self.plot_test_residuals_relationship(test_results)
+        self.plot_test_residuals = plt.gcf().canvas
+        self.plot_test_residuals.setMinimumSize(600, 400)
+        scroll_layout.addWidget(self.plot_test_residuals)
+
+        # Plot residual histogram
+        self.plot_test_residuals_histogram(test_results)
+        self.plot_test_histogram = plt.gcf().canvas
+        self.plot_test_histogram.setMinimumSize(600, 400)
+        scroll_layout.addWidget(self.plot_test_histogram)
+       
+        # Add buttons for interaction
+        dialog_layout.addWidget(scroll_area)
+
+
+        save_pdf_button = QPushButton("Save PDF", dialog)
+        save_pdf_button.clicked.connect(lambda: self.save_test_plots_as_pdf(dialog))
+        dialog_layout.addWidget(save_pdf_button)
+
+        dialog.exec()
+ 
+    def plot_train_predictions_vs_actuals(self,train_results, percentage=10, figsize=(12, 6)):
+        num_entries = int(len(train_results) * (percentage / 100))
+        start_index = max(0, len(train_results) - num_entries)
+        
+        # Calculate error metrics
+        mae = mean_absolute_error(train_results['Actuals'][start_index:], train_results['Train Predictions'][start_index:])
+        mse = mean_squared_error(train_results['Actuals'][start_index:], train_results['Train Predictions'][start_index:])
+        rmse = np.sqrt(mse)
+        metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
+        
+        # Prepare a slice of the DataFrame for plotting
+        plot_data = train_results.iloc[start_index:].reset_index()
+        melted_data = pd.melt(plot_data, id_vars=['index'], value_vars=['Train Predictions', 'Actuals'])
+        
+        plt.figure(figsize=figsize)
+        sns.lineplot(data=melted_data, x='index', y='value', hue='variable')
+        plt.title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
+        plt.ylabel('Values')
+        plt.xlabel('')
+        plt.legend(title='Legend')
+        plt.text(0.2, 0.97, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+    def plot_val_predictions_vs_actuals(self,val_results, percentage=10, figsize=(12, 6)):
+        num_entries = int(len(val_results) * (percentage / 100))
+        start_index = max(0, len(val_results) - num_entries)
+        
+        # Calculate error metrics
+        mae = mean_absolute_error(val_results['Actuals'][start_index:], val_results['Val Predictions'][start_index:])
+        mse = mean_squared_error(val_results['Actuals'][start_index:], val_results['Val Predictions'][start_index:])
+        rmse = np.sqrt(mse)
+        metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
+        
+        # Prepare a slice of the DataFrame for plotting
+        plot_data = val_results.iloc[start_index:].reset_index()
+        melted_data = pd.melt(plot_data, id_vars=['index'], value_vars=['Val Predictions', 'Actuals'])
+        
+        plt.figure(figsize=figsize)
+        sns.lineplot(data=melted_data, x='index', y='value', hue='variable')
+        plt.title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
+        plt.ylabel('Values')
+        plt.xlabel('')
+        plt.legend(title='Legend')
+        plt.text(0.2, 0.97, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+    def plot_train_residuals_relationship(self,train_results, figsize=(8, 6)):
+        # Calculate squared residuals
+        train_results['Residuals'] = (train_results['Actuals'] - train_results['Train Predictions'])
+        train_results['Squared Residuals'] = (train_results['Actuals'] - train_results['Train Predictions'])**2
+        mae = mean_absolute_error(train_results['Actuals'], train_results['Train Predictions'])
+        mse = mean_squared_error(train_results['Actuals'], train_results['Train Predictions'])
+        rmse = np.sqrt(mse)
+        metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
+
+        plt.figure(figsize=figsize)
+        sns.scatterplot(x=train_results['Actuals'], y=train_results['Squared Residuals'], alpha=0.5)
+        plt.title('Magnitude-Residual Relationship')
+        plt.xlabel('Actual Values')
+        plt.ylabel('Squared Residuals')
+        plt.grid(True)
+        # Positioning the text, might need adjustment based on actual data range
+        plt.text(0.01, 0.99, metrics_text, verticalalignment='top', horizontalalignment='left', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+    
+    def plot_train_residuals_histogram(self,train_results, bins=20, figsize=(8, 6), include_kde=True):
+        # Calculate residuals
+        #train_results['Residuals'] = train_results['Actuals'] - train_results['Train Predictions']
+
+        # Calculate error metrics
+        mae = mean_absolute_error(train_results['Actuals'], train_results['Train Predictions'])
+        mse = mean_squared_error(train_results['Actuals'], train_results['Train Predictions'])
+        rmse = np.sqrt(mse)
+        metrics_text = f"MAE: {mae:.2f}\nMSE: {mse:.2f}\nRMSE: {rmse:.2f}"
+
+        # Create histogram plot
+        plt.figure(figsize=figsize)
+        sns.histplot(train_results['Residuals'], bins=bins, kde=include_kde, edgecolor='black', color='g', alpha=0.7)
+        plt.title('Residuals_Train')
+        plt.xlabel('Residuals')
+        plt.ylabel('Frequency')
+
+        # Add metrics text to plot
+        plt.text(0.99, 0.99, metrics_text, verticalalignment='top', horizontalalignment='right', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
+        
+#%% Create X and y Matrix, vector (Input features and target variable)
+
+    def df_to_X_y(self,df, timesteps=6, target_column=0):
+        """
+        Converts a DataFrame into input-output sequences for model training.
+
+        Parameters:
+        - df: pandas DataFrame, the input data.
+        - timesteps: int, the number of timesteps per input sequence.
+        - target_column: int or str, the column in df that should be used as the target variable.
+
+        Returns:
+        - X: numpy array, the input sequences.
+        - y: numpy array, the target values associated with each input sequence.
+        """
+        try:
+            df_as_np = df.to_numpy()
+            X, y = [], []
+            if isinstance(target_column, str):
+                target_idx = df.columns.get_loc(target_column)
+            elif isinstance(target_column, int):
+                target_idx = target_column
+            else:
+                raise ValueError("target_column must be an integer index or string column name")
+
+            for i in range(len(df_as_np) - timesteps):
+                row = df_as_np[i:i+timesteps]
+                X.append(row)
+                target = df_as_np[i + timesteps][target_idx]
+                y.append(target)
+        
+            return np.array(X), np.array(y)
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return None, None
+    def split_data(self,data, train_size, val_size):
+        """
+        Split the data into train, validation, and test sets based on percentage sizes.
+        
+        Parameters:
+            data (np.ndarray): The dataset to split.
+            train_size (float): The proportion of the data to use for training (e.g., 0.6 for 60%).
+            val_size (float): The proportion of the data to use for validation (e.g., 0.2 for 20%).
+            
+        Returns:
+            tuple: Tuple containing train, validation, and test datasets.
+        """
+        try:
+            if train_size + val_size > 1.0:
+                raise ValueError("Sum of train_size and val_size should not exceed 1.0")
+
+            n = len(data)
+            train_end = int(n * train_size)
+            val_end = train_end + int(n * val_size)
+            test_end = n  # Ensures no data is lost due to rounding
+
+            train_data = data[:train_end]
+            val_data = data[train_end:val_end]
+            test_data = data[val_end:test_end]  # Explicit test_end for clarity
+
+            return train_data, val_data, test_data
+        except ValueError as ve:
+            print(f"Input error: {ve}")
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
+            return None, None, None
+
+    def validate_data(self):
+
+        return True
+
