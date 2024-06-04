@@ -153,7 +153,7 @@ from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
-from PyQt6.QtCore import Qt, QUrl,pyqtSignal,QDateTime,QThread,QModelIndex
+from PyQt6.QtCore import Qt, QUrl,pyqtSignal,QDateTime
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -392,8 +392,7 @@ class View(QMainWindow):
                 color: white;              /* White text */
                 border-radius: 7px;       /* Rounded corners */
                 padding: 6px;              /* Padding for text */
-                font-weight: bold;  
-                                  /* Bold font */
+                font-weight: bold;         /* Bold font */
             }
             QPushButton:hover {
                 background-color: #1b4972; /* Darker blue on hover */
@@ -5487,7 +5486,7 @@ class ConfigureRNN(QDialog):
    
 
         self.model = self.build_model(input_shape, num_units, dense_activation, dense_units, epochs, X_train_scaled, y_train, X_val_scaled, y_val)
-        
+                
         #history = self.model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=epochs, callbacks=self.callbacks)
         train_predictions = self.model.predict(X_train_scaled).flatten()
         train_results = pd.DataFrame(data={'Train Predictions': train_predictions, 'Actuals': y_train})
@@ -6154,150 +6153,6 @@ class ConfigureRNN(QDialog):
 
         return True
 
-class CheckableComboBoxDrop(QComboBox):
-
-    def __init__(self):
-        super().__init__()
-        self.view().pressed.connect(self.handleItemPressed)
-        self.setModel(QStandardItemModel(self))
-        self.setStyleSheet("""
-                QPushButton {
-                    background-color: #96b1c2; /* grey background */
-                    color: white;              /* White text */
-                    border-radius: 7px;       /* Rounded corners */
-                    padding: 6px;              /* Padding for text */
-                    font-weight: bold;
-                    font-size:7pt         /* Bold font */
-                }
-                QPushButton:hover {
-                    background-color: #1b4972; /* Darker blue on hover */
-                }
-                QLineEdit {
-                    border: 2px solid #edebe3;
-                    border-radius: 7px;
-                    padding: 3px;
-                    color: #0078D7;
-                    background-color: white;
-                }            QProgressBar {
-                    border: 1px solid #d3d3d3;
-                    border-radius: 10px;
-                    text-align: center;
-                    font-weight: bold;
-                    background-color: #e0e0e0;
-                    padding: 1px;
-                }
-
-                QProgressBar::chunk {
-                    background: qlineargradient(
-                        spread:pad, 
-                        x1:0, y1:0, x2:1, y2:0, 
-                        stop:0 #1e90ff, 
-                        stop:1 #4682b4
-                    );
-                    border-radius: 8px;
-                }
-    """)
-    def isChecked(self, index):
-        return self.model().item(index).checkState() == Qt.CheckState.Checked
-
-    def check_first_item_only(self):
-        for index in range(self.model().rowCount()):
-            item = self.model().item(index)
-            if index == 0:
-                item.setCheckState(Qt.CheckState.Checked)
-            else:
-                item.setCheckState(Qt.CheckState.Unchecked)
-
-    def addItem(self, text, is_numeric, dtype=None, has_nan=False):
-        if dtype is not None:
-            item_text = f"{text} [{dtype}]"
-        else:
-            item_text = f"{text}"
-        
-        item = QStandardItem(item_text)
-        if is_numeric:
-            item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
-            item.setData(Qt.CheckState.Checked, Qt.ItemDataRole.CheckStateRole)
-        else:
-            item.setFlags(Qt.ItemFlag.ItemIsEnabled)
-            item.setData(Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole)
-        
-        self.model().appendRow(item)
-
-        if has_nan:
-            self.add_custom_widget(item)
-
-    def add_custom_widget(self, item):
-        row = self.model().indexFromItem(item).row()
-        index = self.model().index(row, 0)
-
-        widget = QWidget(self.view())
-        layout = QHBoxLayout(widget)
-        layout.setContentsMargins(2, 2, 2, 2)  # Adjust margins as needed
-        layout.setSpacing(3)  # Adjust spacing as needed
-        spacer = QSpacerItem(40,40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
-
-      
-        drop_button = QPushButton("Drop", widget)
-        drop_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-
-        drop_button.setFixedSize(40,20)  # Adjust the size as needed
-        drop_button.clicked.connect(lambda: self.handle_drop_button_clicked(index))
-        layout.addSpacerItem(spacer)
-        layout.addWidget(drop_button)
-
-        widget.setLayout(layout)
-        
-        self.view().setIndexWidget(index, widget)
-
-    def handle_checkbox_state_changed(self, item, state):
-        if state == Qt.CheckState.Checked:
-            item.setCheckState(Qt.CheckState.Checked)
-        else:
-            item.setCheckState(Qt.CheckState.Unchecked)
-
-    def handle_drop_button_clicked(self, index: QModelIndex):
-        item = self.model().itemFromIndex(index)
-        if item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
-            item.setCheckState(Qt.CheckState.Unchecked)
-            checkbox = QCheckBox()
-            if checkbox is not None:
-                checkbox.setChecked(False)
-
-    def unselect_all(self):
-        for index in range(self.model().rowCount()):
-            item = self.model().item(index)
-            if item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
-                item.setCheckState(Qt.CheckState.Unchecked)
-
-    def handleItemPressed(self, index):
-        item = self.model().itemFromIndex(index)
-        if item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
-            newState = Qt.CheckState.Unchecked if item.checkState() == Qt.CheckState.Checked else Qt.CheckState.Checked
-            item.setCheckState(newState)
-            checkbox = QCheckBox()
-            if checkbox is not None:
-                checkbox.setChecked(newState == Qt.CheckState.Checked)
-
-    def checkedItems(self):
-        checked_items = []
-        for i in range(self.model().rowCount()):
-            item = self.model().item(i)
-            if item.flags() & Qt.ItemFlag.ItemIsUserCheckable and item.checkState() == Qt.CheckState.Checked:
-                checked_items.append(item.text())
-        return checked_items
-
-    def get_checked_items(self):
-        checked_items = []
-        for index in range(self.model().rowCount()):
-            item = self.model().item(index)
-            if item.flags() & Qt.ItemFlag.ItemIsUserCheckable and item.checkState() == Qt.CheckState.Checked:
-                if '[' in item.text():
-                    column_name = item.text().split(' [')[0]
-                else:
-                    column_name = item.text()
-                checked_items.append(column_name)
-        return checked_items
 
 class ProgressCallback(Callback):
     def __init__(self, progress_bar, total_epochs):
@@ -6307,16 +6162,13 @@ class ProgressCallback(Callback):
 
     def on_epoch_end(self, epoch, logs=None):
         progress = int((epoch + 1) / self.total_epochs * 100)
-        # Ensure progress is within acceptable range
-        progress = max(0, min(progress, 100))
         self.progress_bar.setValue(progress)
 
 class MultiRNN(QDialog):
     sliderValueChanged = pyqtSignal(int)
     sliderValueChangedTrain = pyqtSignal(int)
     sliderValueChangedVal = pyqtSignal(int)
-    processFinished = pyqtSignal()
-
+    
     def create_combobox_with_range(self, start, end, step, default_value=None):
         combobox = QComboBox()
         combobox.setEditable(True)  # Ensure it has a dropdown list
@@ -6327,53 +6179,6 @@ class MultiRNN(QDialog):
             if index != -1:
                 combobox.setCurrentIndex(index)
         return combobox
-    def remove_datetime_index(self):
-        # Re-enable the previously selected item in column_selection2
-        if self.previous_selection is not None:
-            for i in range(self.column_selection2.count()):
-                item_text = self.column_selection2.itemText(i)
-                if item_text == self.previous_selection:
-                    item = self.column_selection2.model().item(i)
-                    item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEnabled)
-                    break
-
-        # Check if the index column is a datetime index
-        if isinstance(self.dataframe.index, pd.DatetimeIndex):
-            index_name = self.dataframe.index.name.strip() if self.dataframe.index.name else None
-
-            # Disable datetime index item in column_selection2 combo box
-            for i in range(self.column_selection2.count()):
-                item_text = self.column_selection2.itemText(i)
-                if item_text == index_name:
-                    item = self.column_selection2.model().item(i)
-                    item.setCheckState(Qt.CheckState.Unchecked)
-                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)  # Disable the checkbox
-                    break
-
-            # Disable datetime index item in column_selection combo box
-            for i in range(self.column_selection.count()):
-                if self.column_selection.itemText(i) == index_name:
-                    item = self.column_selection.model().item(i)
-                    item.setCheckState(Qt.CheckState.Unchecked)
-                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)  # Disable the checkbox
-
-        # Re-enable all items in column_selection2 except the current selection
-        for i in range(self.column_selection2.count()):
-            item = self.column_selection2.model().item(i)
-            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEnabled)
-
-        index_na = self.column_selection.currentText()
-
-        # Disable the current selection in column_selection2
-        for i in range(self.column_selection2.count()):
-            if self.column_selection2.itemText(i) == index_na:
-                item = self.column_selection2.model().item(i)
-                item.setCheckState(Qt.CheckState.Unchecked)
-                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
-                break
-
-        # Store the new selection as previous selection
-        self.previous_selection = self.column_selection.currentText()
     def delete_model_directory(self):
         model_dir = 'model_multi'
         if os.path.exists(model_dir):
@@ -6382,8 +6187,7 @@ class MultiRNN(QDialog):
     def __init__(self,dataframe, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Model Architecture")
-        self.setMinimumSize(800, 600)
-
+        
         # self.sliderValueChanged.connect(self.updateGraph)
         # self.sliderValueChangedTrain.connect(self.updateGraphTrain)
         # self.sliderValueChangedVal.connect(self.updateGraphVal)
@@ -6391,8 +6195,9 @@ class MultiRNN(QDialog):
         self.setWindowIcon(QIcon(icon_path))
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
                             Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
-                            Qt.WindowType.CustomizeWindowHint)
-        self.previous_selection=None
+                            Qt.WindowType.CustomizeWindowHint) 
+                # Initialize the plot_test_predictions attribute
+       
         self.dataframe = dataframe.copy()
         self.dataframe.columns = self.dataframe.columns.str.strip()
         self.setup_ui()
@@ -6463,36 +6268,24 @@ class MultiRNN(QDialog):
         # Series Column
         series_groupbox = QGroupBox("Series")
         series_layout = QVBoxLayout()
-        valid_columns = [
-            col for col in self.dataframe.columns 
-            if np.issubdtype(self.dataframe[col].dtype, np.number) and not self.dataframe[col].isna().all()
-        ]
-
-        # Set up the target column combo box
         self.column_selection = QComboBox()
-        self.column_selection.addItems([str(col) for col in valid_columns])
+        self.column_selection.addItems(
+            [str(col) for col in self.dataframe.columns if np.issubdtype(self.dataframe[col].dtype, np.number)]
+        )      
         series_layout.addWidget(QLabel("Target Column:"))
         series_layout.addWidget(self.column_selection)
                 
-        self.column_selection2 = CheckableComboBoxDrop()  
+        self.column_selection2 = CheckableComboBox()  # Using CheckableComboBox instead of QComboBox
+        self.column_selection2.check_first_item_only()  
+        # Ensure only the first item is checked by default
         for col in self.dataframe.columns:
-            # Check if the column is numeric before adding it
-            is_numeric = np.issubdtype(self.dataframe[col].dtype, np.number) and not self.dataframe[col].isna().all()
-            has_nan = self.dataframe[col].isna().any()
-            self.column_selection2.addItem(col, is_numeric, has_nan=has_nan)
-       # self.column_selection2.check_first_item_only()  
-        self.column_selection.currentIndexChanged.connect(self.remove_datetime_index)
-        self.column_selection2.currentIndexChanged.connect(self.remove_datetime_index)
-
-
-        
+            self.column_selection2.addItem(col, True)  # Assuming all columns are numeric
         series_layout.addWidget(QLabel("Input Columns:"))
         series_layout.addWidget(self.column_selection2)
   
         series_layout.addSpacing(60)  # Add space after the combobox
         series_groupbox.setLayout(series_layout)
         input_layout.addWidget(series_groupbox)
-        self.remove_datetime_index()
 
         # Split Column
         split_groupbox = QGroupBox("Data Splitting")
@@ -6649,7 +6442,7 @@ class MultiRNN(QDialog):
         Model Summary:
         -----------------------
         - Model Type: LSTM RNN
-        - Input: {self.req_col}
+        - Input: {self.column_selection2.currentText()}
         - Output: {self.column_selection.currentText()}
         - Time Steps: {self.window_size_dropdown.currentText()}
         - LSTM Units: {self.lstm_units_dropdown.currentText()}
@@ -6668,24 +6461,24 @@ class MultiRNN(QDialog):
         - Root Mean Squared Error: {rmse:.4f}
         """
         
-        # final_training_results = f"""
-        # Final Training Results:
-        # -----------------------
-        # - Final Training Loss: {history.history['loss'][-1]:.4f}
-        # - Final Training Accuracy: {history.history['accuracy'][-1]:.4f}
-        # - Final Validation Loss: {history.history['val_loss'][-1]:.4f}
-        # - Final Validation Accuracy: {history.history['val_accuracy'][-1]:.4f}
-        # """
+        final_training_results = f"""
+        Final Training Results:
+        -----------------------
+        - Final Training Loss: {history.history['loss'][-1]:.4f}
+        - Final Training Accuracy: {history.history['accuracy'][-1]:.4f}
+        - Final Validation Loss: {history.history['val_loss'][-1]:.4f}
+        - Final Validation Accuracy: {history.history['val_accuracy'][-1]:.4f}
+        """
         
-        # test_results = f"""
-        # Test Results:
-        # -----------------------
-        # - Test Loss: {test_loss:.4f}
-        # - Test Accuracy: {test_accuracy:.4f}
-        # """
+        test_results = f"""
+        Test Results:
+        -----------------------
+        - Test Loss: {test_loss:.4f}
+        - Test Accuracy: {test_accuracy:.4f}
+        """
 
         # Combine all sections
-        summary_text = '\n'.join([model_summary, training_results])
+        summary_text = '\n'.join([model_summary, training_results, final_training_results, test_results])
         self.summary_label.setText(summary_text)
 
     def closeEvent(self, event):
@@ -6716,23 +6509,12 @@ class MultiRNN(QDialog):
     # Define the required columns (target column first, input columns next)
         required_cols = [self.column_selection.currentText()] + self.column_selection2.get_checked_items()
         print(required_cols)
-        self.req_col=[self.column_selection2.currentText()] +required_cols
         actual_data = self.dataframe
-        actual_data.columns = actual_data.columns.str.lstrip()
-        actual_data.columns = actual_data.columns.str.rstrip()
-
-        # print out sample dataset
-        #print(len(df))
-        actual_data.head()
-        actual_data.index = pd.to_datetime(actual_data.datetime_utc)
         actual_data = actual_data[required_cols]
         actual_data.rename(columns=lambda x: x.strip(), inplace=True)
         NN_df = actual_data[required_cols]
         NN_df.isna().sum()
-        for col in NN_df.columns:
-            # Backfill first, then forward fill
-            NN_df[col] = NN_df[col].bfill().ffill()      
-        print(NN_df)
+        NN_df = NN_df.fillna(method='ffill')
         X, y = self.df_to_X_y(NN_df, timesteps,selected_column)
         print(X.shape, y.shape)
         X_train, X_val, X_test = self.split_data(X, train_percent, val_percent_of_train)
@@ -6756,9 +6538,7 @@ class MultiRNN(QDialog):
    
 
         self.model = self.build_model(input_shape,batch_size, num_units, dense_activation, dense_units, epochs, X_train_scaled, y_train, X_val_scaled, y_val)
-        # training_thread = TrainingThread(self.model, X_train_scaled, y_train, X_val_scaled, y_val, epochs, batch_size, self.use_early_stopping,self.progress_bar)
-        # training_thread.update_progress.connect(self.update_progress)
-        # training_thread.start()
+                
         #history = self.model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=epochs, callbacks=self.callbacks)
         train_predictions = self.model.predict(X_train_scaled).flatten()
         train_results = pd.DataFrame(data={'Train Predictions': train_predictions, 'Actuals': y_train})
@@ -6766,7 +6546,7 @@ class MultiRNN(QDialog):
         val_results = pd.DataFrame(data={'Val Predictions':val_predictions, 'Actuals':y_val})
         test_predictions = self.model.predict(X_test_scaled).flatten()
         test_results = pd.DataFrame(data={'Test Predictions':test_predictions, 'Actuals':y_test})
-         
+       
 
             
 
@@ -6810,66 +6590,52 @@ class MultiRNN(QDialog):
             self.generate_plots(self.train_results)
     def build_model(self, input_shape, batch_size,num_units, dense_activation,dense_units,epochs,X_train_scaled,y_train,X_val_scaled,y_val):
 
-            model = Sequential()
-            model.add(InputLayer(shape=input_shape))
-            model.add(LSTM(units=num_units))  # User-adjustable number of LSTM units
-            model.add(Dense(dense_units, activation=dense_activation))  # User-adjustable number of dense units
-            model.add(Dense(1, activation='linear'))  # Output Dense Layer
-            model.compile(
-                loss=MeanSquaredError(),
-                optimizer=Adam(learning_rate=0.0001),
-                metrics=['accuracy', RootMeanSquaredError()]  # Include accuracy as a metric
-            )
+        model = Sequential()
+        model.add(InputLayer(shape=input_shape))
+        model.add(LSTM(units=num_units))  # User-adjustable number of LSTM units
+        model.add(Dense(dense_units, activation=dense_activation))  # User-adjustable number of dense units
+        model.add(Dense(1, activation='linear'))  # Output Dense Layer
+        model.compile(
+            loss=MeanSquaredError(),
+            optimizer=Adam(learning_rate=0.0001),
+            metrics=['accuracy', RootMeanSquaredError()]  # Include accuracy as a metric
+        )
 
-            # Set up Early Stopping and callbacks
-            early_stopping = EarlyStopping(
-                monitor='val_loss',
-                patience=3,
-                verbose=1,
-                mode='min',
-                restore_best_weights=True
-            )
-            self.progress_bar.setValue(0)
-
-            worker_thread = WorkerThread()
-            progress_callback = ProgressCallback(self.progress_bar, total_epochs=epochs)
-            worker_thread.updateProgress.connect(progress_callback.on_epoch_end)
-            worker_thread.processFinished.connect(self.train_model_finished)
-            worker_thread.start()
+        # Set up Early Stopping and callbacks
+        early_stopping = EarlyStopping(
+            monitor='val_loss',
+            patience=3,
+            verbose=1,
+            mode='min',
+            restore_best_weights=True
+        )
+        progress_callback = ProgressCallback(self.progress_bar,total_epochs=epochs)
+        self.progress_bar.setValue(0)
 
 
-            # Set up the Model Checkpoint
-            cp = ModelCheckpoint('model_multi/model_checkpoint.keras', save_best_only=True)        # Check if the user wants to use EarlyStopping
-            if self.use_early_stopping == 'yes':
-                self.history =     model.fit(
-                X_train_scaled, y_train, 
-                validation_data=(X_val_scaled, y_val),
-                epochs=epochs, 
-                batch_size=batch_size,
-                callbacks=[cp, early_stopping,progress_callback]
-                )
-                self.callbacks = [cp, progress_callback, early_stopping]
-            else:
-                self.history = model.fit(
-                X_train_scaled, y_train, 
-                validation_data=(X_val_scaled, y_val),
-                epochs=epochs, 
-                batch_size=batch_size,
+        # Set up the Model Checkpoint
+        cp = ModelCheckpoint('model_multi/model_checkpoint.keras', save_best_only=True)        # Check if the user wants to use EarlyStopping
+        if self.use_early_stopping == 'yes':
+            self.history =     model.fit(
+            X_train_scaled, y_train, 
+            validation_data=(X_val_scaled, y_val),
+            epochs=epochs, 
+            batch_size=batch_size,
+            callbacks=[cp, early_stopping,progress_callback]
+             )
+            self.callbacks = [cp, progress_callback, early_stopping]
+        else:
+            self.history = model.fit(
+            X_train_scaled, y_train, 
+            validation_data=(X_val_scaled, y_val),
+            epochs=epochs, 
+            batch_size=batch_size,
 
-                callbacks=[cp, progress_callback])
-                self.callbacks = [cp, progress_callback]
+            callbacks=[cp, progress_callback])
+            self.callbacks = [cp, progress_callback]
 
-            
-            return model
-    
-    
-    def update_progress_bar(self, value):
-        self.progress_bar.setValue(value)
-
-    def train_model_finished(self):
-        self.progress_bar.setValue(100)
-        self.tab_widget.setCurrentIndex(1)
-
+        
+        return model
     def generate_plots_test(self, test_results):
         self.generate_model_summary(self.model, self.history, self.test_loss, self.test_rmse,self.y_train, self.y_val, self.y_test, self.mae, self.mse, self.rmse)
 
@@ -7487,55 +7253,3 @@ class MultiRNN(QDialog):
 
         return True
 
-    def update_progress(self, progress):
-        self.progress_bar.setValue(progress)
-
-class TrainingThread(QThread):
-    update_progress = pyqtSignal(int)
-
-    def __init__(self, model, X_train_scaled, y_train, X_val_scaled, y_val, epochs, batch_size, use_early_stopping,progress_bar):  # Pass progress_bar to the thread
-
-        super().__init__()
-        self.model = model
-        self.X_train_scaled = X_train_scaled
-        self.y_train = y_train
-        self.X_val_scaled = X_val_scaled
-        self.y_val = y_val
-        self.epochs = epochs
-        self.batch_size = batch_size
-        self.use_early_stopping = use_early_stopping
-        self.progress_bar = progress_bar  # Pass progress_bar to the thread
-
-
-    def run(self):
-        progress_callback = ProgressCallback(self.progress_bar, total_epochs=self.epochs)
-        if self.use_early_stopping == 'yes':
-            self.history = self.model.fit(
-                self.X_train_scaled, self.y_train,
-                validation_data=(self.X_val_scaled, self.y_val),
-                epochs=self.epochs,
-                batch_size=self.batch_size,
-                callbacks=[progress_callback, EarlyStopping(patience=3, restore_best_weights=True)]
-            )
-        else:
-            self.history = self.model.fit(
-                self.X_train_scaled, self.y_train,
-                validation_data=(self.X_val_scaled, self.y_val),
-                epochs=self.epochs,
-                batch_size=self.batch_size,
-                callbacks=[progress_callback]
-            )
-class WorkerThread(QThread):
-    updateProgress = pyqtSignal(int)
-    processFinished = pyqtSignal()
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
-    def run(self):
-        total_steps = 100
-        for i in range(total_steps):
-            # Do some work here
-            progress = (i + 1) * 100 / total_steps
-            self.updateProgress.emit(progress)
-            self.msleep(100)  # Simula
