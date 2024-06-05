@@ -6879,7 +6879,7 @@ class MultiRNN(QDialog):
         self.y_train=y_train
         self.y_val=y_val
         self.tab_widget.setCurrentIndex(0)
-        self.generate_plots
+      
             
         self.refresh_train_tab()
         # Generate and display the model summary
@@ -6887,6 +6887,9 @@ class MultiRNN(QDialog):
         if self.tab_widget.currentIndex() == 0 and self.train_results is not None:
 
             self.generate_plots(self.train_results)
+            self.mae = mean_absolute_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
+            self.mse = mean_squared_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
+            self.rmse = np.sqrt(self.mse)
         if self.tab_widget.currentIndex() == 1 and self.val_results is not None:
             self.mae = mean_absolute_error(self.val_results['Actuals'], self.val_results['Val Predictions'])
             self.mse = mean_squared_error(self.val_results['Actuals'], self.val_results['Val Predictions'])
@@ -7043,9 +7046,7 @@ class MultiRNN(QDialog):
     # def update_tooltip_train(self, value):
     #     self.percentage_slider_train.setToolTip(f"{value}%")
     def generate_plots(self, train_results):
-        self.mae = mean_absolute_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
-        self.mse = mean_squared_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
-        self.rmse = np.sqrt(self.mse)
+
         self.generate_model_summary(self.model, self.history, self.test_loss, self.test_rmse,self.y_train, self.y_val, self.y_test, self.mae, self.mse, self.rmse)
 
           # Clear any existing widgets in the layout
