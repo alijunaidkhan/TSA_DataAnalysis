@@ -171,6 +171,27 @@ class Controller:
             self.view.show_message("Error", f"Error saving data: {e}")
         icon_path = os.path.abspath('images/bulb_icon.png')
         self.view.setWindowIcon(QIcon(icon_path))
+    def delete_columns(self, columns):
+        """
+        Deletes the specified columns from the data frame.
+        """
+        if self.model.data_frame is not None:
+            self.model.data_frame.drop(columns=columns, inplace=True)
+            self.view.display_data(self.model.data_frame)
+            QMessageBox.information(self.view, "Success", f"Successfully deleted {columns}")
+    def apply_fill(self, columns, method):
+        """
+        Applies the specified fill method to the specified columns.
+        """
+        if self.model.data_frame is not None:
+            if method == "forward":
+                self.model.data_frame[columns] = self.model.data_frame[columns].ffill()
+            elif method == "backward":
+                self.model.data_frame[columns] = self.model.data_frame[columns].bfill()
+            # No fill case is handled by simply not modifying the data_frame
+
+            self.view.display_data(self.model.data_frame)
+            QMessageBox.information(self.view, "Success", f"Successfully done {method} filled {columns}!")
 
     def run(self):
         """

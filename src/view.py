@@ -790,6 +790,16 @@ class View(QMainWindow):
         resample_action = QAction(resample_icon, "&Resample", self)
         resample_action.triggered.connect(self.controller.open_resample_dialog)
         preprocess_menu.addAction(resample_action)
+        delete_icon = QIcon('images/delete_icon.ico')  # Ensure the icon path is correct
+        delete_columns_action = QAction(delete_icon,"&Delete Columns", self)
+        delete_columns_action.triggered.connect(self.open_delete_columns_dialog)
+        imputation_icon = QIcon('images/imputation_icon.ico')  # Ensure the icon path is correct
+
+        preprocess_menu.addAction(delete_columns_action)
+        imputation_action = QAction(imputation_icon,"&Imputation", self)
+        imputation_action.triggered.connect(self.open_imputation_dialog)
+        preprocess_menu.addAction(imputation_action)
+
 # Create Model menu
                # Create Model menu
         model_menu = self.menuBar().addMenu("&Model")
@@ -847,6 +857,38 @@ class View(QMainWindow):
         forecast_menu.addAction(arima_based)
         forecast_menu.addAction(univariate_based)
         forecast_menu.addAction(multivariate_based)
+    def open_delete_columns_dialog(self):
+        """
+        Opens the Delete Columns dialog.
+        """
+        if self.controller.model.data_frame is None:
+            # Display a warning message if no data is loaded
+            icon_path = os.path.abspath('images/delete_icon.ico')
+            self.setWindowIcon(QIcon(icon_path))
+            QMessageBox.warning(self, "Data Not Loaded", "Please load data first before accessing this feature.")
+            # Optionally, set a specific icon to indicate the need for action or an error state
+            icon_path = os.path.abspath('images/bulb_icon.png')
+            self.setWindowIcon(QIcon(icon_path))
+            return
+        else:
+            dialog = DeleteColumnsDialog(self.controller, self)
+            dialog.exec()
+    def open_imputation_dialog(self):
+        """
+        Opens the Delete Columns dialog.
+        """
+        if self.controller.model.data_frame is None:
+            # Display a warning message if no data is loaded
+            icon_path = os.path.abspath('images/imputation_icon.ico')
+            self.setWindowIcon(QIcon(icon_path))
+            QMessageBox.warning(self, "Data Not Loaded", "Please load data first before accessing this feature.")
+            # Optionally, set a specific icon to indicate the need for action or an error state
+            icon_path = os.path.abspath('images/bulb_icon.png')
+            self.setWindowIcon(QIcon(icon_path))
+            return
+        else:
+            dialog = ImputationDialog(self.controller, self)
+            dialog.exec()
     def multi_rnn(self):
         if self.controller.model.data_frame is  None:
          icon_path = os.path.abspath('images/multivariate_icon.ico')
@@ -1625,7 +1667,7 @@ class CheckableComboBox(QComboBox):
                 item.setCheckState(Qt.CheckState.Checked)  # Check the first item
             else:
                 item.setCheckState(Qt.CheckState.Unchecked)  # Uncheck all other items
-    def addItem(self, text, is_numeric, dtype=None):
+    def addItem(self, text, is_numeric, dtype=None,checked=True):
   
      if dtype is not None:
         item_text = f"{text} [{dtype}]"  # Concatenate column name and dtype
@@ -1635,7 +1677,8 @@ class CheckableComboBox(QComboBox):
      if is_numeric:
         item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
         # Set numeric items to be checked by default
-        item.setData(Qt.CheckState.Checked, Qt.ItemDataRole.CheckStateRole)
+        item.setData(Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole)
+
      else:
         # Non-numeric columns are not user-checkable but are still enabled.
         item.setFlags(Qt.ItemFlag.ItemIsEnabled)
@@ -1675,6 +1718,66 @@ class CheckableComboBox(QComboBox):
                     column_name = item.text()  # Otherwise, use the whole text as the column name
                 checked_items.append(column_name)
         return checked_items
+
+# Define the DeleteColumnsDialog class
+class DeleteColumnsDialog(QDialog):
+    def __init__(self, controller, parent=None):
+        super().__init__(parent)
+        self.controller = controller
+        self.setWindowTitle("Delete Columns")
+        icon_path = os.path.abspath('images/delete_icon.ico')
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
+                            Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
+                            Qt.WindowType.CustomizeWindowHint)  # Add min/max window option
+        self.setWindowIcon(QIcon(icon_path))
+        self.setGeometry(300, 300, 400, 200)
+        self.layout = QVBoxLayout()
+        
+        # Create a group box for the combo box and label
+        group_box = QGroupBox("Select column(s) to delete:")
+        group_layout = QVBoxLayout()
+        self.label = QLabel("Delete Column(s):")
+        self.comboBox = CheckableComboBox()
+        self.populate_columns()
+        group_layout.addWidget(self.label)
+        group_layout.addWidget(self.comboBox)
+        group_box.setLayout(group_layout)
+        self.layout.addWidget(group_box)
+        
+        # Add buttons for cancel and delete actions
+        button_layout = QHBoxLayout()
+        self.delete_button = QPushButton("Delete")
+        self.cancel_button = QPushButton("Cancel")
+        button_layout.addWidget(self.delete_button)
+        button_layout.addWidget(self.cancel_button)
+        self.layout.addLayout(button_layout)
+        self.setLayout(self.layout)
+        
+        # Connect buttons to their actions
+        self.delete_button.clicked.connect(self.confirm_delete)
+        self.cancel_button.clicked.connect(self.close)
+    
+    def populate_columns(self):
+        # Assuming the data frame is available through the controller
+        df = self.controller.model.data_frame
+        for col in df.columns:
+            dtype = str(df[col].dtype)
+            self.comboBox.addItem(col, True, dtype, False)
+    
+    def confirm_delete(self):
+        checked_items = self.comboBox.get_checked_items()
+        if checked_items:
+            reply = QMessageBox.question(
+                self, 'Confirm Delete', 
+                f"Are you sure you want to delete the selected columns: {', '.join(checked_items)}?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self.delete_columns(checked_items)
+    
+    def delete_columns(self, checked_items):
+        self.controller.delete_columns(checked_items)
+        self.close()
 
 class SetIndexDialog(QDialog):
     def __init__(self, columns, parent=None):
@@ -5465,6 +5568,7 @@ class ConfigureRNN(QDialog):
         actual_data = self.dataframe
         print(train_percent, val_percent_of_train)
         NN_df = actual_data[selected_column]
+
         X1, y1 = self.df_to_X_y(NN_df, timesteps)
         print(X1.shape, y1.shape)
         X_train, X_val, X_test = self.split_data(X1, train_percent, val_percent_of_train)
@@ -6465,7 +6569,7 @@ class MultiRNN(QDialog):
         series_layout = QVBoxLayout()
         valid_columns = [
             col for col in self.dataframe.columns 
-            if np.issubdtype(self.dataframe[col].dtype, np.number) and not self.dataframe[col].isna().all()
+            if np.issubdtype(self.dataframe[col].dtype, np.number) 
         ]
 
         # Set up the target column combo box
@@ -6474,12 +6578,11 @@ class MultiRNN(QDialog):
         series_layout.addWidget(QLabel("Target Column:"))
         series_layout.addWidget(self.column_selection)
                 
-        self.column_selection2 = CheckableComboBoxDrop()  
+        self.column_selection2 = CheckableComboBox()  
         for col in self.dataframe.columns:
             # Check if the column is numeric before adding it
-            is_numeric = np.issubdtype(self.dataframe[col].dtype, np.number) and not self.dataframe[col].isna().all()
-            has_nan = self.dataframe[col].isna().any()
-            self.column_selection2.addItem(col, is_numeric, has_nan=has_nan)
+            is_numeric = np.issubdtype(self.dataframe[col].dtype, np.number) 
+            self.column_selection2.addItem(col, is_numeric)
        # self.column_selection2.check_first_item_only()  
         self.column_selection.currentIndexChanged.connect(self.remove_datetime_index)
         self.column_selection2.currentIndexChanged.connect(self.remove_datetime_index)
@@ -6723,16 +6826,16 @@ class MultiRNN(QDialog):
 
         # print out sample dataset
         #print(len(df))
-        actual_data.head()
-        actual_data.index = pd.to_datetime(actual_data.datetime_utc)
+       
         actual_data = actual_data[required_cols]
         actual_data.rename(columns=lambda x: x.strip(), inplace=True)
         NN_df = actual_data[required_cols]
-        NN_df.isna().sum()
-        for col in NN_df.columns:
-            # Backfill first, then forward fill
-            NN_df[col] = NN_df[col].bfill().ffill()      
-        print(NN_df)
+        if NN_df.isnull().any().any():
+            columns_with_nulls = NN_df.columns[NN_df.isnull().any()].tolist()
+            warning_message = f"NaN values found in columns: {', '.join(columns_with_nulls)}. Please go to Preprocess menu and perform imputation to fill the missing values."
+            QMessageBox.warning(self, "Warning", warning_message, QMessageBox.StandardButton.Ok)
+            return
+
         X, y = self.df_to_X_y(NN_df, timesteps,selected_column)
         print(X.shape, y.shape)
         X_train, X_val, X_test = self.split_data(X, train_percent, val_percent_of_train)
@@ -6768,7 +6871,6 @@ class MultiRNN(QDialog):
         test_results = pd.DataFrame(data={'Test Predictions':test_predictions, 'Actuals':y_test})
          
 
-            
 
         evaluation_results = self.model.evaluate(X_test_scaled, y_test, verbose=0)
         self.test_loss = evaluation_results[0]
@@ -6776,13 +6878,14 @@ class MultiRNN(QDialog):
         self.y_test=y_test
         self.y_train=y_train
         self.y_val=y_val
+        self.tab_widget.setCurrentIndex(0)
+        self.generate_plots
+            
         self.refresh_train_tab()
         # Generate and display the model summary
         # Only generate plots if the train tab is active
         if self.tab_widget.currentIndex() == 0 and self.train_results is not None:
-            self.mae = mean_absolute_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
-            self.mse = mean_squared_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
-            self.rmse = np.sqrt(self.mse)
+
             self.generate_plots(self.train_results)
         if self.tab_widget.currentIndex() == 1 and self.val_results is not None:
             self.mae = mean_absolute_error(self.val_results['Actuals'], self.val_results['Val Predictions'])
@@ -6940,6 +7043,9 @@ class MultiRNN(QDialog):
     # def update_tooltip_train(self, value):
     #     self.percentage_slider_train.setToolTip(f"{value}%")
     def generate_plots(self, train_results):
+        self.mae = mean_absolute_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
+        self.mse = mean_squared_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
+        self.rmse = np.sqrt(self.mse)
         self.generate_model_summary(self.model, self.history, self.test_loss, self.test_rmse,self.y_train, self.y_val, self.y_test, self.mae, self.mse, self.rmse)
 
           # Clear any existing widgets in the layout
@@ -7539,3 +7645,103 @@ class WorkerThread(QThread):
             progress = (i + 1) * 100 / total_steps
             self.updateProgress.emit(progress)
             self.msleep(100)  # Simula
+# Define the ImputationDialog class
+class ImputationDialog(QDialog):
+    def __init__(self, controller, parent=None):
+        super().__init__(parent)
+        self.controller = controller
+        self.setWindowTitle("Imputation")
+        icon_path = os.path.abspath('images/imputation_icon.ico')
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
+                            Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
+                            Qt.WindowType.CustomizeWindowHint)  # Add min/max window option
+        self.setWindowIcon(QIcon(icon_path))
+        self.setGeometry(300,300, 400, 250)
+        self.layout = QVBoxLayout()
+        
+        # Create a group box for imputation options
+        imputation_group_box = QGroupBox("Select Imputation Method:")
+        imputation_group_layout = QVBoxLayout()
+        
+        self.forward_fill_radio = QRadioButton("Forward Fill")
+        self.backward_fill_radio = QRadioButton("Backward Fill")
+        self.no_fill_radio = QRadioButton("No Fill")
+        
+        imputation_group_layout.addWidget(self.forward_fill_radio)
+        imputation_group_layout.addWidget(self.backward_fill_radio)
+        imputation_group_layout.addWidget(self.no_fill_radio)
+        
+        imputation_group_box.setLayout(imputation_group_layout)
+        self.layout.addWidget(imputation_group_box)
+        
+        # Create a group box for the combo box and label
+        group_box = QGroupBox("Select column(s) to fill:")
+        group_layout = QVBoxLayout()
+        self.label = QLabel("Columns with NaNs:")
+        self.comboBox = CheckableComboBox()
+        self.populate_columns()
+        group_layout.addWidget(self.label)
+        group_layout.addWidget(self.comboBox)
+        group_box.setLayout(group_layout)
+        self.layout.addWidget(group_box)
+        
+        # Add buttons for cancel and fill actions
+        button_layout = QHBoxLayout()
+        self.fill_button = QPushButton("Fill")
+        self.cancel_button = QPushButton("Cancel")
+        button_layout.addWidget(self.fill_button)
+        button_layout.addWidget(self.cancel_button)
+        self.layout.addLayout(button_layout)
+        self.setLayout(self.layout)
+        
+        # Connect buttons to their actions
+        self.fill_button.clicked.connect(self.confirm_fill)
+        self.cancel_button.clicked.connect(self.close)
+    
+    def populate_columns(self):
+        # Assuming the data frame is available through the controller
+        df = self.controller.model.data_frame
+        for col in df.columns:
+            if df[col].isnull().any():
+                dtype = str(df[col].dtype)
+                self.comboBox.addItem(col, True, dtype, False)
+    
+    def confirm_fill(self):
+        checked_items = self.comboBox.get_checked_items()
+        if checked_items:
+            fill_method = None
+            if self.forward_fill_radio.isChecked():
+                fill_method = "forward"
+            elif self.backward_fill_radio.isChecked():
+                fill_method = "backward"
+            elif self.no_fill_radio.isChecked():
+                fill_method = "none"
+
+            if fill_method is not None:
+                reply = QMessageBox.question(
+                    self, 'Confirm Fill', 
+                    f"Are you sure you want to apply '{fill_method}' fill to the selected columns: {', '.join(checked_items)}?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No
+                )
+                if reply == QMessageBox.StandardButton.Yes:
+                    self.apply_fill(checked_items, fill_method)
+    
+    def apply_fill(self, checked_items, fill_method):
+        self.controller.apply_fill(checked_items, fill_method)
+        self.close()
+
+# Update the Controller class to handle the fill operation
+class Controller:
+    # (Existing code)
+
+    def apply_fill(self, columns, method):
+        """
+        Applies the specified fill method to the specified columns.
+        """
+        if self.model.data_frame is not None:
+            if method == "forward":
+                self.model.data_frame[columns] = self.model.data_frame[columns].ffill()
+            elif method == "backward":
+                self.model.data_frame[columns] = self.model.data_frame[columns].bfill()
+            # No fill case is handled by simply not modifying the data_frame
+            self.view.update_table()
