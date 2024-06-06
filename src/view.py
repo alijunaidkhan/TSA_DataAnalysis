@@ -1655,6 +1655,10 @@ class CheckableComboBox(QComboBox):
         super().__init__()
         self.view().pressed.connect(self.handleItemPressed)
         self.setModel(QStandardItemModel(self))
+    def setItemChecked(self, index, checked=True):
+        item = self.model().item(index)
+        if item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
+            item.setCheckState(Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
 
     def isChecked(self, index):
         return self.model().item(index).checkState() == Qt.CheckState.Checked
@@ -1719,7 +1723,7 @@ class CheckableComboBox(QComboBox):
                 checked_items.append(column_name)
         return checked_items
 
-# Define the DeleteColumnsDialog class
+
 class DeleteColumnsDialog(QDialog):
     def __init__(self, controller, parent=None):
         super().__init__(parent)
@@ -1730,17 +1734,23 @@ class DeleteColumnsDialog(QDialog):
                             Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
                             Qt.WindowType.CustomizeWindowHint)  # Add min/max window option
         self.setWindowIcon(QIcon(icon_path))
-        self.setGeometry(300, 300, 400, 200)
+        self.setGeometry(400, 400, 400, 200)
         self.layout = QVBoxLayout()
         
         # Create a group box for the combo box and label
         group_box = QGroupBox("Select column(s) to delete:")
         group_layout = QVBoxLayout()
         self.label = QLabel("Delete Column(s):")
+        combo_layout = QHBoxLayout()
         self.comboBox = CheckableComboBox()
+        self.select_all_button = QPushButton("Select All")
+        self.unselect_all_button = QPushButton("Unselect All")
+        combo_layout.addWidget(self.comboBox)
+        combo_layout.addWidget(self.select_all_button)
+        combo_layout.addWidget(self.unselect_all_button)        
         self.populate_columns()
         group_layout.addWidget(self.label)
-        group_layout.addWidget(self.comboBox)
+        group_layout.addLayout(combo_layout)  # Add combo_layout to group_layout
         group_box.setLayout(group_layout)
         self.layout.addWidget(group_box)
         
@@ -1756,6 +1766,15 @@ class DeleteColumnsDialog(QDialog):
         # Connect buttons to their actions
         self.delete_button.clicked.connect(self.confirm_delete)
         self.cancel_button.clicked.connect(self.close)
+        self.select_all_button.clicked.connect(self.select_all)
+        self.unselect_all_button.clicked.connect(self.unselect_all)
+        
+    def select_all(self):
+        for i in range(self.comboBox.count()):
+            self.comboBox.setItemChecked(i, True)
+    
+    def unselect_all(self):
+        self.comboBox.unselect_all()
     
     def populate_columns(self):
         # Assuming the data frame is available through the controller
@@ -5392,7 +5411,9 @@ class ConfigureRNN(QDialog):
         run_progress_layout = QHBoxLayout()
         run_progress_layout.addStretch(1)
         self.run_button = QPushButton("Run Model")
+        self.run_button.setFixedWidth(170)  # Increase the width of the "Run Model" button
         self.run_button.clicked.connect(self.train_model)
+
         run_progress_layout.addWidget(self.run_button)
         run_progress_layout.addStretch(1)
         scroll_layout.addLayout(run_progress_layout)
@@ -5548,7 +5569,7 @@ class ConfigureRNN(QDialog):
     def train_model(self):
         self.delete_model_directory()
         self.progress_bar.reset()
-
+        
         if not self.validate_data():
             return
              
@@ -5638,7 +5659,9 @@ class ConfigureRNN(QDialog):
             # Clear any existing widgets in the layout
             for i in reversed(range(self.layout_train.count())):
                 self.layout_train.itemAt(i).widget().setParent(None)
-
+            self.mae = mean_absolute_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
+            self.mse = mean_squared_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
+            self.rmse = np.sqrt(self.mse)
             # Generate the plots again with updated data
             self.generate_plots(self.train_results)
     def build_model(self, input_shape, num_units, dense_activation,dense_units,epochs,X_train_scaled,y_train,X_val_scaled,y_val):
@@ -6038,7 +6061,7 @@ class ConfigureRNN(QDialog):
         
         plt.figure(figsize=figsize)
         sns.lineplot(data=melted_data, x='index', y='value', hue='variable')
-        plt.title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
+        plt.title(f'Predicted vs. Actual Values')
         plt.ylabel('Values')
         plt.xlabel('')
         plt.legend(title='Legend')
@@ -6157,7 +6180,7 @@ class ConfigureRNN(QDialog):
         
         plt.figure(figsize=figsize)
         sns.lineplot(data=melted_data, x='index', y='value', hue='variable')
-        plt.title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
+        plt.title(f'Predicted vs. Actual Values')
         plt.ylabel('Values')
         plt.xlabel('')
         plt.legend(title='Legend')
@@ -6178,7 +6201,7 @@ class ConfigureRNN(QDialog):
         
         plt.figure(figsize=figsize)
         sns.lineplot(data=melted_data, x='index', y='value', hue='variable')
-        plt.title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
+        plt.title(f'Predicted vs. Actual Values')
         plt.ylabel('Values')
         plt.xlabel('')
         plt.legend(title='Legend')
@@ -6662,6 +6685,8 @@ class MultiRNN(QDialog):
         run_progress_layout = QHBoxLayout()
         run_progress_layout.addStretch(1)
         self.run_button = QPushButton("Run Model")
+        self.run_button.setFixedWidth(170)  # Increase the width of the "Run Model" button
+
         self.run_button.clicked.connect(self.train_model)
         run_progress_layout.addWidget(self.run_button)
         run_progress_layout.addStretch(1)
@@ -6819,7 +6844,7 @@ class MultiRNN(QDialog):
     # Define the required columns (target column first, input columns next)
         required_cols = [self.column_selection.currentText()] + self.column_selection2.get_checked_items()
         print(required_cols)
-        self.req_col=[self.column_selection2.currentText()] +required_cols
+        self.req_col=required_cols
         actual_data = self.dataframe
         actual_data.columns = actual_data.columns.str.lstrip()
         actual_data.columns = actual_data.columns.str.rstrip()
@@ -6871,21 +6896,22 @@ class MultiRNN(QDialog):
         test_results = pd.DataFrame(data={'Test Predictions':test_predictions, 'Actuals':y_test})
          
 
-
+        self.tab_widget.setCurrentIndex(0)
         evaluation_results = self.model.evaluate(X_test_scaled, y_test, verbose=0)
         self.test_loss = evaluation_results[0]
         self.test_rmse = evaluation_results[1]  # Assuming RootMeanSquaredError is the only metric used
         self.y_test=y_test
         self.y_train=y_train
         self.y_val=y_val
-        self.tab_widget.setCurrentIndex(0)
+ 
       
             
-        self.refresh_train_tab()
         # Generate and display the model summary
         # Only generate plots if the train tab is active
-        if self.tab_widget.currentIndex() == 0 and self.train_results is not None:
-
+        if self.train_results is not None:
+            self.mae = mean_absolute_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
+            self.mse = mean_squared_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
+            self.rmse = np.sqrt(self.mse)
             self.generate_plots(self.train_results)
             self.mae = mean_absolute_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
             self.mse = mean_squared_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
@@ -6906,13 +6932,14 @@ class MultiRNN(QDialog):
         self.val_results=val_results
         self.test_results=test_results
         self.parent().model_multi=self.model
-    def refresh_train_tab(self):
-        if self.tab_widget.currentIndex() == 0 and self.train_results is not None:
-            # Clear any existing widgets in the layout
-            for i in reversed(range(self.layout_train.count())):
-                self.layout_train.itemAt(i).widget().setParent(None)
+        self.refresh_train_tab()
 
-            # Generate the plots again with updated data
+    def refresh_train_tab(self):
+
+        if self.train_results is not None:
+            self.mae = mean_absolute_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
+            self.mse = mean_squared_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
+            self.rmse = np.sqrt(self.mse)
             self.generate_plots(self.train_results)
     def build_model(self, input_shape, batch_size,num_units, dense_activation,dense_units,epochs,X_train_scaled,y_train,X_val_scaled,y_val):
 
@@ -6935,13 +6962,10 @@ class MultiRNN(QDialog):
                 mode='min',
                 restore_best_weights=True
             )
+
+            progress_callback = ProgressCallback(self.progress_bar, total_epochs=epochs)
             self.progress_bar.setValue(0)
 
-            worker_thread = WorkerThread()
-            progress_callback = ProgressCallback(self.progress_bar, total_epochs=epochs)
-            worker_thread.updateProgress.connect(progress_callback.on_epoch_end)
-            worker_thread.processFinished.connect(self.train_model_finished)
-            worker_thread.start()
 
 
             # Set up the Model Checkpoint
@@ -6974,7 +6998,6 @@ class MultiRNN(QDialog):
 
     def train_model_finished(self):
         self.progress_bar.setValue(100)
-        self.tab_widget.setCurrentIndex(1)
 
     def generate_plots_test(self, test_results):
         self.generate_model_summary(self.model, self.history, self.test_loss, self.test_rmse,self.y_train, self.y_val, self.y_test, self.mae, self.mse, self.rmse)
@@ -7046,6 +7069,7 @@ class MultiRNN(QDialog):
     # def update_tooltip_train(self, value):
     #     self.percentage_slider_train.setToolTip(f"{value}%")
     def generate_plots(self, train_results):
+        self.progress_bar.setValue(100)
 
         self.generate_model_summary(self.model, self.history, self.test_loss, self.test_rmse,self.y_train, self.y_val, self.y_test, self.mae, self.mse, self.rmse)
 
@@ -7291,7 +7315,7 @@ class MultiRNN(QDialog):
             os.startfile(file_path)  # Windows
     
     def save_plots_as_pdf_test(self, parent_widget, test_results):
-        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Univariate_RNN_Test_Prediction_Report.pdf"
+        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Multivariate_RNN_Test_Prediction_Report.pdf"
         file_path = os.path.join(os.getcwd(), filename)
 
         # Create a PDF canvas
@@ -7330,7 +7354,7 @@ class MultiRNN(QDialog):
         
         plt.figure(figsize=figsize)
         sns.lineplot(data=melted_data, x='index', y='value', hue='variable')
-        plt.title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
+        plt.title(f'Predicted vs. Actual Values')
         plt.ylabel('Values')
         plt.xlabel('')
         plt.legend(title='Legend')
@@ -7459,7 +7483,7 @@ class MultiRNN(QDialog):
         
         plt.figure(figsize=figsize)
         sns.lineplot(data=melted_data, x='index', y='value', hue='variable')
-        plt.title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
+        plt.title(f'Predicted vs. Actual Values')
         plt.ylabel('Values')
         plt.xlabel('')
         plt.legend(title='Legend')
@@ -7480,7 +7504,7 @@ class MultiRNN(QDialog):
         
         plt.figure(figsize=figsize)
         sns.lineplot(data=melted_data, x='index', y='value', hue='variable')
-        plt.title(f'Predicted vs. Actual Values - Last {percentage}% of Data')
+        plt.title(f'Predicted vs. Actual Values')
         plt.ylabel('Values')
         plt.xlabel('')
         plt.legend(title='Legend')
@@ -7647,6 +7671,7 @@ class WorkerThread(QThread):
             self.updateProgress.emit(progress)
             self.msleep(100)  # Simula
 # Define the ImputationDialog class
+# Define the ImputationDialog class
 class ImputationDialog(QDialog):
     def __init__(self, controller, parent=None):
         super().__init__(parent)
@@ -7657,7 +7682,7 @@ class ImputationDialog(QDialog):
                             Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
                             Qt.WindowType.CustomizeWindowHint)  # Add min/max window option
         self.setWindowIcon(QIcon(icon_path))
-        self.setGeometry(300,300, 400, 250)
+        self.setGeometry(300, 300, 400, 250)
         self.layout = QVBoxLayout()
         
         # Create a group box for imputation options
@@ -7667,7 +7692,7 @@ class ImputationDialog(QDialog):
         self.forward_fill_radio = QRadioButton("Forward Fill")
         self.backward_fill_radio = QRadioButton("Backward Fill")
         self.no_fill_radio = QRadioButton("No Fill")
-        
+        self.forward_fill_radio.setChecked(True)
         imputation_group_layout.addWidget(self.forward_fill_radio)
         imputation_group_layout.addWidget(self.backward_fill_radio)
         imputation_group_layout.addWidget(self.no_fill_radio)
@@ -7675,14 +7700,23 @@ class ImputationDialog(QDialog):
         imputation_group_box.setLayout(imputation_group_layout)
         self.layout.addWidget(imputation_group_box)
         
-        # Create a group box for the combo box and label
+        # Create a group box for the combo box and label with buttons
         group_box = QGroupBox("Select column(s) to fill:")
         group_layout = QVBoxLayout()
         self.label = QLabel("Columns with NaNs:")
+
+        # Create a horizontal layout for the combo box and buttons
+        combo_layout = QHBoxLayout()
         self.comboBox = CheckableComboBox()
+        self.select_all_button = QPushButton("Select All")
+        self.unselect_all_button = QPushButton("Unselect All")
+        combo_layout.addWidget(self.comboBox)
+        combo_layout.addWidget(self.select_all_button)
+        combo_layout.addWidget(self.unselect_all_button)
+        
         self.populate_columns()
         group_layout.addWidget(self.label)
-        group_layout.addWidget(self.comboBox)
+        group_layout.addLayout(combo_layout)
         group_box.setLayout(group_layout)
         self.layout.addWidget(group_box)
         
@@ -7696,6 +7730,8 @@ class ImputationDialog(QDialog):
         self.setLayout(self.layout)
         
         # Connect buttons to their actions
+        self.select_all_button.clicked.connect(self.select_all)
+        self.unselect_all_button.clicked.connect(self.unselect_all)
         self.fill_button.clicked.connect(self.confirm_fill)
         self.cancel_button.clicked.connect(self.close)
     
@@ -7706,6 +7742,13 @@ class ImputationDialog(QDialog):
             if df[col].isnull().any():
                 dtype = str(df[col].dtype)
                 self.comboBox.addItem(col, True, dtype, False)
+
+    def select_all(self):
+        for i in range(self.comboBox.count()):
+            self.comboBox.setItemChecked(i, True)
+    
+    def unselect_all(self):
+        self.comboBox.unselect_all()
     
     def confirm_fill(self):
         checked_items = self.comboBox.get_checked_items()
@@ -7730,19 +7773,3 @@ class ImputationDialog(QDialog):
     def apply_fill(self, checked_items, fill_method):
         self.controller.apply_fill(checked_items, fill_method)
         self.close()
-
-# Update the Controller class to handle the fill operation
-class Controller:
-    # (Existing code)
-
-    def apply_fill(self, columns, method):
-        """
-        Applies the specified fill method to the specified columns.
-        """
-        if self.model.data_frame is not None:
-            if method == "forward":
-                self.model.data_frame[columns] = self.model.data_frame[columns].ffill()
-            elif method == "backward":
-                self.model.data_frame[columns] = self.model.data_frame[columns].bfill()
-            # No fill case is handled by simply not modifying the data_frame
-            self.view.update_table()
