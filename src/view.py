@@ -1649,59 +1649,56 @@ class DataInfoDialog(QDialog):
         self.column_combo.check_first_item_only()
        # Refresh the DataFrame info tab
 
-
 class CheckableComboBox(QComboBox):
     def __init__(self):
         super().__init__()
         self.view().pressed.connect(self.handleItemPressed)
         self.setModel(QStandardItemModel(self))
+        self.updateComboBoxText()  # Initial text update
+
     def setItemChecked(self, index, checked=True):
         item = self.model().item(index)
         if item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
             item.setCheckState(Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
+        self.updateComboBoxText()  # Update text after setting item checked state
 
     def isChecked(self, index):
         return self.model().item(index).checkState() == Qt.CheckState.Checked
 
     def check_first_item_only(self):
-        """Ensure only the first item is checked by default."""
         for index in range(self.model().rowCount()):
             item = self.model().item(index)
             if index == 0:
-                item.setCheckState(Qt.CheckState.Checked)  # Check the first item
+                item.setCheckState(Qt.CheckState.Checked)
             else:
-                item.setCheckState(Qt.CheckState.Unchecked)  # Uncheck all other items
-    def addItem(self, text, is_numeric, dtype=None,checked=True):
-  
-     if dtype is not None:
-        item_text = f"{text} [{dtype}]"  # Concatenate column name and dtype
-     else:
-        item_text = f"{text}"  # Use only the column name
-     item = QStandardItem(item_text)
-     if is_numeric:
-        item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
-        # Set numeric items to be checked by default
-        item.setData(Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole)
+                item.setCheckState(Qt.CheckState.Unchecked)
+        self.updateComboBoxText()  # Update text after checking the first item only
 
-     else:
-        # Non-numeric columns are not user-checkable but are still enabled.
-        item.setFlags(Qt.ItemFlag.ItemIsEnabled)
-        item.setData(Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole)  # Ensure consistent data role
-     self.model().appendRow(item)
+    def addItem(self, text, is_numeric, dtype=None, checked=True):
+        item_text = f"{text} [{dtype}]" if dtype is not None else f"{text}"
+        item = QStandardItem(item_text)
+        if is_numeric:
+            item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
+            item.setData(Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole)
+        else:
+            item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            item.setData(Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole)
+        self.model().appendRow(item)
+        self.updateComboBoxText()  # Update text after adding item
 
     def unselect_all(self):
         for index in range(self.model().rowCount()):
             item = self.model().item(index)
             if item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
                 item.setCheckState(Qt.CheckState.Unchecked)
+        self.updateComboBoxText()  # Update text after unselecting all items
 
     def handleItemPressed(self, index):
         item = self.model().itemFromIndex(index)
-        # Ensure action only for items that are user-checkable (numeric columns)
         if item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
             newState = Qt.CheckState.Unchecked if item.checkState() == Qt.CheckState.Checked else Qt.CheckState.Checked
             item.setCheckState(newState)
-            # print(f"Item pressed: {item.text()}, new state: {newState}")  # Debug print
+        self.updateComboBoxText()  # Update text after handling item press
 
     def checkedItems(self):
         checked_items = []
@@ -1710,20 +1707,22 @@ class CheckableComboBox(QComboBox):
             if item.flags() & Qt.ItemFlag.ItemIsUserCheckable and item.checkState() == Qt.CheckState.Checked:
                 checked_items.append(item.text())
         return checked_items
+
     def get_checked_items(self):
         checked_items = []
         for index in range(self.model().rowCount()):
             item = self.model().item(index)
             if item.flags() & Qt.ItemFlag.ItemIsUserCheckable and item.checkState() == Qt.CheckState.Checked:
-                # If the text contains '[', split to extract only the column name
-                if '[' in item.text():
-                    column_name = item.text().split(' [')[0]
-                else:
-                    column_name = item.text()  # Otherwise, use the whole text as the column name
+                column_name = item.text().split(' [')[0] if '[' in item.text() else item.text()
                 checked_items.append(column_name)
         return checked_items
 
-
+    def updateComboBoxText(self):
+        checked_items = self.get_checked_items()
+        if not checked_items:
+            self.setEditText("Select column(s)")
+        else:
+            self.setEditText("Input column(s)")
 class DeleteColumnsDialog(QDialog):
     def __init__(self, controller, parent=None):
         super().__init__(parent)
@@ -6501,6 +6500,7 @@ class MultiRNN(QDialog):
 
         # Store the new selection as previous selection
         self.previous_selection = self.column_selection.currentText()
+        self.column_selection2.unselect_all()
     def delete_model_directory(self):
         model_dir = 'model_multi'
         if os.path.exists(model_dir):
@@ -6602,6 +6602,7 @@ class MultiRNN(QDialog):
         series_layout.addWidget(self.column_selection)
                 
         self.column_selection2 = CheckableComboBox()  
+        self.column_selection2.setEditable(True)
         for col in self.dataframe.columns:
             # Check if the column is numeric before adding it
             is_numeric = np.issubdtype(self.dataframe[col].dtype, np.number) 
