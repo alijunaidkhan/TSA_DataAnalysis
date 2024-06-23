@@ -1,4 +1,5 @@
 # model.py
+import os
 import pandas as pd
 import numpy as np
 import warnings
@@ -32,25 +33,34 @@ class Model:
         self.working_directory = directory
 
 
-    def load_data(self, file_path, file_type):
+    def load_data(self, file_path, file_name,file_type):
         """
         Loads data from the specified file into a pandas DataFrame.
         Args:
-            file_path (str): Path of the file to be loaded.
-            file_type (str): Type of the file ('csv', 'excel', or 'database').
+            file_name (str): Name of the file to be loaded.
+            file_type (str): Type of the file ('csv' or 'excel').
         Returns:
             pd.DataFrame: The loaded data.
         """
+        if self.working_directory:
+            file_path = os.path.join(self.working_directory, file_name)
+        else:
+            file_path = file_path
+
+        # Normalize the file path to ensure correct path separators
+        file_path = file_path
+        
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"No such file or directory: '{file_path}'")
+        
         if file_type == 'csv':
-            # Read the entire CSV file into a DataFrame
             self.data_frame = pd.read_csv(file_path)
         elif file_type == 'excel':
             self.data_frame = pd.read_excel(file_path)
         else:
             raise ValueError("Unsupported file type")
         
-        return self.data_frame  # Return the loaded DataFrame
-    
+        return self.data_frame
 
     def save_data(self, data, file_path):
         """

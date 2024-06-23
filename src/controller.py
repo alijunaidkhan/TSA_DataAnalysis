@@ -9,17 +9,45 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox
 from tabulate import tabulate
 from model import Model
 from view import ResampleDialog, View, DataInfoDialog, SetIndexDialog, SetFrequencyDialog,QDialog
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QIcon,QPixmap,QPainter
 from PyQt6.QtWidgets import QMessageBox, QTableWidgetItem
 from PyQt6.QtCore import QDateTime
-from PyQt6.QtCore import pyqtSignal, QObject
+from PyQt6.QtCore import pyqtSignal, QObject,Qt
 import os
 import pandas as pd
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QIcon,QFont,QColor
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
+class CustomMessageBox(QMessageBox):
+    def __init__(self, icon_color, message_text, window_title, icon_text, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setWindowTitle(window_title)
+        self.setText(message_text)
+        self.setIconPixmap(self.create_custom_icon(icon_color, icon_text))
 
- 
+    def create_custom_icon(self, color, icon_text):
+        size = 29  # Small icon size
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)  # Enable antialiasing for smooth edges
+        painter.setBrush(color)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(0, 0, size, size)
+
+        # Draw user-specified text in the center
+        painter.setPen(Qt.GlobalColor.white)
+        font = QFont()
+        font.setBold(True)
+        font.setPointSize(12)  # Adjust font size to fit the small icon
+        painter.setFont(font)
+        painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, icon_text)
+
+        painter.end()
+
+        return pixmap
+
 # Signals class for safe communication from the thread to the main GUI
 class LoaderSignals(QObject):
     data_loaded = pyqtSignal(pd.DataFrame)
@@ -30,16 +58,17 @@ class LoaderSignals(QObject):
 
 # Thread class for loading data
 class DataLoadThread(QThread):
-    def __init__(self, file_path, file_type, model):
+    def __init__(self,loaded_file_name, file_path, file_type, model):
         super(DataLoadThread, self).__init__()
         self.file_path = file_path
         self.file_type = file_type
         self.model = model
         self.signals = LoaderSignals()
+        self.load=loaded_file_name
 
     def run(self):
         try:
-            data = self.model.load_data(self.file_path, self.file_type)
+            data = self.model.load_data(self.file_path, self.load,self.file_type)
 
             #self.model.profile_load_data(self.file_path, self.file_type)
             for step in range(1, 101):  # Example loop to represent progress
@@ -73,45 +102,50 @@ class Controller:
 
 
     def load_data(self):
-
+        """
+        Opens a file dialog for the user to select a file and loads the data into the model.
+        """
         file_dialog = QFileDialog(self.view)
         icon_path = os.path.abspath('images/load_data_icon.svg')
-
         self.view.setWindowIcon(QIcon(icon_path))
 
-        file_path, _ = file_dialog.getOpenFileName(self.view, "Open File", "", "CSV Files (*.csv);;Excel Files (*.xlsx)")
+        initial_directory = self.model.working_directory if self.model.working_directory else ""
 
+        file_path, _ = file_dialog.getOpenFileName(self.view, "Open File", initial_directory, "CSV Files (*.csv);;Excel Files (*.xlsx)")
+        
         if file_path:
-            self.loaded_file_path = file_path
+            file_name = os.path.basename(file_path)
             if file_path.endswith('.csv'):
                 file_type = 'csv'
             elif file_path.endswith('.xlsx'):
                 file_type = 'excel'
             else:
-                self.view.show_message("Unsupported file format")
+                custom_color = QColor("#B22222")  # OrangeRed color
+                message_text = "Unsupported file format"
+                window_title = "Error"
+                icon_text = "X"
+                CustomMessageBox(custom_color, message_text, window_title, icon_text, self.view).exec()
                 return
-            self.view.copy_data_frame=None
+            
+            self.view.copy_data_frame = None
             self.view.file_path = file_path
+            self.view.train_data = None
+            self.view.test_data = None
+            self.view.actual_data = self.model.data_frame
+            self.view.getValuesthreshold = {}
 
-            self.view.train_data=None
-            self.view.test_data=None
-            self.view.actual_data=self.model.data_frame
-
-            self.view.getValuesthreshold={}
             # Create and start the data loading thread
-            self.thread = DataLoadThread(file_path, file_type, self.model)
+            self.thread = DataLoadThread(file_name, file_path, file_type, self.model)
             self.thread.signals.data_loaded.connect(self.view.display_data)
             self.thread.signals.update_status.connect(self.view.update_status_bar)
-            self.thread.signals.loading_error.connect(lambda e: self.view.show_message("Loading Error", f"Error loading data: {e}"))
+            self.thread.signals.loading_error.connect(lambda e: CustomMessageBox(QColor("#B22222"), f"Error loading data: {e}", "Loading Error", "X", self.view).exec())
             self.thread.signals.update_combobox.connect(self.update_combobox_items)
             self.thread.start()
             self.thread.signals.progress.connect(self.update_progress_bar)
             self.view.resetLayout()
 
-
         icon_path = os.path.abspath('images/bulb_icon.png')
         self.view.setWindowIcon(QIcon(icon_path))
-    
     def update_combobox_items(self, columns):
         self.view.comboBox.clear()
         self.view.comboBox.addItems(columns)
@@ -138,14 +172,46 @@ class Controller:
         self.view.subsetCreated = False
 
         #QMessageBox.information(self, "Subset Created", "Your subset has been generated. You can view it using the 'Latest Subset Table' button.")
-        
+    
+
     def save_as(self):
+        if self.model.data_frame is None:
+            # Display a warning message if no data is loaded
+            icon_path = os.path.abspath('images/save_as_icon.svg')
+            self.view.setWindowIcon(QIcon(icon_path))
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = "Please load data first before accessing this feature."  # Example message text
+            window_title = "Data Not Loaded"  # Example window title
+            icon_text = "X"  # Example icon text
+       
+            #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+            # Optionally, set a specific icon to indicate the need for action or an error state
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec()  # Use the desired color for the custom icon
+
+            icon_path = os.path.abspath('images/bulb_icon.png')
+            self.view.setWindowIcon(QIcon(icon_path))
+            return
         icon_path = os.path.abspath('images/save_as_icon.svg')
         self.view.setWindowIcon(QIcon(icon_path))
-        try:
+        try:            
+            icon_path = os.path.abspath('images/save_as_icon.svg')
+            self.view.setWindowIcon(QIcon(icon_path))
+
             # Check if data is loaded
             if self.model.data_frame.empty:
-                self.view.show_message("Error", "No data to save.")
+
+                custom_color = QColor("#B22222")  # OrangeRed color
+                message_text = "No data to save."  # Example message text
+                window_title = "Error"  # Example window title
+                icon_text = "X"  # Example icon text
+        
+                #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+                # Optionally, set a specific icon to indicate the need for action or an error state
+                CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec()  # Use the desired color for the custom icon
+
+                    
+                icon_path = os.path.abspath('images/bulb_icon.png')
+                self.view.setWindowIcon(QIcon(icon_path))
                 return
 
             # Get the loaded file name
@@ -157,6 +223,8 @@ class Controller:
 
             # Check if the user canceled the save operation
             if not selected_file:
+                icon_path = os.path.abspath('images/bulb_icon.png')
+                self.view.setWindowIcon(QIcon(icon_path))    
                 return
 
             # Save data to the selected file
@@ -164,25 +232,56 @@ class Controller:
 
             # Update the status bar
             self.view.update_status_bar(f"Data saved to {selected_file} successfully.")
-            QMessageBox.information(self.view, "Success", f"Data saved to {selected_file}")
+            custom_color = QColor("#5cb85c")  # OrangeRed color
+            message_text = f"Data saved to {selected_file}" # Example message text
+            window_title = "Success"  # Example window title
+            icon_text = "✔"  # Example icon text
+       
+            #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+            # Optionally, set a specific icon to indicate the need for action or an error state
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec()  # Use the desired color for the custom icon
 
+            #QMessageBox.information(self.view, "Success", f"Data saved to {selected_file}")
+            icon_path = os.path.abspath('images/bulb_icon.png')
+            self.view.setWindowIcon(QIcon(icon_path))
         except Exception as e:
-            print(f"Error in save_as: {e}")
-            self.view.show_message("Error", f"Error saving data: {e}")
+                custom_color = QColor("#B22222")  # OrangeRed color
+                message_text =f"Error in save_as: {e}"  # Example message text
+                window_title = "Error"  # Example window title
+                icon_text = "X"  # Example icon text
+        
+                #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+                # Optionally, set a specific icon to indicate the need for action or an error state
+                CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec()  # Use the desired color for the custom icon
+
+                    
         icon_path = os.path.abspath('images/bulb_icon.png')
         self.view.setWindowIcon(QIcon(icon_path))
     def delete_columns(self, columns):
         """
         Deletes the specified columns from the data frame.
         """
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.view.setWindowIcon(QIcon(icon_path))  
         if self.model.data_frame is not None:
             self.model.data_frame.drop(columns=columns, inplace=True)
             self.view.display_data(self.model.data_frame)
-            QMessageBox.information(self.view, "Success", f"Successfully deleted {columns}")
+            custom_color = QColor("#5cb85c")  # OrangeRed color
+            message_text =  f"Successfully deleted {columns}"# Example message text
+            window_title = "Success"  # Example window title
+            icon_text = "✔"  # Example icon text
+       
+            #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+            # Optionally, set a specific icon to indicate the need for action or an error state
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec()  # Use the desired color for the custom icon
+        icon_path = os.path.abspath('images/delete_icon.ico')
+        self.view.setWindowIcon(QIcon(icon_path))  
     def apply_fill(self, columns, method):
         """
         Applies the specified fill method to the specified columns.
         """
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.view.setWindowIcon(QIcon(icon_path)) 
         if self.model.data_frame is not None:
             if method == "forward":
                 self.model.data_frame[columns] = self.model.data_frame[columns].ffill()
@@ -191,7 +290,16 @@ class Controller:
             # No fill case is handled by simply not modifying the data_frame
 
             self.view.display_data(self.model.data_frame)
-            QMessageBox.information(self.view, "Success", f"Successfully done {method} filled {columns}!")
+            custom_color = QColor("#5cb85c")  # OrangeRed color
+            message_text =  f"Successfully done {method} filled {columns}!"# Example message text
+            window_title = "Success"  # Example window title
+            icon_text = "✔"  # Example icon text
+       
+            #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+            # Optionally, set a specific icon to indicate the need for action or an error state
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec()  # Use the desired color for the custom icon
+        icon_path = os.path.abspath('images/imputation_icon.ico')
+        self.view.setWindowIcon(QIcon(icon_path))   
 
     def run(self):
         """
@@ -208,11 +316,25 @@ class Controller:
         
         directory = QFileDialog.getExistingDirectory(self.view, "Select Directory")
         if directory:  # check if a directory was selected
-
-            self.model.set_working_directory(directory)
+            try:
+                self.model.set_working_directory(directory)
+                # Display success message using CustomMessageBox
+                custom_color = QColor("#5cb85c")  # ForestGreen color
+                message_text = f"Directory '{directory}' set successfully."
+                window_title = "Directory Set"
+                icon_text = "✔"
+                CustomMessageBox(custom_color, message_text, window_title, icon_text, self.view).exec()
+            except Exception as e:
+                # Display error message in case of failure using CustomMessageBox
+                custom_color = QColor("#B22222")  # OrangeRed color
+                message_text = f"Error: {str(e)}"
+                window_title = "Error"
+                icon_text = "X"
+                CustomMessageBox(custom_color, message_text, window_title, icon_text, self.view).exec()
+                
         icon_path = os.path.abspath('images/bulb_icon.png')
         self.view.setWindowIcon(QIcon(icon_path))
- 
+
     def change_theme(self):
         """
         Handles the logic to change the application's theme.
@@ -437,7 +559,15 @@ class Controller:
         if self.model.data_frame is None:
             icon_path = os.path.abspath('images/data_info_icon.svg')
             self.view.setWindowIcon(QIcon(icon_path))
-            QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = "Please load data first before accessing this feature."  # Example message text
+            window_title = "Data Not Loaded"  # Example window title
+            icon_text = "X"  # Example icon text
+       
+            #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+            # Optionally, set a specific icon to indicate the need for action or an error state
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec()  # Use the desired color for the custom icon
+
             icon_path = os.path.abspath('images/bulb_icon.png')
             self.view.setWindowIcon(QIcon(icon_path))
             return
@@ -476,9 +606,15 @@ class Controller:
         dialog.populate_data_info(data_info)
         dialog.exec()
      except Exception as e:
-        QMessageBox.warning(self.view, "Error", f"An error occurred: {str(e)}")
-        print("Error", f"An error occurred: {str(e)}")
 
+        custom_color = QColor("#B22222")  # OrangeRed color
+        message_text = f"An error occurred: {str(e)}"  # Example message text
+        window_title = "Error"  # Example window title
+        icon_text = "X"  # Example icon text
+
+        #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+        # Optionally, set a specific icon to indicate the need for action or an error state
+        CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec()  # Use the desired color for the custom icon
 
     def _is_float(self, s):
       try:
@@ -515,15 +651,37 @@ class Controller:
                 self.view.display_data(self.model.data_frame)
                 self.update_combobox_items(self.model.data_frame.columns)
             except Exception as e:
-                print(f"Error converting column {col_name} to {new_dtype}: {e}")
+                
+                custom_color = QColor("#B22222")  # OrangeRed color
+                message_text = f"Error converting column {col_name} to {new_dtype}: {e}" # Example message text
+                window_title = "Conversion Error"  # Example window title
+                icon_text = "X"  # Example icon text
+
+                #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+                # Optionally, set a specific icon to indicate the need for action or an error state
+                CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec()  # Use the desired color for the custom icon
+
 
         self.refresh_data_view()
 
         if column_names:
             message = f"Columns {' '.join(column_names)} were successfully converted to {new_dtype}."
-            QMessageBox.information(self.view, "Conversion Success", message)
+            custom_message_box = CustomMessageBox(icon_color=QColor('#5cb85c'),  # Specify the color for the information icon (green color)
+                                                message_text=message,
+                                                window_title="Successfully Done Conversion",
+                                                icon_text='✔',
+                                                parent=self.view)  # Assuming self.view is the parent widget
+            custom_message_box.exec()
+
         else:
-            QMessageBox.warning(self.view, "Conversion Error", "No columns were converted.")
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = "No columns were converted." # Example message text
+            window_title = "Conversion Error"  # Example window title
+            icon_text = "X"  # Example icon text
+
+            #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+            # Optionally, set a specific icon to indicate the need for action or an error state
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec()  # Use the desired color for the custom icon
 
     def refresh_data_view(self):
         data_info = {
@@ -565,40 +723,87 @@ class Controller:
             else:
                 return value
         except Exception as e:
-            print(f"Error during conversion: {e}")
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = f"Error during conversion: {e}" # Example message text
+            window_title = "Conversion Error"  # Example window title
+            icon_text = "X"  # Example icon text
+
+            #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+            # Optionally, set a specific icon to indicate the need for action or an error state
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec()  # Use the desired color for the custom icon
+
             return value
 
     def set_index(self):
         """
         Opens a dialog for the user to select a column to set as the index of the DataFrame.
         """
-
         icon_path = os.path.abspath('images/set_index_icon.svg')
         self.view.setWindowIcon(QIcon(icon_path))
+
         if self.model.data_frame is not None:
-            
+            # Check if there are any datetime columns
+            datetime_columns = [col for col in self.model.data_frame.columns if pd.api.types.is_datetime64_any_dtype(self.model.data_frame[col])]
+            if not datetime_columns:
+                # Display a warning message if no datetime columns are found
+                custom_color = QColor("#B22222")  # OrangeRed color
+                message_text = "The dataset does not contain any datetime columns. Please go to the Data Info > Data Conversion menu and convert a column to datetime format."
+                window_title = "No Datetime Columns"
+                icon_text = "!"
+                CustomMessageBox(custom_color, message_text, window_title, icon_text, self.view).exec()
+
+                icon_path = os.path.abspath('images/bulb_icon.png')
+                self.view.setWindowIcon(QIcon(icon_path))
+
+                return
+
             # Create and show the SetIndexDialog
             dialog = SetIndexDialog(self.model.data_frame.columns.tolist(), self.view)
             if dialog.exec():
                 selected_column = dialog.get_selected_column()
                 if selected_column:
+                    # Check if the selected column is a datetime column
+                    if not pd.api.types.is_datetime64_any_dtype(self.model.data_frame[selected_column]):
+                        custom_color = QColor("#B22222")  # OrangeRed color
+                        message_text = f"Column '{selected_column}' is not a datetime column. Please select a valid datetime column."
+                        window_title = "Invalid Column Type"
+                        icon_text = "!"
+                        CustomMessageBox(custom_color, message_text, window_title, icon_text, self.view).exec()
+
+                        icon_path = os.path.abspath('images/bulb_icon.png')
+                        self.view.setWindowIcon(QIcon(icon_path))
+
+                        return
+
                     try:
                         # Set the selected column as index and preserve its position
                         self.model.set_index_and_preserve_column(selected_column)
                         # Refresh the display to show changes
                         self.view.display_data(self.model.data_frame)
-                        # Display success message
-                        self.view.show_message(
-                            "Index Set", f"Column '{selected_column}' set as index.")
+                        # Display success message using CustomMessageBox
+                        custom_color = QColor("#5cb85c")  # ForestGreen color
+                        message_text = f"Column '{selected_column}' set as index."
+                        window_title = "Index Set"
+                        icon_text = "✔"
+                        CustomMessageBox(custom_color, message_text, window_title, icon_text, self.view).exec()
                     except Exception as e:
-                        # Display error message in case of failure
-                        self.view.show_message("Error", str(e))
+                        # Display error message in case of failure using CustomMessageBox
+                        custom_color = QColor("#B22222")  # OrangeRed color
+                        message_text = f"Error: {str(e)}"
+                        window_title = "Error"
+                        icon_text = "X"
+                        CustomMessageBox(custom_color, message_text, window_title, icon_text, self.view).exec()
         else:
             # Display an error message if no data is loaded
-         QMessageBox.warning(self.view, "Warning", "No data loaded.")
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = "Please load data first before accessing this feature."
+            window_title = "Data Not Loaded"
+            icon_text = "X"
+            CustomMessageBox(custom_color, message_text, window_title, icon_text, self.view).exec()
 
         icon_path = os.path.abspath('images/bulb_icon.png')
         self.view.setWindowIcon(QIcon(icon_path))
+
     def setup_signals(self):
      self.view.table_widget.itemChanged.connect(self.on_item_changed)
 
@@ -643,7 +848,17 @@ class Controller:
      self.view.setWindowIcon(QIcon(icon_path))
     # Check if data is loaded
      if self.model.data_frame is None:
-        self.view.show_message("Error", "Please load data first!")
+        custom_color = QColor("#B22222")  # OrangeRed color
+        message_text = "Please load data first before accessing this feature."  # Example message text
+        window_title = "Data Not Loaded"  # Example window title
+        icon_text = "X"  # Example icon text
+
+        #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+        # Optionally, set a specific icon to indicate the need for action or an error state
+        CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec()  # Use the desired color for the custom icon
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.view.setWindowIcon(QIcon(icon_path))
+
         return  # Exit the function early
 
      dialog = SetFrequencyDialog(self.view)
@@ -658,7 +873,15 @@ class Controller:
                 self.model.data_frame = self.model.data_frame.resample(frequency).asfreq()
             self.view.show_message("Frequency Updated", f"Frequency set to: {frequency}")
         except ValueError as e:
-            self.view.show_message("Error", str(e))
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = str(e) # Example message text
+            window_title = "Error"  # Example window title
+            icon_text = "X"  # Example icon text
+
+            #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+            # Optionally, set a specific icon to indicate the need for action or an error state
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
+            
      icon_path = os.path.abspath('images/bulb_icon.png')
      self.view.setWindowIcon(QIcon(icon_path))
 
@@ -670,13 +893,24 @@ class Controller:
 
 #############################################################################################################################
     def open_line_plot_dialog(self):
+     icon_path = QPixmap('images/line_plot_icon.svg')
+     self.view.setWindowIcon(QIcon(icon_path))
+
      if self.model.data_frame is not None:
         # Access the lineplotting dialog from the view
         self.view.lineplotting_dialog.populate_columns(self.model.data_frame.columns)
         self.view.lineplotting_dialog.show()
      else:
-        self.view.show_message("Error", "No data loaded.")
+        custom_color = QColor("#B22222")  # OrangeRed color
+        message_text = "Please load data first before accessing this feature."  # Example message text
+        window_title = "Data Not Loaded"  # Example window title
+        icon_text = "X"  # Example icon text
 
+        #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+        # Optionally, set a specific icon to indicate the need for action or an error state
+        CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.view.setWindowIcon(QIcon(icon_path))
     def plot_selected_columns(self, selected_columns):
      if selected_columns:
         valid_columns = [col for col in selected_columns if self.is_numeric_column(col)]
@@ -684,10 +918,24 @@ class Controller:
             data_to_plot = self.model.get_data_for_columns(valid_columns)
             self.view.lineplotting_dialog.plot_data(data_to_plot)
         else:
-            self.view.show_message("Error", "Selected columns must be of type float or int.")
-     else:
-        self.view.show_message("Warning", "No columns selected for plotting.")
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = "Selected columns must be of type float or int." # Example message text
+            window_title = "Type Error"  # Example window title
+            icon_text = "X"  # Example icon text
 
+            #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+            # Optionally, set a specific icon to indicate the need for action or an error state
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
+            
+     else:
+        custom_color = QColor("#B22222")  # OrangeRed color
+        message_text = "No columns selected for plotting."  # Example message text
+        window_title = "Warning"  # Example window title
+        icon_text = "!"  # Example icon text
+
+        #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+        # Optionally, set a specific icon to indicate the need for action or an error state
+        CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
     def is_numeric_column(self, column_name):
      column_data = self.model.data_frame[column_name]
      return column_data.dtype in ['float64', 'int64']  # Adjust dtype check as needed
@@ -698,15 +946,21 @@ class Controller:
             
     def open_seasonal_decompose_dialog(self):
         """Opens the Seasonal Decompose Dialog."""
+        icon_path = os.path.abspath('images/seasonal_decompose_icon.svg')
+        self.view.setWindowIcon(QIcon(icon_path))
         if self.model.data_frame is not None:
             series_list = self.model.data_frame.columns.tolist()
             self.view.seasonal_decompose_dialog.populate_series(series_list)
             self.view.seasonal_decompose_dialog.show()
         else:
-            self.view.show_message("Warning", "No data loaded for decomposition.")
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = "Please load data first before accessing this feature."  # Example message text
+            window_title = "Data Not Loaded"  # Example window title
+            icon_text = "X"  # Example icon text
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
 
-
-
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.view.setWindowIcon(QIcon(icon_path))
 
     def perform_seasonal_decomposition(self, series_name, period, model_type):
         """
@@ -721,7 +975,12 @@ class Controller:
             decomposition_result = self.model.seasonal_decompose(series_name, period, model_type)
             self.view.seasonal_decompose_dialog.plot_decomposition(decomposition_result)
         except Exception as e:
-            self.view.show_message("Error", str(e))
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = str(e) # Example message text
+            window_title = "Error"  # Example window title
+            icon_text = "X"  # Example icon text
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
+
 
     """ End of Decomposition"""
             
@@ -731,13 +990,21 @@ class Controller:
 ##########################################################################################  
 
     def open_lag_acf_pacf_dialog(self):
+        icon_path = os.path.abspath('images/acf_icon.svg')
+        self.view.setWindowIcon(QIcon(icon_path))
         """Opens the window for the lag, acf, and pacf plots."""
         if self.model.data_frame is not None:
             series_list = self.model.data_frame.columns.tolist()
             self.view.lag_acf_pacf_dialog.populate_series(series_list)
             self.view.lag_acf_pacf_dialog.show()
         else:
-            QMessageBox.warning(self.view, "Warning", "No data loaded for ACF/PACF analysis.")
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = "Please load data first before accessing this feature."  # Example message text
+            window_title = "Data Not Loaded"  # Example window title
+            icon_text = "X"  # Example icon text
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.view.setWindowIcon(QIcon(icon_path))
 
     def perform_lag_acf_pacf_analysis(self, series_name, number_of_lags):
         """
@@ -754,7 +1021,12 @@ class Controller:
             self.view.lag_acf_pacf_dialog.plot_acf(series_data, number_of_lags)
             self.view.lag_acf_pacf_dialog.plot_pacf(series_data, number_of_lags)
         except Exception as e:
-            QMessageBox.critical(self.view, "Error", str(e))
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = str(e) # Example message text
+            window_title = "Error"  # Example window title
+            icon_text = "X"  # Example icon text
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
+
 
 
 ############################################################################################################
@@ -762,11 +1034,32 @@ class Controller:
 ############################################################################################################
 
     def open_unit_root_test_dialog(self):
+
+        icon_path = os.path.abspath('images/unit_root.svg')
+        self.view.setWindowIcon(QIcon(icon_path))
+        if self.model.data_frame is None:
+                custom_color = QColor("#B22222")  # OrangeRed color
+                message_text = "Please load data first before accessing this feature."  # Example message text
+                window_title = "Data Not Loaded"  # Example window title
+                icon_text = "X"  # Example icon text
+                CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
+ 
+                icon_path = os.path.abspath('images/bulb_icon.png')
+                self.view.setWindowIcon(QIcon(icon_path))
+                return
+
         try:
             self.view.unit_root_test_dialog.populate_columns(self.model.get_column_names())
             self.view.unit_root_test_dialog.show()
         except Exception as e:
-            QMessageBox.critical(self.view, "Error", str(e))
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = str(e) # Example message text
+            window_title = "Error"  # Example window title
+            icon_text = "X"  # Example icon text
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
+
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.view.setWindowIcon(QIcon(icon_path))
 
     def perform_adf_test(self, column_name):
         result = self.model.perform_adf_test(column_name)
@@ -789,11 +1082,29 @@ class Controller:
                 agg_method = dialog.aggregation_combo.currentText()
                 self.resample_data(freq, agg_method)
             else:
-                QMessageBox.warning(self.view, "Input Error", "Frequency is not specified.")
+                custom_color = QColor("#B22222")  # OrangeRed color
+                message_text = "Frequency is not specified."  # Example message text
+                window_title = "Input Error"  # Example window title
+                icon_text = "X"  # Example icon text
+                CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
+
+
         else:
-            QMessageBox.warning(self.view, "Resampling Cancelled", "Operation cancelled by user.")
+                custom_color = QColor("#B22222")  # OrangeRed color
+                message_text = "Operation cancelled by user."  # Example message text
+                window_title = "Resampling Cancelled"  # Example window title
+                icon_text = "X"  # Example icon text
+                CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
+
+
      else:
-        QMessageBox.warning(self.view, "Error", "No data has been loaded.")
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = "Please load data first before accessing this feature."  # Example message text
+            window_title = "Data Not Loaded"  # Example window title
+            icon_text = "X"  # Example icon text
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
+
+
      icon_path = os.path.abspath('images/bulb_icon.png')
      self.view.setWindowIcon(QIcon(icon_path))
     def resample_data(self, freq, agg_method):
@@ -816,9 +1127,19 @@ class Controller:
                 resampled_df.reset_index(inplace=True)
                 self.view.display_data(resampled_df)
             else:
-                QMessageBox.warning(self.view, "Error", "No data has been loaded.")
+                custom_color = QColor("#B22222")  # OrangeRed color
+                message_text = "Please load data first before accessing this feature."  # Example message text
+                window_title = "Data Not Loaded"  # Example window title
+                icon_text = "X"  # Example icon text
+                CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
+
         except Exception as e:
-            QMessageBox.critical(self.view, "Resampling Error", str(e))
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = str(e) # Example message text
+            window_title = "Resampling Error"  # Example window title
+            icon_text = "X"  # Example icon text
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
+
         finally:
             icon_path = os.path.abspath('images/bulb_icon.png')
             self.view.setWindowIcon(QIcon(icon_path))
@@ -839,10 +1160,28 @@ class Controller:
                 filepath, _ = QFileDialog.getSaveFileName(self.view, "Save File", "", "CSV Files (*.csv)")
                 if filepath:
                     resampled_data.to_csv(filepath)
-                    QMessageBox.information(self.view, "Success", "Data saved successfully.")
+                    custom_color = QColor("#5cb85c")  # OrangeRed color
+                    message_text =  "Data saved successfully."# Example message text
+                    window_title = "Success"  # Example window title
+                    icon_text = "✔"  # Example icon text
+            
+                    #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+                    # Optionally, set a specific icon to indicate the need for action or an error state
+                    CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
+              
             except Exception as e:
-                QMessageBox.critical(self.view, "Error", str(e))
+                custom_color = QColor("#B22222")  # OrangeRed color
+                message_text = str(e) # Example message text
+                window_title = "Resampling Error"  # Example window title
+                icon_text = "X"  # Example icon text
+                CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
+
         else:
-            QMessageBox.warning(self.view, "Error", "No data loaded or invalid frequency.")
+                custom_color = QColor("#B22222")  # OrangeRed color
+                message_text = "Please load data first before accessing this feature."  # Example message text
+                window_title = "Data Not Loaded"  # Example window title
+                icon_text = "X"  # Example icon text
+                CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
+
         icon_path = os.path.abspath('images/bulb_icon.png')
         self.view.setWindowIcon(QIcon(icon_path))

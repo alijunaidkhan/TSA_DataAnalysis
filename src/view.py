@@ -147,6 +147,7 @@ from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget,QCheckBox
 import os
 
 from sklearn.preprocessing import MinMaxScaler
+
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 import matplotlib
 from matplotlib import pyplot as plt
@@ -157,7 +158,7 @@ from PyQt6.QtCore import Qt, QUrl,pyqtSignal,QDateTime,QThread,QModelIndex
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-from PyQt6.QtGui import QAction, QIcon,QIntValidator  ,QFont,QColor,QPixmap,QStandardItem, QStandardItemModel, QDesktopServices
+from PyQt6.QtGui import QAction, QIcon,QIntValidator,QPainter ,QFont,QColor,QPixmap,QStandardItem, QStandardItemModel, QDesktopServices
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget, QTabWidget, \
     QTableWidget,QMenu, QTableWidgetItem, QHBoxLayout, QLabel, QLineEdit,QFrame,QDateTimeEdit, QGridLayout, QDialog, QGroupBox,\
     QRadioButton, QComboBox,QProgressBar,QFormLayout,QSlider,QTextEdit,QAbstractItemView,QInputDialog, QMessageBox, QButtonGroup, QDockWidget,QSpinBox, QSpacerItem, QSizePolicy
@@ -197,6 +198,35 @@ from statsmodels.tsa.statespace.sarimax import SARIMAX
 import os
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+class CustomMessageBox(QMessageBox):
+    def __init__(self, icon_color, message_text, window_title, icon_text, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setWindowTitle(window_title)
+        self.setText(message_text)
+        self.setIconPixmap(self.create_custom_icon(icon_color, icon_text))
+
+    def create_custom_icon(self, color, icon_text):
+        size = 29  # Small icon size
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)  # Enable antialiasing for smooth edges
+        painter.setBrush(color)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(0, 0, size, size)
+
+        # Draw user-specified text in the center
+        painter.setPen(Qt.GlobalColor.white)
+        font = QFont()
+        font.setBold(True)
+        font.setPointSize(12)  # Adjust font size to fit the small icon
+        painter.setFont(font)
+        painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, icon_text)
+
+        painter.end()
+
+        return pixmap
 
 class View(QWidget):
     def __init__(self, parent=None):
@@ -300,8 +330,12 @@ class View(QMainWindow):
     def close_event(self, event):
         if self.data_changed:
             # Ask the user if they want to save changes
-            reply = QMessageBox.question(self, 'Save Changes?', 'Do you want to save changes?',
-                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel)
+            reply = CustomMessageBox(icon_color=QColor("#B22222"),
+                                    message_text='Do you want to save changes?',
+                                    window_title='Save Changes?',
+                                    icon_text='?',
+                                    parent=self,
+                                    standardButtons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel).exec()
 
             if reply == QMessageBox.StandardButton.Yes:
                 # Save changes
@@ -311,7 +345,7 @@ class View(QMainWindow):
                 # Discard changes
                 event.accept()
             elif reply == QMessageBox.StandardButton.Cancel:
-             # Cancel close event
+                # Cancel close event
                 event.ignore()
             else:
                 # Cancel close event
@@ -407,7 +441,7 @@ class View(QMainWindow):
             }
             QComboBox::drop-down {
                 border: none;              /* No border for the dropdown button */
-                  QProgressBar {
+            QProgressBar {
                 border: 1px solid #d3d3d3;
                 border-radius: 10px;
                 text-align: center;
@@ -417,14 +451,14 @@ class View(QMainWindow):
             }
 
             QProgressBar::chunk {
-                background: qlineargradient(
-                    spread:pad, 
-                    x1:0, y1:0, x2:1, y2:0, 
-                    stop:0 #1e90ff, 
-                    stop:1 #4682b4
-                );
-                border-radius: 8px;
-            }
+                    background: qlineargradient(
+                        spread:pad, 
+                        x1:0, y1:0, x2:1, y2:0, 
+                        stop:0 #1e90ff, 
+                        stop:1 #4682b4
+                    );
+                    border-radius: 8px;
+                }
 
         """)
 
@@ -532,8 +566,25 @@ class View(QMainWindow):
         }
         QScrollBar::add-page, QScrollBar::sub-page {
             background: none;
-        }            
+        } 
+                border: none;              /* No border for the dropdown button */
+        QProgressBar {
+                border: 1px solid #d3d3d3;
+                border-radius: 10px;
+                text-align: center;
+                font-weight: bold;
+                background-color: #e0e0e0;
+                padding: 1px;
+            }
 
+        QProgressBar::chunk {
+                    background: qlineargradient(
+                        spread:pad, 
+                        x1:0, y1:0, x2:1, y2:0, 
+                        stop:0 #1e90ff, 
+                        stop:1 #4682b4
+                    );
+                    border-radius: 8px;
         """)
 
     def set_dark_theme(self):
@@ -555,7 +606,11 @@ class View(QMainWindow):
         self.setStyleSheet(dark_stylesheet)
     def openSubsetDialogTable(self):
         if not self.generated_subsets:
-            QMessageBox.warning(self, "No Subsets", "No subsets have been generated yet.")
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = "No subsets have been generated yet."  # Example message text
+            window_title = "No Subsets"  # Example window title
+            icon_text = "!"  # Example icon text
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
             return
         # print(self.copy_data_frame)
         # print(self.checked_columns)
@@ -570,20 +625,29 @@ class View(QMainWindow):
 # In your main window or wherever the subset button is defined
     def openSubsetDialog(self):
     # Check if data is loaded in the model
-     if not self.comboBox2.get_checked_items():
-        # Display a warning message if no columns are selected
-        icon_path = os.path.abspath('images/subset_icon.ico')
-        self.setWindowIcon(QIcon(icon_path))
-        QMessageBox.warning(self, "No Columns Selected", "Please select at least one column before proceeding.")
-        icon_path = os.path.abspath('images/bulb_icon.png')
-        self.setWindowIcon(QIcon(icon_path))
-        return
+
      if self.controller.model.data_frame is None:
         # Display a warning message if no data is loaded
         icon_path = os.path.abspath('images/subset_icon.ico')
         self.setWindowIcon(QIcon(icon_path))
-        QMessageBox.warning(self, "Data Not Loaded", "Please load data first before accessing this feature.")
-        # Optionally, set a specific icon to indicate the need for action or an error state
+        custom_color = QColor("#B22222")  # OrangeRed color
+        message_text = "Please load data first before accessing this feature."  # Example message text
+        window_title = "Data Not Loaded"  # Example window title
+        icon_text = "X"  # Example icon text
+        CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
+      # Optionally, set a specific icon to indicate the need for action or an error state
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.setWindowIcon(QIcon(icon_path))
+        return
+     if not self.comboBox2.get_checked_items():
+        # Display a warning message if no columns are selected
+        icon_path = os.path.abspath('images/subset_icon.ico')
+        self.setWindowIcon(QIcon(icon_path))
+        custom_color = QColor("#B22222")  # OrangeRed color
+        message_text = "Please select at least one column before proceeding."  # Example message text
+        window_title = "No Columns Selected"  # Example window title
+        icon_text = "!"  # Example icon text
+        CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
         icon_path = os.path.abspath('images/bulb_icon.png')
         self.setWindowIcon(QIcon(icon_path))
         return
@@ -865,7 +929,11 @@ class View(QMainWindow):
             # Display a warning message if no data is loaded
             icon_path = os.path.abspath('images/delete_icon.ico')
             self.setWindowIcon(QIcon(icon_path))
-            QMessageBox.warning(self, "Data Not Loaded", "Please load data first before accessing this feature.")
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = "Please load data first before accessing this feature."  # Example message text
+            window_title = "Data Not Loaded"  # Example window title
+            icon_text = "X"  # Example icon text
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
             # Optionally, set a specific icon to indicate the need for action or an error state
             icon_path = os.path.abspath('images/bulb_icon.png')
             self.setWindowIcon(QIcon(icon_path))
@@ -881,8 +949,11 @@ class View(QMainWindow):
             # Display a warning message if no data is loaded
             icon_path = os.path.abspath('images/imputation_icon.ico')
             self.setWindowIcon(QIcon(icon_path))
-            QMessageBox.warning(self, "Data Not Loaded", "Please load data first before accessing this feature.")
-            # Optionally, set a specific icon to indicate the need for action or an error state
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = "Please load data first before accessing this feature."  # Example message text
+            window_title = "Data Not Loaded"  # Example window title
+            icon_text = "X"  # Example icon text
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec()             # Optionally, set a specific icon to indicate the need for action or an error state
             icon_path = os.path.abspath('images/bulb_icon.png')
             self.setWindowIcon(QIcon(icon_path))
             return
@@ -893,7 +964,11 @@ class View(QMainWindow):
         if self.controller.model.data_frame is  None:
          icon_path = os.path.abspath('images/multivariate_icon.ico')
          self.setWindowIcon(QIcon(icon_path))
-         QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
+         custom_color = QColor("#B22222")  # OrangeRed color
+         message_text = "Please load data first before accessing this feature."  # Example message text
+         window_title = "Data Not Loaded"  # Example window title
+         icon_text = "X"  # Example icon text
+         CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
          icon_path = os.path.abspath('images/bulb_icon.png')
          self.setWindowIcon(QIcon(icon_path))
          return
@@ -901,7 +976,12 @@ class View(QMainWindow):
         if not isinstance(self.controller.model.data_frame.index, pd.DatetimeIndex):
          icon_path = os.path.abspath('images/multivariate_icon.ico')
          self.setWindowIcon(QIcon(icon_path))
-         QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
+         custom_color = QColor("#B22222")  # OrangeRed color
+         message_text = "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting."  # Example message text
+         window_title = "Index not set"  # Example window title
+         icon_text = "!"  # Example icon text
+         CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
+        
          icon_path = os.path.abspath('images/bulb_icon.png')
          self.setWindowIcon(QIcon(icon_path))
          return
@@ -914,7 +994,11 @@ class View(QMainWindow):
         if self.controller.model.data_frame is  None:
          icon_path = os.path.abspath('images/univariate_icon.ico')
          self.setWindowIcon(QIcon(icon_path))
-         QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
+         custom_color = QColor("#B22222")  # OrangeRed color
+         message_text = "Please load data first before accessing this feature."  # Example message text
+         window_title = "Data Not Loaded"  # Example window title
+         icon_text = "X"  # Example icon text
+         CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
          icon_path = os.path.abspath('images/bulb_icon.png')
          self.setWindowIcon(QIcon(icon_path))
          return
@@ -922,7 +1006,11 @@ class View(QMainWindow):
         if not isinstance(self.controller.model.data_frame.index, pd.DatetimeIndex):
          icon_path = os.path.abspath('images/univariate_icon.ico')
          self.setWindowIcon(QIcon(icon_path))
-         QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
+         custom_color = QColor("#B22222")  # OrangeRed color
+         message_text = "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting."  # Example message text
+         window_title = "Index not set"  # Example window title
+         icon_text = "!"  # Example icon text
+         CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
          icon_path = os.path.abspath('images/bulb_icon.png')
          self.setWindowIcon(QIcon(icon_path))
          return
@@ -938,7 +1026,11 @@ class View(QMainWindow):
         if self.controller.model.data_frame is  None:
          icon_path = os.path.abspath('images/forecast_icon.ico')
          self.setWindowIcon(QIcon(icon_path))
-         QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
+         custom_color = QColor("#B22222")  # OrangeRed color
+         message_text = "Please load data first before accessing this feature."  # Example message text
+         window_title = "Data Not Loaded"  # Example window title
+         icon_text = "X"  # Example icon text
+         CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
          icon_path = os.path.abspath('images/bulb_icon.png')
          self.setWindowIcon(QIcon(icon_path))
          return
@@ -946,14 +1038,22 @@ class View(QMainWindow):
         if not isinstance(self.controller.model.data_frame.index, pd.DatetimeIndex):
          icon_path = os.path.abspath('images/forecast_icon.ico')
          self.setWindowIcon(QIcon(icon_path))
-         QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
+         custom_color = QColor("#B22222")  # OrangeRed color
+         message_text = "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting."  # Example message text
+         window_title = "Index not set"  # Example window title
+         icon_text = "!"  # Example icon text
+         CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
          icon_path = os.path.abspath('images/bulb_icon.png')
          self.setWindowIcon(QIcon(icon_path))
          return
         if self.order is None or self.seasonal_order is None:
          icon_path = os.path.abspath('images/forecast_icon.ico')
          self.setWindowIcon(QIcon(icon_path))
-         QMessageBox.warning(self, "Warning", "Please perform modeling for future forecasting. Navigate to menu Model > ARIMA > Model with Parameters.")
+         custom_color = QColor("#B22222")  # OrangeRed color
+         message_text = "Please perform modeling for future forecasting. Navigate to menu Model > ARIMA > Model with Parameters."  # Example message text
+         window_title = "Modeling Not Done"  # Example window title
+         icon_text = "!"  # Example icon text
+         CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
          icon_path = os.path.abspath('images/bulb_icon.png')
          self.setWindowIcon(QIcon(icon_path))
          return
@@ -965,7 +1065,11 @@ class View(QMainWindow):
         if self.controller.model.data_frame is  None:
          icon_path = os.path.abspath('images/nueral_net.ico')
          self.setWindowIcon(QIcon(icon_path))
-         QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
+         custom_color = QColor("#B22222")  # OrangeRed color
+         message_text = "Please load data first before accessing this feature."  # Example message text
+         window_title = "Data Not Loaded"  # Example window title
+         icon_text = "X"  # Example icon text
+         CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
          icon_path = os.path.abspath('images/bulb_icon.png')
          self.setWindowIcon(QIcon(icon_path))
          return
@@ -973,14 +1077,23 @@ class View(QMainWindow):
         if not isinstance(self.controller.model.data_frame.index, pd.DatetimeIndex):
          icon_path = os.path.abspath('images/nueral_net.ico')
          self.setWindowIcon(QIcon(icon_path))
-         QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
+         custom_color = QColor("#B22222")  # OrangeRed color
+         message_text = "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting."  # Example message text
+         window_title = "Index not set"  # Example window title
+         icon_text = "!"  # Example icon text
+         CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
+
          icon_path = os.path.abspath('images/bulb_icon.png')
          self.setWindowIcon(QIcon(icon_path))
          return
         if self.X_test is None:
          icon_path = os.path.abspath('images/nueral_net.ico')
          self.setWindowIcon(QIcon(icon_path))
-         QMessageBox.warning(self, "Warning", "Please perform modeling for future forecasting. Navigate to menu Model > Nueral Network > Univariate RNN.")
+         custom_color = QColor("#B22222")  # OrangeRed color
+         message_text = "Please perform modeling for future forecasting. Navigate to menu Model > ARIMA > Model with Parameters."  # Example message text
+         window_title = "Modeling Not Done"  # Example window title
+         icon_text = "!"  # Example icon text
+         CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
          icon_path = os.path.abspath('images/bulb_icon.png')
          self.setWindowIcon(QIcon(icon_path))
          return
@@ -991,7 +1104,11 @@ class View(QMainWindow):
         if self.controller.model.data_frame is  None:
          icon_path = os.path.abspath('images/multi_forecast.ico')
          self.setWindowIcon(QIcon(icon_path))
-         QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
+         custom_color = QColor("#B22222")  # OrangeRed color
+         message_text = "Please load data first before accessing this feature."  # Example message text
+         window_title = "Data Not Loaded"  # Example window title
+         icon_text = "X"  # Example icon text
+         CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
          icon_path = os.path.abspath('images/bulb_icon.png')
          self.setWindowIcon(QIcon(icon_path))
          return
@@ -999,14 +1116,22 @@ class View(QMainWindow):
         if not isinstance(self.controller.model.data_frame.index, pd.DatetimeIndex):
          icon_path = os.path.abspath('images/multi_forecast.ico')
          self.setWindowIcon(QIcon(icon_path))
-         QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
+         custom_color = QColor("#B22222")  # OrangeRed color
+         message_text = "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting."  # Example message text
+         window_title = "Index not set"  # Example window title
+         icon_text = "!"  # Example icon text
+         CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
          icon_path = os.path.abspath('images/bulb_icon.png')
          self.setWindowIcon(QIcon(icon_path))
          return
         if self.X_test_multi is None:
          icon_path = os.path.abspath('images/multi_forecast.ico')
          self.setWindowIcon(QIcon(icon_path))
-         QMessageBox.warning(self, "Warning", "Please perform modeling for future forecasting. Navigate to menu Model > Nueral Network > Multivariate RNN.")
+         custom_color = QColor("#B22222")  # OrangeRed color
+         message_text = "Please perform modeling for future forecasting. Navigate to menu Model > ARIMA > Model with Parameters."  # Example message text
+         window_title = "Modeling Not Done"  # Example window title
+         icon_text = "!"  # Example icon text
+         CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
          icon_path = os.path.abspath('images/bulb_icon.png')
          self.setWindowIcon(QIcon(icon_path))
          return
@@ -1017,7 +1142,11 @@ class View(QMainWindow):
         if self.controller.model.data_frame is  None:
          icon_path = os.path.abspath('images/model_parameters_icon.ico')
          self.setWindowIcon(QIcon(icon_path))
-         QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
+         custom_color = QColor("#B22222")  # OrangeRed color
+         message_text = "Please load data first before accessing this feature."  # Example message text
+         window_title = "Data Not Loaded"  # Example window title
+         icon_text = "X"  # Example icon text
+         CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
          icon_path = os.path.abspath('images/bulb_icon.png')
          self.setWindowIcon(QIcon(icon_path))
          return
@@ -1025,7 +1154,11 @@ class View(QMainWindow):
         if not isinstance(self.controller.model.data_frame.index, pd.DatetimeIndex):
          icon_path = os.path.abspath('images/model_parameters_icon.ico')
          self.setWindowIcon(QIcon(icon_path))
-         QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
+         custom_color = QColor("#B22222")  # OrangeRed color
+         message_text = "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting."  # Example message text
+         window_title = "Index not set"  # Example window title
+         icon_text = "!"  # Example icon text
+         CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
          icon_path = os.path.abspath('images/bulb_icon.png')
          self.setWindowIcon(QIcon(icon_path))
          return
@@ -1039,7 +1172,11 @@ class View(QMainWindow):
         if self.controller.model.data_frame is None:
             icon_path = os.path.abspath('images/split_dataset.ico')
             self.setWindowIcon(QIcon(icon_path))
-            QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = "Please load data first before accessing this feature."  # Example message text
+            window_title = "Data Not Loaded"  # Example window title
+            icon_text = "X"  # Example icon text
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec()             
             icon_path = os.path.abspath('images/bulb_icon.png')
             self.setWindowIcon(QIcon(icon_path))
             return
@@ -1047,7 +1184,11 @@ class View(QMainWindow):
         if not isinstance(self.controller.model.data_frame.index, pd.DatetimeIndex):
             icon_path = os.path.abspath('images/split_dataset.ico')
             self.setWindowIcon(QIcon(icon_path))
-            QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting."  # Example message text
+            window_title = "Index not set"  # Example window title
+            icon_text = "!"  # Example icon text
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec()          
             icon_path = os.path.abspath('images/bulb_icon.png')
             self.setWindowIcon(QIcon(icon_path))
             return
@@ -1072,7 +1213,6 @@ class View(QMainWindow):
                 font-size: 10pt;
             }
         """)
-
     def update_status_bar(self, message):
         """
         Updates the status bar with the provided message.
@@ -1083,8 +1223,9 @@ class View(QMainWindow):
         """
         Displays a message box with the given message.
         """
-        # QMessageBox.information(self, "Information", message)
-        QMessageBox.information(self, title, message)
+        custom_color = QColor("#B22222")  # Example color for information
+        icon_text = "!"  # Example icon text for information
+        CustomMessageBox(custom_color, message, title, icon_text, self).exec()
 # Assume `self.table_widget` is your QTableWidget and `self.model.data_frame` is your pandas DataFrame
     def display_latest_subset(self):
      if hasattr(self, 'Latest_subset_dialog'):
@@ -1211,7 +1352,11 @@ class View(QMainWindow):
         if self.controller.model.data_frame is  None:
          icon_path = os.path.abspath('images/grid_search_icon.ico')
          self.setWindowIcon(QIcon(icon_path))
-         QMessageBox.warning(self, "Warning", "Please load a DataFrame first!")
+         custom_color = QColor("#B22222")  # OrangeRed color
+         message_text = "Please load data first before accessing this feature."  # Example message text
+         window_title = "Data Not Loaded"  # Example window title
+         icon_text = "X"  # Example icon text
+         CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
          icon_path = os.path.abspath('images/bulb_icon.png')
          self.setWindowIcon(QIcon(icon_path))
          return
@@ -1220,8 +1365,11 @@ class View(QMainWindow):
          icon_path = os.path.abspath('images/grid_search_icon.ico')
          self.setWindowIcon(QIcon(icon_path))
 
-         QMessageBox.warning(self, "Warning", "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting.")
-            
+         custom_color = QColor("#B22222")  # OrangeRed color
+         message_text = "The DataFrame index is not set as DateTime. Please set the index as DateTime for accurate splitting."  # Example message text
+         window_title = "Index not set"  # Example window title
+         icon_text = "!"  # Example icon text
+         CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec()             
 
          icon_path = os.path.abspath('images/bulb_icon.png')
          self.setWindowIcon(QIcon(icon_path))
@@ -1425,8 +1573,11 @@ class View(QMainWindow):
         dialog = SubsetDisplayDialog(self.savedSubsets, self)  # Display the first subset for this example
         dialog.exec()
      else:
-        QMessageBox.information(self, "Subset", "No subsets have been generated.")
-
+         custom_color = QColor("#B22222")  # OrangeRed color
+         message_text = "No subsets have been generated."  # Example message text
+         window_title = "Subset"  # Example window title
+         icon_text = "!"  # Example icon text
+         CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
     def onSubsetGenerated(self):
         self.copied_data_frame = self.controller.model.data_frame.copy()
 
@@ -1437,7 +1588,15 @@ class View(QMainWindow):
         # self.label2.setVisible(False)
         # self.unselect_button.setVisible(False)
         # self.subsetCreated = True
-        QMessageBox.information(self, "Subset Created", "Your subset has been generated. You can view it using the 'Latest Subset Table' button.")
+        custom_color = QColor("#5cb85c")  # OrangeRed color
+        message_text = f"Your subset has been generated. You can view it using the 'Latest Subset Table' button" # Example message text
+        window_title = "Successfully Created Subset"  # Example window title
+        icon_text = "✔"  # Example icon text
+    
+        #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+        # Optionally, set a specific icon to indicate the need for action or an error state
+        CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec()  # Use the desired color for the custom icon
+
         
     def resetLayout(self):
     # Reset visibility of widgets
@@ -1560,8 +1719,11 @@ class DataInfoDialog(QDialog):
             self.refresh_data_info_tab()  # Refresh data info tab after conversion
 
         else:
-            QMessageBox.warning(self, "Warning", "Please select columns and a data type.")
-
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = "Please select columns and a data type."  # Example message text
+            window_title = "No Selection"  # Example window title
+            icon_text = "!"  # Example icon text
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
     def add_buttons(self):
         self.setStyleSheet("""
             QPushButton {
@@ -1603,17 +1765,32 @@ class DataInfoDialog(QDialog):
 
     def confirm(self):
         # Display a message box for confirmation
-        QMessageBox.information(self, "Confirm", "Changes have been confirmed.")
+        custom_color = QColor("#5cb85c")  # OrangeRed color
+        message_text = "Changes have been confirmed." # Example message text
+        window_title = "Confirm"  # Example window title
+        icon_text = "✔"  # Example icon text
+    
+        #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+        # Optionally, set a specific icon to indicate the need for action or an error state
+        CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec()  # Use the desired color for the custom icon
+ 
         self.refresh_data_info_tab()
     def showEvent(self, event):
         super(DataInfoDialog, self).showEvent(event)
         self.refresh_data_info_tab()
 
     def confirm_and_exit(self):
-        QMessageBox.information(self, "Confirm and Exit", "Changes confirmed. Exiting now.")
         self.refresh_data_info_tab()  # Refresh the DataFrame info tab
         self.accept()  # Closes the dialog
-
+        custom_color = QColor("#5cb85c")  # OrangeRed color
+        message_text = "Changes confirmed. Exiting now." # Example message text
+        window_title = "Confirm and Exit" # Example window title
+        icon_text = "✔"  # Example icon text
+    
+        #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+        # Optionally, set a specific icon to indicate the need for action or an error state
+        CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec()  # Use the desired color for the custom icon
+ 
     def populate_data_info(self, data_info):
         self.table_widget.clearContents()  # Clear existing contents
         self.table_widget.setRowCount(0)   # Reset the row count
@@ -1781,18 +1958,20 @@ class DeleteColumnsDialog(QDialog):
         for col in df.columns:
             dtype = str(df[col].dtype)
             self.comboBox.addItem(col, True, dtype, False)
-    
     def confirm_delete(self):
         checked_items = self.comboBox.get_checked_items()
         if checked_items:
-            reply = QMessageBox.question(
-                self, 'Confirm Delete', 
-                f"Are you sure you want to delete the selected columns: {', '.join(checked_items)}?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No
-            )
+            message_text = f"Are you sure you want to delete the selected columns: {', '.join(checked_items)}?"
+            custom_message_box = CustomMessageBox(icon_color= QColor("#B22222") ,
+                                                message_text=message_text,
+                                                window_title='Confirm Delete',
+                                                icon_text='?',
+                                                parent=self,
+                                                standardButtons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            reply = custom_message_box.exec()
+            
             if reply == QMessageBox.StandardButton.Yes:
                 self.delete_columns(checked_items)
-    
     def delete_columns(self, checked_items):
         self.controller.delete_columns(checked_items)
         self.close()
@@ -1936,10 +2115,12 @@ class SetFrequencyDialog(QDialog):
             frequency = self.common_freq_combo.currentText()
         else:
             frequency = self.custom_freq_lineedit.text()
-
-        
-        
-        QMessageBox.information(self, "Frequency Set", f"Frequency set to: {frequency}")
+        custom_color = QColor("#5cb85c")  # OrangeRed color
+        message_text = f"Successfully set Frequency to: {frequency}" # Example message text
+        window_title = "Success"  # Example window title
+        icon_text = "✔"  # Example icon text
+    
+        CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec()  # Use the desired color for the custom icon
         self.accept()
     # def get_aggregation(self):
     #     """
@@ -2064,7 +2245,13 @@ class PlottingDialog(QMainWindow):
         """Handle the plot button click event."""
         selected_columns = self.get_selected_columns()
         if not selected_columns:
-            QMessageBox.warning(self, "Warning", "Please select at least one column to plot.")
+
+            custom_message_box = CustomMessageBox(icon_color=QColor('#B22222'),  # Specify the color for the warning icon (orange color)
+                                                message_text="Please select at least one column to plot.",
+                                                window_title="Input Error",
+                                                icon_text='X',
+                                                parent=self)
+            custom_message_box.exec()
         else:
             # Call the method on the controller
             self.controller.plot_selected_columns(selected_columns)
@@ -2200,7 +2387,12 @@ class SeasonalDecomposeDialog(QMainWindow):
         """Handle the decompose button click event."""
         selected_series = self.series_combobox.currentText()
         if not selected_series:
-            QMessageBox.warning(self, "Warning", "Please select a series to decompose.")
+            custom_message_box = CustomMessageBox(icon_color=QColor('#B22222'),  # Specify the color for the warning icon (orange color)
+                                                message_text="Please select a series to decompose.",
+                                                window_title="Input Error",
+                                                icon_text='X',
+                                                parent=self)
+            custom_message_box.exec()
             return
 
         period = self.period_spin_box.value()
@@ -2606,13 +2798,18 @@ class ResampleDialog(QDialog):
     
     # Validate the aggregation method selection
      agg_method = self.aggregation_combo.currentText()
-    
-        # Show a confirmation dialog before proceeding
-     reply = QMessageBox.question(self, 'Confirm Resample',
-                                     "Resampling will modify the current data. Do you want to continue?",
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
 
+        # Show a confirmation dialog before proceeding
+     custom_message_box = CustomMessageBox(icon_color=QColor("#B22222"),  # Specify the color for the confirmation icon (steel blue color)
+                                          message_text="Resampling will modify the current data. Do you want to continue?",
+                                          window_title="Confirm Resample",
+                                          icon_text='?',
+                                          standard_buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                          parent=self)
+    
+     reply = custom_message_box.exec()
      if reply == QMessageBox.StandardButton.Yes:
+
             # User confirmed the action, proceed with resampling
             # This is where you might call a resampling method or emit a signal
             print("Proceed with resampling")  # Placeholder for actual resampling logic
@@ -2730,7 +2927,12 @@ class SubsetDialog(QDialog):
          # Check if subsets are populated
      if not self.subsets:
         print("No subsets to display.")  # Debug print
-        QMessageBox.information(self, "No Subsets", "No subsets were created based on the given thresholds.")
+        custom_color = QColor("#B22222")  # DodgerBlue color
+        message_text = "No subsets were created based on the given thresholds."
+        window_title = "Error Creating Subsets"
+        icon_text = "X"  # Example icon text for information
+
+        CustomMessageBox(custom_color, message_text, window_title, icon_text, self).exec()
         return
      print("Populating table with subsets...")  # Debug print
 
@@ -2777,18 +2979,28 @@ class SubsetDialog(QDialog):
     def on_subset_selected(self):
      selected_subset = self.getSelectedSubset()
      if selected_subset is not None:
-        reply = QMessageBox.question(self, 'Confirm Subset Process',
-                                     "Subsetting Process will modify the current data. Do you want to continue?",
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        custom_message_box = CustomMessageBox(icon_color=QColor('#B22222'),
+                                              message_text="Subsetting Process will modify the current data. Do you want to continue?",
+                                              window_title='Confirm Subset Process',
+                                              icon_text='?',
+                                              parent=self,
+                                              standardButtons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        reply = custom_message_box.exec()
 
         if reply == QMessageBox.StandardButton.Yes:
-      
             subset_dataframe = self.dataframe.iloc[selected_subset]
             self.parent().controller.model.data_frame=subset_dataframe
+            custom_color = QColor("#5cb85c")  # OrangeRed color
+            message_text = "The dataset has been updated." # Example message text
+            window_title = "Successfully Subset Selected"  # Example window title
+            icon_text = "✔"  # Example icon text
+        
+            #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+            # Optionally, set a specific icon to indicate the need for action or an error state
+            CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec()  # Use the desired color for the custom icon
 
             # Directly update the main UI with the selected subset DataFrame
             self.parent().display_data(subset_dataframe)
-            QMessageBox.information(self, "Subset Selected", "The dataset has been updated.")
             self.accept()  # Close the dialog
 
 
@@ -2819,7 +3031,12 @@ class SubsetDialog(QDialog):
                 self.save_subsets(subsets)
                 self.accept()
             else:
-                QMessageBox.information(self, "No Subsets", "No subsets were created based on the given thresholds.")
+                custom_message_box = CustomMessageBox(icon_color=QColor("#B22222")  ,  # Specify the color for the information icon (dodger blue color)
+                                          message_text="No subsets were created based on the given thresholds.",
+                                          window_title="Error Creating Subsets",
+                                          icon_text='!',
+                                          parent=self)
+                custom_message_box.exec()
         except ValueError:
                 pass
     def split_into_subsets(self, thresholds):
@@ -2850,15 +3067,19 @@ class SubsetDialog(QDialog):
         subsets.append(continuous_subset)
      return subsets
 
-    def show_result_message(self, num_subsets, subset_lengths):
+    def show_custom_information(self, num_subsets, subset_lengths):
         message = f"Number of subsets created: {num_subsets}\n"
         message += "Number of rows in each subset: " + ", ".join(map(str, subset_lengths)) + "\n"
         if subset_lengths:
             best_subset = subset_lengths.index(max(subset_lengths)) + 1
             message += f"Recommendation: {best_subset} Subset is recommended for analysis."
-        QMessageBox.information(self, "Subset Information", message)
 
-   
+        custom_message_box = CustomMessageBox(icon_color=QColor('#B22222'),  # Specify the color for the information icon (lime green color)
+                                            message_text=message,
+                                            window_title = "Subset Information",# Example window title
+                                            icon_text = "✔",# Example icon text
+                                            parent=self)
+        custom_message_box.exec()
     def save_subsets(self, subsets):
         zip_filename = "subsets.zip"
         with zipfile.ZipFile(zip_filename, 'w') as zipf:
@@ -2870,7 +3091,15 @@ class SubsetDialog(QDialog):
                 os.remove(subset_filename)
         # Update the message to include the full path where the file is saved
         save_path = os.path.abspath(zip_filename)
-        QMessageBox.information(self, "Success", f"Subsets saved to {save_path}")
+        custom_color = QColor("#5cb85c")  # OrangeRed color
+        message_text = f"Subsets saved to {save_path}" # Example message text
+        window_title = "Successfully Saved Subset"  # Example window title
+        icon_text = "✔"  # Example icon text
+    
+        #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+        # Optionally, set a specific icon to indicate the need for action or an error state
+        CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec()  # Use the desired color for the custom icon
+
 class LatestSubsetDialog(QDialog):
     def __init__(self, column_ranges, dataframe, threshold, parent=None):
         super().__init__(parent)
@@ -2974,22 +3203,44 @@ class LatestSubsetDialog(QDialog):
             subsets.append(continuous_subset)
         return subsets
 
+
     def on_subset_selected(self):
         selected_subset = self.getSelectedSubset()
         if selected_subset is not None:
-            reply = QMessageBox.question(self, 'Confirm Subset Process',
-                                         "Subsetting Process will modify the current data. Do you want to continue?",
-                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            # Custom confirmation message box
+            confirm_color = QColor("#B22222")  # SteelBlue color
+            confirm_message = "Subsetting Process will modify the current data. Do you want to continue?"
+            confirm_title = "Confirm Subset Process"
+            confirm_icon = "?"
+
+            confirm_message_box = CustomMessageBox(confirm_color, confirm_message, confirm_title, confirm_icon, self)
+            reply = confirm_message_box.exec()
 
             if reply == QMessageBox.StandardButton.Yes:
-                            # Directly update the main UI with the selected subset
-             subset_dataframe = self.dataframe.iloc[selected_subset]
-             self.parent().controller.model.data_frame=subset_dataframe
+                # Directly update the main UI with the selected subset
+                subset_dataframe = self.dataframe.iloc[selected_subset]
+                self.parent().controller.model.data_frame = subset_dataframe
 
-            # Directly update the main UI with the selected subset DataFrame
-             self.parent().display_data(subset_dataframe)
-             QMessageBox.information(self, "Subset Selected", "The dataset has been updated.")
-             self.accept()  # Close the dialog
+                # Directly update the main UI with the selected subset DataFrame
+                self.parent().display_data(subset_dataframe)
+
+                # Custom information message box for success message
+                success_color = QColor("#5cb85c")  # LimeGreen color
+                success_message = "The dataset has been updated."
+                success_title = "Subset Selected"
+                success_icon = "✔"
+
+                CustomMessageBox(success_color, success_message, success_title, success_icon, self).exec()
+
+                self.accept()  # Close the dialog
+        else:
+            # Custom warning message box for missing data warning
+            warning_color = QColor("#B22222")  # Orange color
+            warning_message = "Please load data first before accessing this feature."
+            warning_title = "Data Not Loaded"
+            warning_icon = "X"
+
+            CustomMessageBox(warning_color, warning_message, warning_title, warning_icon, self).exec()
 
 
 class ArimaConfigDialog(QDialog):
@@ -3112,12 +3363,23 @@ class ArimaConfigDialog(QDialog):
 
     # Check if there are missing values after dropping
         if series.isnull().any():
-         QMessageBox.critical(self, "Error", "Missing values still exist in the time series data after preprocessing.")
-         return
+         
+            custom_message_box = CustomMessageBox(icon_color=QColor('#B22222'),  # The specified color for the error icon
+                                                message_text="Missing values still exist in the time series data after preprocessing.",
+                                                window_title="Error",
+                                                icon_text='X',
+                                                parent=self)
+            custom_message_box.exec()
+            return
 
     # Ensure the series is in datetime format
         if not np.issubdtype(series.index.dtype, np.datetime64):
-         QMessageBox.critical(self, "Error", "The index of the time series data must be in datetime format.")
+         custom_message_box = CustomMessageBox(icon_color=QColor('#B22222'),  # The specified color for the error icon
+                                          message_text="The index of the time series data must be in datetime format.",
+                                          window_title="Error",
+                                          icon_text='X',
+                                          parent=self)
+         custom_message_box.exec()
          return
 
         original_stdout = sys.stdout
@@ -4108,8 +4370,14 @@ class ModelWithParameter(QDialog):
         elif selected_dataset == "Test Set":
          train = self.parent().test_data[selected_column].values
         else:
-         QMessageBox.warning(self, "Input Error", "Please select a dataset.")
-         return
+         
+            custom_message_box = CustomMessageBox(icon_color=QColor('#B22222'),  # The specified color for the warning icon
+                                                message_text="Please select a dataset.",
+                                                window_title="Input Error",
+                                                icon_text='X',
+                                                parent=self)
+            custom_message_box.exec()
+            return
         # Fit ARIMA model
         order=(self.p, self.d, self.q)
 
@@ -4190,8 +4458,13 @@ class ModelWithParameter(QDialog):
          self.parent().df_model=self.parent().test_data
 
         else:
-         QMessageBox.warning(self, "Input Error", "Please select a dataset.")
-         return
+            custom_message_box = CustomMessageBox(icon_color=QColor('#B22222'),  # The specified color for the warning icon
+                                                message_text="Please select a dataset.",
+                                                window_title="Input Error",
+                                                icon_text='X',
+                                                parent=self)
+            custom_message_box.exec()
+            return
         try:
             
 
@@ -4296,8 +4569,13 @@ class ModelWithParameter(QDialog):
         elif selected_dataset == "Test Set":
          dataset = self.parent().test_data[selected_column].values
         else:
-         QMessageBox.warning(self, "Input Error", "Please select a dataset.")
-         return
+            custom_message_box = CustomMessageBox(icon_color=QColor('#B22222'),  # The specified color for the warning icon
+                                                message_text="Please select a dataset.",
+                                                window_title="Input Error",
+                                                icon_text='X',
+                                                parent=self)
+            custom_message_box.exec()
+            return
         try:
             
             endog = dataset
@@ -4391,7 +4669,14 @@ class ModelWithParameter(QDialog):
             plt.close()  # Close the figure after saving
 
         # Show notification
-        QMessageBox.information(self, "PDF Saved Successfully", f"PDF saved successfully at: {file_path}")
+        custom_color = QColor("#5cb85c")  # OrangeRed color
+        message_text =  f"PDF saved successfully at: {file_path}"# Example message text
+        window_title = "Successfully Saved PDF"  # Example window title
+        icon_text = "✔"  # Example icon text
+    
+        #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+        # Optionally, set a specific icon to indicate the need for action or an error state
+        CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec()  # Use the desired color for the custom icon
 
         # Open the saved PDF file
         try:
@@ -4563,7 +4848,12 @@ class ModelWithParameter(QDialog):
         test_report_window = QDialog(self)
         test_report_window.setWindowTitle("Test Prediction Report")
         if self.parent().test_data is None:
-            QMessageBox.warning(self, "Test data is empty", "Please split the data first.")
+            custom_message_box = CustomMessageBox(icon_color=QColor('#B22222'),  # The specified color for the warning icon
+                                                message_text="Please split the data first.",
+                                                window_title="Test data is empty",
+                                                icon_text='!',
+                                                parent=self)
+            custom_message_box.exec()
             return
         selected_column = self.columnSelector.currentText()
     
@@ -4698,8 +4988,15 @@ class ModelWithParameter(QDialog):
             plt.close()  # Close the figure after saving
 
         # Show notification
-        QMessageBox.information(test_report_window, "PDF Saved Successfully", f"PDF saved successfully at: {file_path}")
-
+        # Show notification
+        custom_color = QColor("#5cb85c")  # OrangeRed color
+        message_text =  f"PDF saved successfully at: {file_path}"# Example message text
+        window_title = "Successfully Saved PDF"  # Example window title
+        icon_text = "✔"  # Example icon text
+    
+        #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+        # Optionally, set a specific icon to indicate the need for action or an error state
+        CustomMessageBox(custom_color,message_text, window_title, icon_text, self.test_report_window).exec() 
         # Open the saved PDF file
         try:
             subprocess.Popen(["xdg-open", file_path])  # Linux
@@ -4867,10 +5164,13 @@ class ModelWithParameter(QDialog):
 
     def importBestParameters(self):
         if not self.parent().best_params:
-            QMessageBox.information(self, "Import Recommended Parameters",
-                                    'No Recommended parameters available. Please go to the ARIMA -> "Grid Search" menu to generate recommended parameters.')
+            custom_message_box = CustomMessageBox(icon_color=QColor('#B22222'),  # The specified color for the information icon
+                                                message_text='No Recommended parameters available. Please go to the ARIMA -> "Grid Search" menu to generate recommended parameters.',
+                                                window_title="Import Recommended Parameters",
+                                                icon_text='!',
+                                                parent=self)
+            custom_message_box.exec()
             return
-
 
         self.pLineEdiM.setCurrentText(str(self.parent().best_params.get('p', '')))
         self.dLineEditM.setCurrentText(str(self.parent().best_params.get('d', '')))
@@ -4906,8 +5206,12 @@ class ModelWithParameter(QDialog):
 
         except ValueError:
             # If conversion fails, display an error message
-            QMessageBox.critical(self, "Error", "Please enter a valid numeric value.")
-
+            custom_message_box = CustomMessageBox(icon_color=QColor('#B22222'),  # The specified color for the critical error icon
+                                                message_text="Please enter a valid numeric value.",
+                                                window_title="Error",
+                                                icon_text='X',
+                                                parent=self)
+            custom_message_box.exec()
     def findBestArimaParameters(self):
         
         self.iterationLogTextEdit.clear()
@@ -4926,13 +5230,23 @@ class ModelWithParameter(QDialog):
 
     # Check if there are missing values after dropping
         if series.isnull().any():
-         QMessageBox.critical(self, "Error", "Missing values still exist in the time series data after preprocessing.")
-         return
+            custom_message_box = CustomMessageBox(icon_color=QColor('#B22222'),  # The specified color for the critical error icon
+                                                message_text="Missing values still exist in the time series data. Please go to Preprocess menu and perform imputation to fill the missing values.",
+                                                window_title="Error",
+                                                icon_text='X',
+                                                parent=self)
+            custom_message_box.exec()         
+            return
 
     # Ensure the series is in datetime format
         if not np.issubdtype(series.index.dtype, np.datetime64):
-         QMessageBox.critical(self, "Error", "The index of the time series data must be in datetime format.")
-         return
+            custom_message_box = CustomMessageBox(icon_color=QColor('#B22222'),  # The specified color for the critical error icon
+                                                message_text="The index of the time series data must be in datetime format.",
+                                                window_title="Error",
+                                                icon_text='X',
+                                                parent=self)
+            custom_message_box.exec()
+            return
 
         sys.stdout = EmittingStream(self.iterationLogTextEdit)
 
@@ -4945,7 +5259,12 @@ class ModelWithParameter(QDialog):
         Q_text = self.startQSeasonalLineEdit.currentText()
         m_text = self.mLineEdit.currentText()
         if not p_text or not d_text or not q_text or not P_text or not Q_text or not m_text:
-            QMessageBox.warning(self, "Input Error", "Please fill in all manual input parameters.")
+            custom_message_box = CustomMessageBox(icon_color=QColor('#B22222'),  # The specified color for the warning icon
+                                                    message_text="Please fill in all manual input parameters.",
+                                                    window_title="Input Error",
+                                                    icon_text='X',
+                                                    parent=self)
+            custom_message_box.exec()
             return
 
         p = int(p_text)
@@ -4961,7 +5280,12 @@ class ModelWithParameter(QDialog):
             q_text = self.qLineEditM.currentText()
 
             if not p_text or not d_text or not q_text:
-                QMessageBox.warning(self, "Input Error", "Please fill in all manual input parameters.")
+                custom_message_box = CustomMessageBox(icon_color=QColor('#B22222'),  # Specify the color for the warning icon
+                                                    message_text="Please fill in all manual input parameters.",
+                                                    window_title="Input Error",
+                                                    icon_text='X',
+                                                    parent=self)
+                custom_message_box.exec()                
                 return
             p = int(p_text)
             d = int(d_text)
@@ -4977,8 +5301,13 @@ class ModelWithParameter(QDialog):
             Q_text = self.startQSeasonalLineEdit.currentText()
             m_text = self.mLineEdit.currentText()
             if not p_text or not d_text or not q_text or not P_text or not Q_text or not m_text:
-                QMessageBox.warning(self, "Input Error", "Please fill in all manual input parameters.")
-                return
+                custom_message_box = CustomMessageBox(icon_color=QColor('#B22222'),  # Specify the color for the warning icon
+                                                    message_text="Please fill in all manual input parameters.",
+                                                    window_title="Input Error",
+                                                    icon_text='X',
+                                                    parent=self)
+                custom_message_box.exec()
+            return
 
             p = int(p_text)
             d = int(d_text)
@@ -4998,7 +5327,12 @@ class ModelWithParameter(QDialog):
             Q_text = self.startQSeasonalLineEdit.currentText()
             m_text = self.mLineEdit.currentText()
             if not p_text or not d_text or not q_text or not P_text or not Q_text or not m_text:
-                QMessageBox.warning(self, "Input Error", "Please fill in all manual input parameters.")
+                custom_message_box = CustomMessageBox(icon_color=QColor('#B22222'),  # Specify the color for the warning icon
+                                                    message_text="Please fill in all manual input parameters.",
+                                                    window_title="Input Error",
+                                                    icon_text='X',
+                                                    parent=self)
+                custom_message_box.exec()                
                 return
 
             p = int(p_text)
@@ -5229,7 +5563,15 @@ class SplitDatasetDialog(QDialog):
         self.parent().train_data = self.train_data
         self.parent().test_data = self.test_data
         self.parent().actual_data = self.dataframe
-        QMessageBox.information(self, "Success", f"Dataset split successful!\nTrain Data: {len(self.train_data)} rows\nTest Data: {len(self.test_data)} rows")
+        custom_color = QColor("#5cb85c")  # OrangeRed color
+        message_text =  f"Dataset split successful!\nTrain Data: {len(self.train_data)} rows\nTest Data: {len(self.test_data)} rows"# Example message text
+        window_title = "Successfully Done Splitting"  # Example window title
+        icon_text = "✔"  # Example icon text
+    
+        #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
+        # Optionally, set a specific icon to indicate the need for action or an error state
+        CustomMessageBox(custom_color,message_text, window_title, icon_text, self.test_report_window).exec() 
+        
         self.accept()
 
 
@@ -5973,8 +6315,12 @@ class ConfigureRNN(QDialog):
         plt.close(self.plot_train_histogram)
 
         # Show notification
-        QMessageBox.information(parent_widget, "PDF Saved Successfully", f"PDF saved successfully at: {file_path}")
+        custom_color = QColor("#5cb85c")  # LimeGreen color for success
+        message_text = f"PDF saved successfully at: {file_path}"
+        window_title = "Successfully Saved PDF"
+        icon_text = "✔"  # Checkmark icon for success
 
+        CustomMessageBox(custom_color, message_text, window_title, icon_text, parent_widget).exec()
         # Open the saved PDF file
         try:
             subprocess.Popen(["xdg-open", file_path])  # Linux
@@ -6012,7 +6358,12 @@ class ConfigureRNN(QDialog):
         plt.close(self.plot_val_histogram)
 
         # Show notification
-        QMessageBox.information(parent_widget, "PDF Saved Successfully", f"PDF saved successfully at: {file_path}")
+        custom_color = QColor("#5cb85c")  # LimeGreen color for success
+        message_text = f"PDF saved successfully at: {file_path}"
+        window_title = "Successfully Saved PDF"
+        icon_text = "✔"  # Checkmark icon for success
+
+        CustomMessageBox(custom_color, message_text, window_title, icon_text, parent_widget).exec()
 
         # Open the saved PDF file
         try:
@@ -6037,7 +6388,12 @@ class ConfigureRNN(QDialog):
         plt.close(self.plot_test_histogram)
 
         # Show notification
-        QMessageBox.information(parent_widget, "PDF Saved Successfully", f"PDF saved successfully at: {file_path}")
+        custom_color = QColor("#5cb85c")  # LimeGreen color for success
+        message_text = f"PDF saved successfully at: {file_path}"
+        window_title = "Successfully Saved PDF"
+        icon_text = "✔"  # Checkmark icon for success
+
+        CustomMessageBox(custom_color, message_text, window_title, icon_text, parent_widget).exec()
 
         # Open the saved PDF file
         try:
@@ -6304,7 +6660,8 @@ class CheckableComboBoxDrop(QComboBox):
                     padding: 3px;
                     color: #0078D7;
                     background-color: white;
-                }            QProgressBar {
+                }            
+                QProgressBar {
                     border: 1px solid #d3d3d3;
                     border-radius: 10px;
                     text-align: center;
@@ -6695,6 +7052,7 @@ class MultiRNN(QDialog):
 
         # Add a new row for the progress bar
         self.progress_bar = QProgressBar()
+
         scroll_layout.addWidget(self.progress_bar)
 
         # Third row with tabs
@@ -6859,7 +7217,13 @@ class MultiRNN(QDialog):
         if NN_df.isnull().any().any():
             columns_with_nulls = NN_df.columns[NN_df.isnull().any()].tolist()
             warning_message = f"NaN values found in columns: {', '.join(columns_with_nulls)}. Please go to Preprocess menu and perform imputation to fill the missing values."
-            QMessageBox.warning(self, "Warning", warning_message, QMessageBox.StandardButton.Ok)
+            
+            # Replace QMessageBox.warning with CustomMessageBox
+            custom_color = QColor("#B22222")  # Orange color for warning
+            window_title = "Warning"
+            icon_text = "!"  # Warning icon
+
+            CustomMessageBox(custom_color, warning_message, window_title, icon_text, self).exec()
             return
 
         X, y = self.df_to_X_y(NN_df, timesteps,selected_column)
@@ -7268,8 +7632,14 @@ class MultiRNN(QDialog):
         plt.close(self.plot_train_histogram)
 
         # Show notification
-        QMessageBox.information(parent_widget, "PDF Saved Successfully", f"PDF saved successfully at: {file_path}")
+        custom_color = QColor("#5cb85c")  # LimeGreen color for success
+        message_text = f"PDF saved successfully at: {file_path}"
+        window_title = "Successfully Saved PDF"
+        icon_text = "✔"  # Checkmark icon for success
 
+        CustomMessageBox(custom_color, message_text, window_title, icon_text, parent_widget).exec()
+
+        # Open the saved PDF file
         # Open the saved PDF file
         try:
             subprocess.Popen(["xdg-open", file_path])  # Linux
@@ -7307,8 +7677,14 @@ class MultiRNN(QDialog):
         plt.close(self.plot_val_histogram)
 
         # Show notification
-        QMessageBox.information(parent_widget, "PDF Saved Successfully", f"PDF saved successfully at: {file_path}")
+        custom_color = QColor("#5cb85c")  # LimeGreen color for success
+        message_text = f"PDF saved successfully at: {file_path}"
+        window_title = "Successfully Saved PDF"
+        icon_text = "✔"  # Checkmark icon for success
 
+        CustomMessageBox(custom_color, message_text, window_title, icon_text, parent_widget).exec()
+
+        # Open the saved PDF file
         # Open the saved PDF file
         try:
             subprocess.Popen(["xdg-open", file_path])  # Linux
@@ -7332,8 +7708,14 @@ class MultiRNN(QDialog):
         plt.close(self.plot_test_histogram)
 
         # Show notification
-        QMessageBox.information(parent_widget, "PDF Saved Successfully", f"PDF saved successfully at: {file_path}")
+        custom_color = QColor("#5cb85c")  # LimeGreen color for success
+        message_text = f"PDF saved successfully at: {file_path}"
+        window_title = "Successfully Saved PDF"
+        icon_text = "✔"  # Checkmark icon for success
 
+        CustomMessageBox(custom_color, message_text, window_title, icon_text, parent_widget).exec()
+
+        # Open the saved PDF file
         # Open the saved PDF file
         try:
             subprocess.Popen(["xdg-open", file_path])  # Linux
@@ -7762,14 +8144,17 @@ class ImputationDialog(QDialog):
             elif self.no_fill_radio.isChecked():
                 fill_method = "none"
 
-            if fill_method is not None:
-                reply = QMessageBox.question(
-                    self, 'Confirm Fill', 
-                    f"Are you sure you want to apply '{fill_method}' fill to the selected columns: {', '.join(checked_items)}?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No
-                )
-                if reply == QMessageBox.StandardButton.Yes:
-                    self.apply_fill(checked_items, fill_method)
+        if fill_method is not None:
+            # Create a custom message box for confirmation
+            custom_color = QColor("#B22222")  # Green color for confirmation
+            window_title = "Confirm Fill"
+            icon_text = "?"  # Question mark for confirmation
+            message_text = f"Are you sure you want to apply '{fill_method}' fill to the selected columns: {', '.join(checked_items)}?"
+
+            reply = CustomMessageBox(custom_color, message_text, window_title, icon_text, self).exec()
+
+            if reply == QMessageBox.StandardButton.Yes:
+                self.apply_fill(checked_items, fill_method)
     
     def apply_fill(self, checked_items, fill_method):
         self.controller.apply_fill(checked_items, fill_method)
