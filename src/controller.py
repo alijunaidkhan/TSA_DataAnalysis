@@ -112,8 +112,10 @@ class Controller:
         initial_directory = self.model.working_directory if self.model.working_directory else ""
 
         file_path, _ = file_dialog.getOpenFileName(self.view, "Open File", initial_directory, "CSV Files (*.csv);;Excel Files (*.xlsx)")
-        
+        self.loaded_file_path = file_path
+
         if file_path:
+
             file_name = os.path.basename(file_path)
             if file_path.endswith('.csv'):
                 file_type = 'csv'
@@ -143,7 +145,6 @@ class Controller:
             self.thread.start()
             self.thread.signals.progress.connect(self.update_progress_bar)
             self.view.resetLayout()
-
         icon_path = os.path.abspath('images/bulb_icon.png')
         self.view.setWindowIcon(QIcon(icon_path))
     def update_combobox_items(self, columns):
@@ -213,14 +214,19 @@ class Controller:
                 icon_path = os.path.abspath('images/bulb_icon.png')
                 self.view.setWindowIcon(QIcon(icon_path))
                 return
-
             # Get the loaded file name
+   # Get the loaded file name
             loaded_file_name = Path(self.loaded_file_path).name if self.loaded_file_path else "Untitled"
+            initial_directory = self.model.working_directory if self.model.working_directory else ""
+            print(f"Initial Directory: {initial_directory}")
 
-            # Open a file dialog to get the save path
-            file_dialog = QFileDialog()
-            selected_file, _ = file_dialog.getSaveFileName(self.view, "Save As", f"TSA_{loaded_file_name}", "CSV Files (*.csv);;All Files (*)")
-
+            file_dialog = QFileDialog(self.view)
+            
+            suggested_filename = os.path.join(initial_directory, f"TSA_{loaded_file_name}") if loaded_file_name else ""
+            selected_file, _ = file_dialog.getSaveFileName(self.view,
+                                                        "Save As",
+                                                        suggested_filename,
+                                                        "CSV Files (*.csv);;Excel Files (*.xlsx);;All Files (*)")
             # Check if the user canceled the save operation
             if not selected_file:
                 icon_path = os.path.abspath('images/bulb_icon.png')
@@ -261,8 +267,9 @@ class Controller:
         """
         Deletes the specified columns from the data frame.
         """
-        icon_path = os.path.abspath('images/bulb_icon.png')
-        self.view.setWindowIcon(QIcon(icon_path))  
+        icon_path = os.path.abspath('images/delete_icon.ico')
+        self.view.setWindowIcon(QIcon(icon_path)) 
+
         if self.model.data_frame is not None:
             self.model.data_frame.drop(columns=columns, inplace=True)
             self.view.display_data(self.model.data_frame)
@@ -274,14 +281,15 @@ class Controller:
             #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
             # Optionally, set a specific icon to indicate the need for action or an error state
             CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec()  # Use the desired color for the custom icon
-        icon_path = os.path.abspath('images/delete_icon.ico')
+        icon_path = os.path.abspath('images/bulb_icon.png')
         self.view.setWindowIcon(QIcon(icon_path))  
     def apply_fill(self, columns, method):
         """
         Applies the specified fill method to the specified columns.
         """
-        icon_path = os.path.abspath('images/bulb_icon.png')
-        self.view.setWindowIcon(QIcon(icon_path)) 
+        icon_path = os.path.abspath('images/imputation_icon.ico')
+        self.view.setWindowIcon(QIcon(icon_path))   
+ 
         if self.model.data_frame is not None:
             if method == "forward":
                 self.model.data_frame[columns] = self.model.data_frame[columns].ffill()
@@ -298,9 +306,9 @@ class Controller:
             #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
             # Optionally, set a specific icon to indicate the need for action or an error state
             CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec()  # Use the desired color for the custom icon
-        icon_path = os.path.abspath('images/imputation_icon.ico')
-        self.view.setWindowIcon(QIcon(icon_path))   
 
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.view.setWindowIcon(QIcon(icon_path))
     def run(self):
         """
         Starts the application by displaying the view.
@@ -477,7 +485,7 @@ class Controller:
                 formatted_stats = "\n".join([f"{label}: {value:.2f}" for label, value in statistics.items()])
 
                 # Add header with separator lines
-                separator = "=" * 30
+                separator = "=" * 20
                 display_text = (
                     f"{separator}\n     Descriptive Statistics\n{separator}\n{formatted_stats}\n{separator}"
                 )
@@ -633,6 +641,8 @@ class Controller:
 
 
     def convert_columns_data(self, column_names, new_dtype):
+        icon_path = os.path.abspath('images/data_info_icon.svg')
+        self.view.setWindowIcon(QIcon(icon_path))
         for col_name in column_names:
             try:
                 if new_dtype == 'Float':
@@ -682,7 +692,8 @@ class Controller:
             #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
             # Optionally, set a specific icon to indicate the need for action or an error state
             CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec()  # Use the desired color for the custom icon
-
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.view.setWindowIcon(QIcon(icon_path))
     def refresh_data_view(self):
         data_info = {
             'columns': self.model.data_frame.columns.tolist(),
@@ -723,6 +734,8 @@ class Controller:
             else:
                 return value
         except Exception as e:
+            icon_path = os.path.abspath('images/data_info_icon.svg')
+            self.view.setWindowIcon(QIcon(icon_path))
             custom_color = QColor("#B22222")  # OrangeRed color
             message_text = f"Error during conversion: {e}" # Example message text
             window_title = "Conversion Error"  # Example window title
@@ -731,7 +744,8 @@ class Controller:
             #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
             # Optionally, set a specific icon to indicate the need for action or an error state
             CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec()  # Use the desired color for the custom icon
-
+            icon_path = os.path.abspath('images/bulb_icon.png')
+            self.view.setWindowIcon(QIcon(icon_path))
             return value
 
     def set_index(self):

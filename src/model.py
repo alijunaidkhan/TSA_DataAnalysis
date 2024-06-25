@@ -23,6 +23,8 @@ class Model:
         """
         self.working_directory = None
         self.data_frame = None  # Initialize the data_frame attribute
+        self.loaded_file_path=None
+
     def set_working_directory(self, directory):
         """
         Sets the working directory where file operations are performed.
@@ -42,18 +44,15 @@ class Model:
         Returns:
             pd.DataFrame: The loaded data.
         """
-        if self.working_directory:
-            file_path = os.path.join(self.working_directory, file_name)
-        else:
-            file_path = file_path
-
+  
         # Normalize the file path to ensure correct path separators
         file_path = file_path
-        
+        self.loaded_file_path=file_path
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"No such file or directory: '{file_path}'")
         
         if file_type == 'csv':
+            
             self.data_frame = pd.read_csv(file_path)
         elif file_type == 'excel':
             self.data_frame = pd.read_excel(file_path)

@@ -327,6 +327,7 @@ class View(QMainWindow):
         # Set the flag when a cell is changed
       self.data_changed = True
       return True
+ 
     def close_event(self, event):
         if self.data_changed:
             # Ask the user if they want to save changes
@@ -335,26 +336,27 @@ class View(QMainWindow):
                                     window_title='Save Changes?',
                                     icon_text='?',
                                     parent=self,
-                                    standardButtons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel).exec()
+                                    standardButtons=QMessageBox.StandardButton.Yes |
+                                                    QMessageBox.StandardButton.No |
+                                                    QMessageBox.StandardButton.Cancel).exec()
 
             if reply == QMessageBox.StandardButton.Yes:
                 # Save changes
                 self.controller.save_as()
-                event.accept()
+                event = True
             elif reply == QMessageBox.StandardButton.No:
                 # Discard changes
-                event.accept()
+                event = True
             elif reply == QMessageBox.StandardButton.Cancel:
                 # Cancel close event
-                event.ignore()
+                event = False
             else:
                 # Cancel close event
-                event.ignore()
+                event = False
         else:
             # No changes, close without asking
-            event.accept()
+            event = True
 
-    # ... (your existing methods)
     def set_data_loaded(self, is_loaded):
         """
         Enable or disable menu items based on whether data is loaded or not.
@@ -741,7 +743,8 @@ class View(QMainWindow):
         exit_action = QAction(QIcon(exit_pixmap), "&Exit", self, triggered=self.close_event)
 # Inside the View class
         save_as_action.setShortcut("Ctrl+S")  # Set a keyboard shortcut if desired
-
+        set_directory_action.setShortcut("Ctrl+D")
+        load_data_action.setShortcut("Ctrl+L")
         # Set icons for each action using QPixmap
         set_directory_action.setIcon(QIcon(set_directory_pixmap))
         load_data_action.setIcon(QIcon(load_data_pixmap))
@@ -1090,7 +1093,7 @@ class View(QMainWindow):
          icon_path = os.path.abspath('images/nueral_net.ico')
          self.setWindowIcon(QIcon(icon_path))
          custom_color = QColor("#B22222")  # OrangeRed color
-         message_text = "Please perform modeling for future forecasting. Navigate to menu Model > ARIMA > Model with Parameters."  # Example message text
+         message_text = "Please perform modeling for future forecasting. Navigate to menu Model > Nueral Network > Univariate RNN."  # Example message text
          window_title = "Modeling Not Done"  # Example window title
          icon_text = "!"  # Example icon text
          CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
@@ -1128,7 +1131,7 @@ class View(QMainWindow):
          icon_path = os.path.abspath('images/multi_forecast.ico')
          self.setWindowIcon(QIcon(icon_path))
          custom_color = QColor("#B22222")  # OrangeRed color
-         message_text = "Please perform modeling for future forecasting. Navigate to menu Model > ARIMA > Model with Parameters."  # Example message text
+         message_text = "Please perform modeling for future forecasting. Navigate to menu Model > Nueral Network > Univariate RNN."  # Example message text
          window_title = "Modeling Not Done"  # Example window title
          icon_text = "!"  # Example icon text
          CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
@@ -1625,7 +1628,9 @@ class DataInfoDialog(QDialog):
         icon = QIcon('images/data_info_icon.svg')
         self.setWindowIcon(icon) 
         self.setGeometry(300, 300, 600, 400)  # Adjust size and position as needed
-
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
+                            Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
+                            Qt.WindowType.CustomizeWindowHint)  
         # Create the tab widget
         self.tabs = QTabWidget()
         self.tab1 = QWidget()
@@ -1983,7 +1988,9 @@ class SetIndexDialog(QDialog):
         icon = QIcon('images/set_index_icon.svg')
         self.setWindowIcon(icon) 
         self.setGeometry(300, 300, 400, 150)
-
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
+                            Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
+                            Qt.WindowType.CustomizeWindowHint)  
         # Main layout
         layout = QVBoxLayout()
 
@@ -2027,7 +2034,9 @@ class SetFrequencyDialog(QDialog):
         self.setWindowIcon(icon) 
         self.setMinimumSize(500, 250)  # Adjust the size as needed
         layout = QVBoxLayout(self)
-
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
+                            Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
+                            Qt.WindowType.CustomizeWindowHint)  
         self.check_freq_button = QPushButton("Check Current Frequency")
         self.check_freq_button.clicked.connect(self.on_check_frequency)
         layout.addWidget(self.check_freq_button)
@@ -2291,7 +2300,9 @@ class SeasonalDecomposeDialog(QMainWindow):
         icon = QIcon('images/seasonal_decompose_icon.svg')
         self.setWindowIcon(icon) 
         self.setGeometry(100, 100, 1000, 800)
-
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
+                            Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
+                            Qt.WindowType.CustomizeWindowHint)  
         # Create a central widget
         central_widget = QWidget(self)
         self.setCentralWidget(central_widget)
@@ -2437,19 +2448,15 @@ class SeasonalDecomposeDialog(QMainWindow):
 #################################################################
 """Lag, ACF, PACF plots starts here"""
 #################################################################
-from PyQt6.QtWidgets import (QMainWindow, QVBoxLayout, QHBoxLayout, QWidget,
-                             QLabel, QComboBox, QSpinBox, QPushButton)
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-from matplotlib.figure import Figure
-from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
-from pandas.plotting import lag_plot
 
 class LagAcfPacfDialog(QMainWindow):
     def __init__(self, controller, parent=None):
         super().__init__(parent)
         self.controller = controller
         self.init_ui()
-
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
+                            Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
+                            Qt.WindowType.CustomizeWindowHint)  
     def init_ui(self):
         self.setWindowTitle("Lag, ACF, and PACF Analysis")
         icon = QIcon('images/acf_icon.svg')
@@ -2625,7 +2632,9 @@ class UnitRootTestDialog(QMainWindow):
         icon = QIcon('images/unit_root.svg')  # Update with a suitable icon
         self.setWindowIcon(icon)
         self.setFixedSize(600, 400)
-
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
+                            Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
+                            Qt.WindowType.CustomizeWindowHint) 
 
         # Main vertical layout
         main_layout = QVBoxLayout()
@@ -2721,7 +2730,9 @@ class ResampleDialog(QDialog):
         self.setWindowTitle("Resample Data")
         self.setWindowIcon(QIcon('images/resample_icon.ico'))  # Adjust icon path as necessary
         self.setMinimumSize(500, 350)  # Adjusted size to accommodate new controls
-
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
+                            Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
+                            Qt.WindowType.CustomizeWindowHint) 
         layout = QVBoxLayout(self)
 
         # Frequency selection
@@ -2839,7 +2850,9 @@ class SubsetDisplayDialog(QDialog):
         self.setGeometry(100, 100, 400, 300)
         self.populateTable(subsetDataFrame)
         self.layout.addWidget(self.tableWidget)
-
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
+                            Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
+                            Qt.WindowType.CustomizeWindowHint) 
     def populateTable(self, df):
         self.tableWidget.setRowCount(df.shape[0])
         self.tableWidget.setColumnCount(df.shape[1])
@@ -2858,7 +2871,9 @@ class SubsetDialog(QDialog):
         self.setGeometry(100, 100, 400, 300)
         self.dataframe = dataframe  # The pandas DataFrame
         self.parent().copy_data_frame=self.dataframe
-
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
+                            Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
+                            Qt.WindowType.CustomizeWindowHint) 
         self.initUI()
         
     def initUI(self):
@@ -3110,7 +3125,9 @@ class LatestSubsetDialog(QDialog):
         self.threshold = threshold
         self.column_ranges = column_ranges
         self.dataframe = dataframe
-
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
+                            Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
+                            Qt.WindowType.CustomizeWindowHint) 
         self.tableWidget = QTableWidget()
         self.tableWidget.setColumnCount(4)
         self.tableWidget.setHorizontalHeaderLabels(['Subset Name', 'Rows', 'Columns', 'Select'])
@@ -3799,7 +3816,9 @@ class ForecastResult(QDialog):
         self.selected_column = self.parent().selected_column
         self.order = self.parent().order
         self.seasonal_order = self.parent().seasonal_order
-
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
+                            Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
+                            Qt.WindowType.CustomizeWindowHint) 
         self.initUI()
 
     def initUI(self):
@@ -3888,7 +3907,8 @@ class ForecastResult(QDialog):
 
     def save_as_pdf(self):
         # Open file dialog to select save location
-        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_SARIMA_Forecast_Result_Report.pdf"
+        initial_directory = self.parent().controller.model.working_directory if self.parent().controller.model.working_directory else ""
+        filename = os.path.join(initial_directory, f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_SARIMA_Forecast_Result_Report.pdf")
         file_path, _ = QFileDialog.getSaveFileName(self, "Save as PDF", filename, "PDF Files (*.pdf)")
 
         if file_path:
@@ -3925,6 +3945,9 @@ class ForecastResultUnivariate(QDialog):
         self.layout = QVBoxLayout(self)
         self.setContentsMargins(20, 20, 20, 20)
         self.layout.addWidget(scroll_area)
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
+                            Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
+                            Qt.WindowType.CustomizeWindowHint) 
         self.setStyleSheet = """
             QInputDialog QLineEdit {
                 border: 2px solid #edebe3; /* Blue border */
@@ -4035,15 +4058,18 @@ class ForecastResultUnivariate(QDialog):
 
     def save_as_pdf(self):
         # Open file dialog to select save location
-        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Univariate_RNN_Forecast_Result_Report.pdf"
+        initial_directory = self.parent().controller.model.working_directory if self.parent().controller.model.working_directory else ""
+        filename = os.path.join(initial_directory, f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Univariate_RNN_Forecast_Result_Report.pdf")
         file_path, _ = QFileDialog.getSaveFileName(self, "Save as PDF", filename, "PDF Files (*.pdf)")
 
         if file_path:
             # Create a PDF file
             with PdfPages(file_path) as pdf:
+                # Get the current matplotlib figure
+                fig = plt.gcf()
                 # Save the figure to PDF
-                pdf.savefig(self.fig)  # Use self.fig to save the correct figure
-                plt.close(self.fig)
+                pdf.savefig(fig)
+                plt.close()
 
             # Open the saved PDF file
             try:
@@ -4052,8 +4078,7 @@ class ForecastResultUnivariate(QDialog):
                 try:
                     subprocess.Popen(["open", file_path])  # macOS
                 except:
-                    subprocess.Popen(["start", "", file_path], shell=True)
-
+                    subprocess.Popen(["start", "", file_path], shell=True)  # Windows
 
 
 class ForecastResultMultivariate(QDialog):
@@ -4070,6 +4095,7 @@ class ForecastResultMultivariate(QDialog):
         scroll_area.setWidgetResizable(True)
         self.layout = QVBoxLayout(self)
         self.setContentsMargins(20, 20, 20, 20)
+
         self.layout.addWidget(scroll_area)
         self.setStyleSheet = """
             QInputDialog QLineEdit {
@@ -4192,15 +4218,18 @@ class ForecastResultMultivariate(QDialog):
 
     def save_as_pdf(self):
         # Open file dialog to select save location
-        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Multivariate_RNN_Forecast_Result_Report.pdf"
+        initial_directory = self.parent().controller.model.working_directory if self.parent().controller.model.working_directory else ""
+        filename = os.path.join(initial_directory, f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Multivariate_RNN_Forecast_Result_Report.pdf")
         file_path, _ = QFileDialog.getSaveFileName(self, "Save as PDF", filename, "PDF Files (*.pdf)")
 
         if file_path:
             # Create a PDF file
             with PdfPages(file_path) as pdf:
+                # Get the current matplotlib figure
+                fig = plt.gcf()
                 # Save the figure to PDF
-                pdf.savefig(self.fig)  # Use self.fig to save the correct figure
-                plt.close(self.fig)
+                pdf.savefig(fig)
+                plt.close()
 
             # Open the saved PDF file
             try:
@@ -4209,7 +4238,8 @@ class ForecastResultMultivariate(QDialog):
                 try:
                     subprocess.Popen(["open", file_path])  # macOS
                 except:
-                    subprocess.Popen(["start", "", file_path], shell=True) 
+                    subprocess.Popen(["start", "", file_path], shell=True)  # Windows
+
 class ModelWithParameter(QDialog):
     def __init__(self, dataframe, parent=None):
         super().__init__(parent)
@@ -4324,28 +4354,30 @@ class ModelWithParameter(QDialog):
 
         # Set the layout for the report tab
         self.reportTab.setLayout(layout)
-
     def saveReportAsPDF(self):
-        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_SARIMA_Report.pdf"
-        file_path = os.path.join(os.getcwd(), filename)
+        # Open file dialog to select save location
+        initial_directory = self.parent().controller.model.working_directory if self.parent().controller.model.working_directory else ""
+        filename = os.path.join(initial_directory, f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_SARIMA_Report.pdf")
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save as PDF", filename, "PDF Files (*.pdf)")
 
-        # Create a PDF file
-        with PdfPages(file_path) as pdf:
-            # Create a figure and plot summary text
-            fig, ax = plt.subplots(figsize=(8.27, 11.69))  # A4 size
-            ax.axis('off')
-            ax.text(0.5, 0.5, self.summary_text, fontsize=10, va='center', ha='center', wrap=True)  
-            pdf.savefig(fig)
-            plt.close()
+        if file_path:
+            # Create a PDF file
+            with PdfPages(file_path) as pdf:
+                # Create a figure and plot summary text
+                fig, ax = plt.subplots(figsize=(8.27, 11.69))  # A4 size
+                ax.axis('off')
+                ax.text(0.5, 0.5, self.summary_text, fontsize=10, va='center', ha='center', wrap=True)  
+                pdf.savefig(fig)
+                plt.close()
 
-        # Open the saved PDF file
-        try:
-            subprocess.Popen(["xdg-open", file_path])  # Linux
-        except:
+            # Open the saved PDF file
             try:
-                subprocess.Popen(["open", file_path])  # macOS
+                subprocess.Popen(["xdg-open", file_path])  # Linux
             except:
-                subprocess.Popen(["start", "", file_path], shell=True)  # Windows
+                try:
+                    subprocess.Popen(["open", file_path])  # macOS
+                except:
+                    subprocess.Popen(["start", "", file_path], shell=True)  # Windows  # Windows
     def addPlotsTab(self):
         selected_column = self.columnSelector.currentText()
         if self.datasetSelector.currentText() == "Actual Set":
@@ -4650,43 +4682,41 @@ class ModelWithParameter(QDialog):
         plt.grid(True, which='major', axis='x', color='blue', alpha=0.5, linestyle=':')
         plt.suptitle('Training Model Diagnostics: Residual Checks')
         diag.tight_layout()
-
     def savePlotAsPDF(self, fitted_model, train_data, selected_column):
-        # Get the file path for saving
-        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_SARIMA_Plot_Report.pdf"
-        file_path = os.path.join(os.getcwd(), filename)
+        # Open file dialog to select save location
+        initial_directory = self.parent().controller.model.working_directory if self.parent().controller.model.working_directory else ""
+        filename = os.path.join(initial_directory, f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_SARIMA_Plot_Report.pdf")
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save as PDF", filename, "PDF Files (*.pdf)")
 
-        # Create a PDF canvas
-        with PdfPages(file_path) as pdf:
-            # Plot training predictions
-            self.plot_train_predictions(train_data, fitted_model,selected_column)
-            pdf.savefig()
-            plt.close()  # Close the figure after saving
+        if file_path:
+            # Create a PDF canvas
+            with PdfPages(file_path) as pdf:
+                # Plot training predictions
+                self.plot_train_predictions(train_data, fitted_model, selected_column)
+                pdf.savefig()
+                plt.close()  # Close the figure after saving
 
-            # Plot model diagnostics
-            self.plot_model_diagnostics(fitted_model)
-            pdf.savefig()
-            plt.close()  # Close the figure after saving
+                # Plot model diagnostics
+                self.plot_model_diagnostics(fitted_model)
+                pdf.savefig()
+                plt.close()  # Close the figure after saving
 
-        # Show notification
-        custom_color = QColor("#5cb85c")  # OrangeRed color
-        message_text =  f"PDF saved successfully at: {file_path}"# Example message text
-        window_title = "Successfully Saved PDF"  # Example window title
-        icon_text = "✔"  # Example icon text
-    
-        #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
-        # Optionally, set a specific icon to indicate the need for action or an error state
-        CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec()  # Use the desired color for the custom icon
+            # Show notification
+            custom_color = QColor("#5cb85c")  # Custom color
+            message_text = f"PDF saved successfully at: {file_path}"  # Example message text
+            window_title = "Successfully Saved PDF"  # Example window title
+            icon_text = "✔"  # Example icon text
+            
+            CustomMessageBox(custom_color, message_text, window_title, icon_text, self).exec()  # Use the desired color for the custom icon
 
-        # Open the saved PDF file
-        try:
-            subprocess.Popen(["xdg-open", file_path])  # Linux
-        except:
+            # Open the saved PDF file
             try:
-                subprocess.Popen(["open", file_path])  # macOS
+                subprocess.Popen(["xdg-open", file_path])  # Linux
             except:
-                subprocess.Popen(["start", "", file_path], shell=True)  # Windows
- 
+                try:
+                    subprocess.Popen(["open", file_path])  # macOS
+                except:
+                    subprocess.Popen(["start", "", file_path], shell=True)  # Windows
     def generate_test_predictions(self,test_data, fitted_model,train_data):
         """
         Generates predictions for the test set using the fitted ARIMA model.
@@ -4947,64 +4977,61 @@ class ModelWithParameter(QDialog):
         return mae, mse, rmse, mape
 
     def saveTestPredictionReportAsPDF(self, test_report_window, fitted_model, test_data, selected_column):
-        # Get the file path for saving
-        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Test_Prediction_Report.pdf"
-        file_path = os.path.join(os.getcwd(), filename)
-        train_data = self.parent().train_data[selected_column].astype(float)
-        test_predictions = self.generate_test_predictions(test_data,fitted_model,train_data)
+        # Open file dialog to select save location
+        initial_directory = self.parent().controller.model.working_directory if self.parent().controller.model.working_directory else ""
+        filename = os.path.join(initial_directory, f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Test_Prediction_Report.pdf")
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save as PDF", filename, "PDF Files (*.pdf)")
 
-        # Create a PDF canvas
-        with PdfPages(file_path) as pdf:
-            # Add heading to the PDF
-            heading_text = "======== Test Prediction Report ==========="
-            pdf.savefig()
-            plt.clf()  # Clear the current figure
+        if file_path:
+            train_data = self.parent().train_data[selected_column].astype(float)
+            test_predictions = self.generate_test_predictions(test_data, fitted_model, train_data)
 
-            # Add heading to the PDF
-            plt.text(0.5, 0.9, heading_text, ha='center', va='center', fontsize=16)
-            pdf.savefig()
-            plt.clf()  # Clear the current figure
+            # Create a PDF canvas
+            with PdfPages(file_path) as pdf:
+                # Add heading to the PDF
+                heading_text = "======== Test Prediction Report ==========="
+                plt.text(0.5, 0.9, heading_text, ha='center', va='center', fontsize=16)
+                pdf.savefig()
+                plt.clf()  # Clear the current figure
 
-            # Plot test predictions
-            self.plot_test_predictions(test_data, test_predictions)
-            pdf.savefig()
-            plt.close()  # Close the figure after saving
+                # Plot test predictions
+                self.plot_test_predictions(test_data, test_predictions)
+                pdf.savefig()
+                plt.close()  # Close the figure after saving
 
-            # Plot test prediction errors
-            self.plot_test_predictions_errors(test_data, test_predictions)
-            pdf.savefig()
-            plt.close()  # Close the figure after saving
+                # Plot test prediction errors
+                self.plot_test_predictions_errors(test_data, test_predictions)
+                pdf.savefig()
+                plt.close()  # Close the figure after saving
 
-            # Plot magnitude-residual relationship
-            self.plot_magnitude_residual_relationship(test_data, test_predictions)
-            pdf.savefig()
-            plt.close()  # Close the figure after saving
+                # Plot magnitude-residual relationship
+                self.plot_magnitude_residual_relationship(test_data, test_predictions)
+                pdf.savefig()
+                plt.close()  # Close the figure after saving
 
-            # Display evaluation metrics matrix
-            mae, mse, rmse, mape = self.calculate_evaluation_metrics(test_data, test_predictions)
-            metrics_matrix = self.display_metrics_matrix(mae, mse, rmse, mape)
-            plt.text(0.1, 0.5, metrics_matrix, ha='left', va='center')
-            pdf.savefig()
-            plt.close()  # Close the figure after saving
+                # Display evaluation metrics matrix
+                mae, mse, rmse, mape = self.calculate_evaluation_metrics(test_data, test_predictions)
+                metrics_matrix = self.display_metrics_matrix(mae, mse, rmse, mape)
+                plt.text(0.1, 0.5, metrics_matrix, ha='left', va='center')
+                pdf.savefig()
+                plt.close()  # Close the figure after saving
 
-        # Show notification
-        # Show notification
-        custom_color = QColor("#5cb85c")  # OrangeRed color
-        message_text =  f"PDF saved successfully at: {file_path}"# Example message text
-        window_title = "Successfully Saved PDF"  # Example window title
-        icon_text = "✔"  # Example icon text
-    
-        #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
-        # Optionally, set a specific icon to indicate the need for action or an error state
-        CustomMessageBox(custom_color,message_text, window_title, icon_text, self.test_report_window).exec() 
-        # Open the saved PDF file
-        try:
-            subprocess.Popen(["xdg-open", file_path])  # Linux
-        except:
+            # Show notification
+            custom_color = QColor("#5cb85c")  # Custom color
+            message_text = f"PDF saved successfully at: {file_path}"  # Example message text
+            window_title = "Successfully Saved PDF"  # Example window title
+            icon_text = "✔"  # Example icon text
+
+            CustomMessageBox(custom_color, message_text, window_title, icon_text, self.test_report_window).exec()
+
+            # Open the saved PDF file
             try:
-                subprocess.Popen(["open", file_path])  # macOS
+                subprocess.Popen(["xdg-open", file_path])  # Linux
             except:
-                subprocess.Popen(["start", "", file_path], shell=True)  # Windows
+                try:
+                    subprocess.Popen(["open", file_path])  # macOS
+                except:
+                    subprocess.Popen(["start", "", file_path], shell=True)  # Windows
 
     def createManualInputGroup(self):
         layout = QVBoxLayout(self.manualTab)
@@ -5609,6 +5636,7 @@ class ConfigureRNN(QDialog):
                             Qt.WindowType.CustomizeWindowHint) 
                 # Initialize the plot_test_predictions attribute
         self.dataframe=dataframe
+        self.setMinimumSize(800, 600)
 
         self.setup_ui()
         self.setStyleSheet("""
@@ -6299,33 +6327,40 @@ class ConfigureRNN(QDialog):
         # Add metrics text to plot
         plt.text(0.99, 0.99, metrics_text, verticalalignment='top', horizontalalignment='right', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
     def save_plots_as_pdf(self, parent_widget, train_results):
-        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Univariate_RNN_Train_Prediction_Report.pdf"
-        file_path = os.path.join(os.getcwd(), filename)
+        # Open file dialog to select save location
+        initial_directory = self.parent().controller.model.working_directory if self.parent().controller.model.working_directory else ""
+        filename = os.path.join(initial_directory, f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Univariate_RNN_Train_Prediction_Report.pdf")
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save as PDF", filename, "PDF Files (*.pdf)")
 
-        # Create a PDF canvas
-        with PdfPages(file_path) as pdf:
-            # Save each plot to the PDF
-            pdf.savefig(self.plot_train_predictions)
-            pdf.savefig(self.plot_train_residuals)
-            pdf.savefig(self.plot_train_histogram)
+        if file_path:
+            # Create a PDF canvas
+            with PdfPages(file_path) as pdf:
+                # Save each plot to the PDF
+                pdf.savefig(self.plot_train_predictions)
+                pdf.savefig(self.plot_train_residuals)
+                pdf.savefig(self.plot_train_histogram)
 
-        # Close plots after saving
-        plt.close(self.plot_train_predictions)
-        plt.close(self.plot_train_residuals)
-        plt.close(self.plot_train_histogram)
+            # Close plots after saving
+            plt.close(self.plot_train_predictions)
+            plt.close(self.plot_train_residuals)
+            plt.close(self.plot_train_histogram)
 
-        # Show notification
-        custom_color = QColor("#5cb85c")  # LimeGreen color for success
-        message_text = f"PDF saved successfully at: {file_path}"
-        window_title = "Successfully Saved PDF"
-        icon_text = "✔"  # Checkmark icon for success
+            # Show notification
+            custom_color = QColor("#5cb85c")  # LimeGreen color for success
+            message_text = f"PDF saved successfully at: {file_path}"
+            window_title = "Successfully Saved PDF"
+            icon_text = "✔"  # Checkmark icon for success
 
-        CustomMessageBox(custom_color, message_text, window_title, icon_text, parent_widget).exec()
-        # Open the saved PDF file
-        try:
-            subprocess.Popen(["xdg-open", file_path])  # Linux
-        except:
-            os.startfile(file_path)  # Window
+            CustomMessageBox(custom_color, message_text, window_title, icon_text, parent_widget).exec()
+
+            # Open the saved PDF file
+            try:
+                subprocess.Popen(["xdg-open", file_path])  # Linux
+            except:
+                try:
+                    subprocess.Popen(["open", file_path])  # macOS
+                except:
+                    subprocess.Popen(["start", "", file_path], shell=True)  # Windows
     # def updateGraph(self, sliderValue=98):
     #     # Depending on the slider value, update the graph accordingly
     #     # You can call the relevant plot method here with the new value
@@ -6342,64 +6377,76 @@ class ConfigureRNN(QDialog):
     #     self.plot_val_predictions_vs_actuals(self.val_results, percentage=sliderValue)
     #     self.plot_val_predictions.draw()
     def save_plots_as_pdf_val(self, parent_widget, val_results):
-        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Univariate_RNN_Validation_Prediction_Report.pdf"
-        file_path = os.path.join(os.getcwd(), filename)
+        # Open file dialog to select save location
+        initial_directory = self.parent().controller.model.working_directory if self.parent().controller.model.working_directory else ""
+        filename = os.path.join(initial_directory, f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Univariate_RNN_Validation_Prediction_Report.pdf")
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save as PDF", filename, "PDF Files (*.pdf)")
 
-        # Create a PDF canvas
-        with PdfPages(file_path) as pdf:
-            # Save each plot to the PDF
-            pdf.savefig(self.plot_val_predictions)
-            pdf.savefig(self.plot_val_residuals)
-            pdf.savefig(self.plot_val_histogram)
+        if file_path:
+            # Create a PDF canvas
+            with PdfPages(file_path) as pdf:
+                # Save each plot to the PDF
+                pdf.savefig(self.plot_val_predictions)
+                pdf.savefig(self.plot_val_residuals)
+                pdf.savefig(self.plot_val_histogram)
 
-        # Close plots after saving
-        plt.close(self.plot_val_predictions)
-        plt.close(self.plot_val_residuals)
-        plt.close(self.plot_val_histogram)
+            # Close plots after saving
+            plt.close(self.plot_val_predictions)
+            plt.close(self.plot_val_residuals)
+            plt.close(self.plot_val_histogram)
 
-        # Show notification
-        custom_color = QColor("#5cb85c")  # LimeGreen color for success
-        message_text = f"PDF saved successfully at: {file_path}"
-        window_title = "Successfully Saved PDF"
-        icon_text = "✔"  # Checkmark icon for success
+            # Show notification
+            custom_color = QColor("#5cb85c")  # LimeGreen color for success
+            message_text = f"PDF saved successfully at: {file_path}"
+            window_title = "Successfully Saved PDF"
+            icon_text = "✔"  # Checkmark icon for success
 
-        CustomMessageBox(custom_color, message_text, window_title, icon_text, parent_widget).exec()
+            CustomMessageBox(custom_color, message_text, window_title, icon_text, parent_widget).exec()
 
-        # Open the saved PDF file
-        try:
-            subprocess.Popen(["xdg-open", file_path])  # Linux
-        except:
-            os.startfile(file_path)  # Windows
-    
+            # Open the saved PDF file
+            try:
+                subprocess.Popen(["xdg-open", file_path])  # Linux
+            except:
+                try:
+                    subprocess.Popen(["open", file_path])  # macOS
+                except:
+                    subprocess.Popen(["start", "", file_path], shell=True)  # Windows
+
     def save_plots_as_pdf_test(self, parent_widget, test_results):
-        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Univariate_RNN_Test_Prediction_Report.pdf"
-        file_path = os.path.join(os.getcwd(), filename)
+        # Open file dialog to select save location
+        initial_directory = self.parent().controller.model.working_directory if self.parent().controller.model.working_directory else ""
+        filename = os.path.join(initial_directory, f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Univariate_RNN_Test_Prediction_Report.pdf")
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save as PDF", filename, "PDF Files (*.pdf)")
 
-        # Create a PDF canvas
-        with PdfPages(file_path) as pdf:
-            # Save each plot to the PDF
-            pdf.savefig(self.plot_test_predictions)
-            pdf.savefig(self.plot_test_residuals)
-            pdf.savefig(self.plot_test_histogram)
+        if file_path:
+            # Create a PDF canvas
+            with PdfPages(file_path) as pdf:
+                # Save each plot to the PDF
+                pdf.savefig(self.plot_test_predictions)
+                pdf.savefig(self.plot_test_residuals)
+                pdf.savefig(self.plot_test_histogram)
 
-        # Close plots after saving
-        plt.close(self.plot_test_predictions)
-        plt.close(self.plot_test_residuals)
-        plt.close(self.plot_test_histogram)
+            # Close plots after saving
+            plt.close(self.plot_test_predictions)
+            plt.close(self.plot_test_residuals)
+            plt.close(self.plot_test_histogram)
 
-        # Show notification
-        custom_color = QColor("#5cb85c")  # LimeGreen color for success
-        message_text = f"PDF saved successfully at: {file_path}"
-        window_title = "Successfully Saved PDF"
-        icon_text = "✔"  # Checkmark icon for success
+            # Show notification
+            custom_color = QColor("#5cb85c")  # LimeGreen color for success
+            message_text = f"PDF saved successfully at: {file_path}"
+            window_title = "Successfully Saved PDF"
+            icon_text = "✔"  # Checkmark icon for success
 
-        CustomMessageBox(custom_color, message_text, window_title, icon_text, parent_widget).exec()
+            CustomMessageBox(custom_color, message_text, window_title, icon_text, parent_widget).exec()
 
-        # Open the saved PDF file
-        try:
-            subprocess.Popen(["xdg-open", file_path])  # Linux
-        except:
-            os.startfile(file_path)  # Windows
+            # Open the saved PDF file
+            try:
+                subprocess.Popen(["xdg-open", file_path])  # Linux
+            except:
+                try:
+                    subprocess.Popen(["open", file_path])  # macOS
+                except:
+                    subprocess.Popen(["start", "", file_path], shell=True)  # Windows
     def plot_test_predictions_vs_actuals(self,test_results, percentage=10, figsize=(12, 6)):
         num_entries = int(len(test_results) * (percentage / 100))
         start_index = max(0, len(test_results) - num_entries)
@@ -7005,19 +7052,20 @@ class MultiRNN(QDialog):
         hyperparams_layout.addWidget(QLabel("Time steps:"))
         hyperparams_layout.addWidget(self.window_size_dropdown)
 
-        self.lstm_units_dropdown = self.create_combobox_with_range(32, 512, 32, default_value=32)
+        self.lstm_units_dropdown = self.create_combobox_with_range(60, 500, 40, default_value=32)
         hyperparams_layout.addWidget(QLabel("LSTM Units:"))
         hyperparams_layout.addWidget(self.lstm_units_dropdown)
 
-        self.dense_units_dropdown = QComboBox()
-        self.dense_units_dropdown.addItems([str(unit) for unit in [8, 16, 32, 128]])
+        self.dense_units_dropdown = self.create_combobox_with_range(8,  128,8,default_value=8)
         hyperparams_layout.addWidget(QLabel("Dense Units:"))
         hyperparams_layout.addWidget(self.dense_units_dropdown)
-        self.batch_size_dropdown = QComboBox()
-        self.batch_size_dropdown.addItems([str(size) for size in [16, 32, 64, 128]])
+
+        # Batch Size
+        self.batch_size_dropdown = self.create_combobox_with_range(2, 32, 2, default_value=2)
         hyperparams_layout.addWidget(QLabel("Batch Size:"))
         hyperparams_layout.addWidget(self.batch_size_dropdown)
         hyperparams_groupbox.setLayout(hyperparams_layout)
+
         input_layout.addWidget(hyperparams_groupbox)
 
         # Other Hyperparameters Column
@@ -7028,7 +7076,7 @@ class MultiRNN(QDialog):
         other_hyperparams_layout.addWidget(QLabel("Activation Function:"))
         other_hyperparams_layout.addWidget(self.dense_activation)
 
-        self.epochs_dropdown = self.create_combobox_with_range(25, 200, 25, default_value=25)
+        self.epochs_dropdown = self.create_combobox_with_range(10, 1000, 15, default_value=10)
 
         other_hyperparams_layout.addWidget(QLabel("Epochs:"))
         other_hyperparams_layout.addWidget(self.epochs_dropdown)
@@ -7616,35 +7664,40 @@ class MultiRNN(QDialog):
         # Add metrics text to plot
         plt.text(0.99, 0.99, metrics_text, verticalalignment='top', horizontalalignment='right', transform=plt.gca().transAxes, fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor='white', alpha=0.8))
     def save_plots_as_pdf(self, parent_widget, train_results):
-        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Multivariate_RNN_Train_Prediction_Report.pdf"
-        file_path = os.path.join(os.getcwd(), filename)
+        # Open file dialog to select save location
+        initial_directory = self.parent().controller.model.working_directory if self.parent().controller.model.working_directory else ""
+        filename = os.path.join(initial_directory, f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Multivariate_RNN_Train_Prediction_Report.pdf")
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save as PDF", filename, "PDF Files (*.pdf)")
 
-        # Create a PDF canvas
-        with PdfPages(file_path) as pdf:
-            # Save each plot to the PDF
-            pdf.savefig(self.plot_train_predictions)
-            pdf.savefig(self.plot_train_residuals)
-            pdf.savefig(self.plot_train_histogram)
+        if file_path:
+            # Create a PDF canvas
+            with PdfPages(file_path) as pdf:
+                # Save each plot to the PDF
+                pdf.savefig(self.plot_train_predictions)
+                pdf.savefig(self.plot_train_residuals)
+                pdf.savefig(self.plot_train_histogram)
 
-        # Close plots after saving
-        plt.close(self.plot_train_predictions)
-        plt.close(self.plot_train_residuals)
-        plt.close(self.plot_train_histogram)
+            # Close plots after saving
+            plt.close(self.plot_train_predictions)
+            plt.close(self.plot_train_residuals)
+            plt.close(self.plot_train_histogram)
 
-        # Show notification
-        custom_color = QColor("#5cb85c")  # LimeGreen color for success
-        message_text = f"PDF saved successfully at: {file_path}"
-        window_title = "Successfully Saved PDF"
-        icon_text = "✔"  # Checkmark icon for success
+            # Show notification
+            custom_color = QColor("#5cb85c")  # LimeGreen color for success
+            message_text = f"PDF saved successfully at: {file_path}"
+            window_title = "Successfully Saved PDF"
+            icon_text = "✔"  # Checkmark icon for success
 
-        CustomMessageBox(custom_color, message_text, window_title, icon_text, parent_widget).exec()
+            CustomMessageBox(custom_color, message_text, window_title, icon_text, parent_widget).exec()
 
-        # Open the saved PDF file
-        # Open the saved PDF file
-        try:
-            subprocess.Popen(["xdg-open", file_path])  # Linux
-        except:
-            os.startfile(file_path)  # Window
+            # Open the saved PDF file
+            try:
+                subprocess.Popen(["xdg-open", file_path])  # Linux
+            except:
+                try:
+                    subprocess.Popen(["open", file_path])  # macOS
+                except:
+                    subprocess.Popen(["start", "", file_path], shell=True)  # Window # Window
     # def updateGraph(self, sliderValue=98):
     #     # Depending on the slider value, update the graph accordingly
     #     # You can call the relevant plot method here with the new value
@@ -7661,66 +7714,76 @@ class MultiRNN(QDialog):
     #     self.plot_val_predictions_vs_actuals(self.val_results, percentage=sliderValue)
     #     self.plot_val_predictions.draw()
     def save_plots_as_pdf_val(self, parent_widget, val_results):
-        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Multivariate_RNN_Validation_Prediction_Report.pdf"
-        file_path = os.path.join(os.getcwd(), filename)
+        # Open file dialog to select save location
+        initial_directory = self.parent().controller.model.working_directory if self.parent().controller.model.working_directory else ""
+        filename = os.path.join(initial_directory, f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Multivariate_RNN_Validation_Prediction_Report.pdf")
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save as PDF", filename, "PDF Files (*.pdf)")
 
-        # Create a PDF canvas
-        with PdfPages(file_path) as pdf:
-            # Save each plot to the PDF
-            pdf.savefig(self.plot_val_predictions)
-            pdf.savefig(self.plot_val_residuals)
-            pdf.savefig(self.plot_val_histogram)
+        if file_path:
+            # Create a PDF canvas
+            with PdfPages(file_path) as pdf:
+                # Save each plot to the PDF
+                pdf.savefig(self.plot_val_predictions)
+                pdf.savefig(self.plot_val_residuals)
+                pdf.savefig(self.plot_val_histogram)
 
-        # Close plots after saving
-        plt.close(self.plot_val_predictions)
-        plt.close(self.plot_val_residuals)
-        plt.close(self.plot_val_histogram)
+            # Close plots after saving
+            plt.close(self.plot_val_predictions)
+            plt.close(self.plot_val_residuals)
+            plt.close(self.plot_val_histogram)
 
-        # Show notification
-        custom_color = QColor("#5cb85c")  # LimeGreen color for success
-        message_text = f"PDF saved successfully at: {file_path}"
-        window_title = "Successfully Saved PDF"
-        icon_text = "✔"  # Checkmark icon for success
+            # Show notification
+            custom_color = QColor("#5cb85c")  # LimeGreen color for success
+            message_text = f"PDF saved successfully at: {file_path}"
+            window_title = "Successfully Saved PDF"
+            icon_text = "✔"  # Checkmark icon for success
 
-        CustomMessageBox(custom_color, message_text, window_title, icon_text, parent_widget).exec()
+            CustomMessageBox(custom_color, message_text, window_title, icon_text, parent_widget).exec()
 
-        # Open the saved PDF file
-        # Open the saved PDF file
-        try:
-            subprocess.Popen(["xdg-open", file_path])  # Linux
-        except:
-            os.startfile(file_path)  # Windows
-    
+            # Open the saved PDF file
+            try:
+                subprocess.Popen(["xdg-open", file_path])  # Linux
+            except:
+                try:
+                    subprocess.Popen(["open", file_path])  # macOS
+                except:
+                    subprocess.Popen(["start", "", file_path], shell=True)  # Windows
+
     def save_plots_as_pdf_test(self, parent_widget, test_results):
-        filename = f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Multivariate_RNN_Test_Prediction_Report.pdf"
-        file_path = os.path.join(os.getcwd(), filename)
+        # Open file dialog to select save location
+        initial_directory = self.parent().controller.model.working_directory if self.parent().controller.model.working_directory else ""
+        filename = os.path.join(initial_directory, f"TSA_{os.path.basename(self.parent().file_path).split('.')[0]}_Multivariate_RNN_Test_Prediction_Report.pdf")
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save as PDF", filename, "PDF Files (*.pdf)")
 
-        # Create a PDF canvas
-        with PdfPages(file_path) as pdf:
-            # Save each plot to the PDF
-            pdf.savefig(self.plot_test_predictions)
-            pdf.savefig(self.plot_test_residuals)
-            pdf.savefig(self.plot_test_histogram)
+        if file_path:
+            # Create a PDF canvas
+            with PdfPages(file_path) as pdf:
+                # Save each plot to the PDF
+                pdf.savefig(self.plot_test_predictions)
+                pdf.savefig(self.plot_test_residuals)
+                pdf.savefig(self.plot_test_histogram)
 
-        # Close plots after saving
-        plt.close(self.plot_test_predictions)
-        plt.close(self.plot_test_residuals)
-        plt.close(self.plot_test_histogram)
+            # Close plots after saving
+            plt.close(self.plot_test_predictions)
+            plt.close(self.plot_test_residuals)
+            plt.close(self.plot_test_histogram)
 
-        # Show notification
-        custom_color = QColor("#5cb85c")  # LimeGreen color for success
-        message_text = f"PDF saved successfully at: {file_path}"
-        window_title = "Successfully Saved PDF"
-        icon_text = "✔"  # Checkmark icon for success
+            # Show notification
+            custom_color = QColor("#5cb85c")  # LimeGreen color for success
+            message_text = f"PDF saved successfully at: {file_path}"
+            window_title = "Successfully Saved PDF"
+            icon_text = "✔"  # Checkmark icon for success
 
-        CustomMessageBox(custom_color, message_text, window_title, icon_text, parent_widget).exec()
+            CustomMessageBox(custom_color, message_text, window_title, icon_text, parent_widget).exec()
 
-        # Open the saved PDF file
-        # Open the saved PDF file
-        try:
-            subprocess.Popen(["xdg-open", file_path])  # Linux
-        except:
-            os.startfile(file_path)  # Windows
+            # Open the saved PDF file
+            try:
+                subprocess.Popen(["xdg-open", file_path])  # Linux
+            except:
+                try:
+                    subprocess.Popen(["open", file_path])  # macOS
+                except:
+                    subprocess.Popen(["start", "", file_path], shell=True)  # Windows
     def plot_test_predictions_vs_actuals(self,test_results, percentage=10, figsize=(12, 6)):
         num_entries = int(len(test_results) * (percentage / 100))
         start_index = max(0, len(test_results) - num_entries)
@@ -8151,7 +8214,8 @@ class ImputationDialog(QDialog):
             icon_text = "?"  # Question mark for confirmation
             message_text = f"Are you sure you want to apply '{fill_method}' fill to the selected columns: {', '.join(checked_items)}?"
 
-            reply = CustomMessageBox(custom_color, message_text, window_title, icon_text, self).exec()
+            reply = CustomMessageBox(custom_color, message_text, window_title, icon_text,      parent=self,
+                                                standardButtons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No).exec()
 
             if reply == QMessageBox.StandardButton.Yes:
                 self.apply_fill(checked_items, fill_method)

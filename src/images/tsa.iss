@@ -5,10 +5,14 @@
 #define MyAppVersion "1.0"
 #define MyAppPublisher "TSA_DataAnalysis, Inc."
 #define MyAppURL "https://www.tsa_dataAnalysis.com/"
+
 [Setup]
+; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
+; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
 AppId={{8A0CA3CE-C698-4E92-81E0-CE5E9C902FB4}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+;AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
@@ -18,11 +22,13 @@ DefaultGroupName={#MyAppName}
 LicenseFile=C:\Users\HP\Documents\license.txt
 InfoBeforeFile=C:\Users\HP\Documents\pre_file.txt
 InfoAfterFile=C:\Users\HP\Documents\post_file.txt
+; Uncomment the following line to run in non administrative install mode (install for current user only.)
+;PrivilegesRequired=lowest
+OutputBaseFilename=mysetup
 SetupIconFile=C:\Users\HP\Documents\GitHub\TSA_DataAnalysis\src\images\bulb_icon.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -31,10 +37,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Source: "C:\Users\HP\Documents\GitHub\TSA_DataAnalysis\src\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
-[Registry]
-;Registry data from file tsa_data_analysis.reg
-;End of registry data from file tsa_data_analysis.reg
-;SOME KEYS FILTERED DUE TO PRIVILEGESREQUIRED SETTINGS!
-
 [Icons]
-Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppName}.exe"; WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppName}.exe";
+Name: "{group}\{#MyAppName}"; Filename: "{app}\YourApp.exe"; IconFilename: "{app}\images\bulb_icon.ico"
+Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\YourApp.exe"; IconFilename: "{app}\images\bulb_icon.ico"; Tasks: desktopicon
+
+[Tasks]
+Name: "desktopicon"; Description: "Create a &desktop icon"; GroupDescription: "Additional icons:"
