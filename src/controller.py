@@ -409,7 +409,16 @@ class Controller:
 
      except Exception as e:
         # Handle the exception - print an error message or log it
-        self.view.output_display.setText(f"An exception occurred: {e}")
+        if self.model.data_frame is  None:
+           self.view.output_display.setText(
+                "====================\n"
+                "Load data to view it here.\n"
+                "====================\n"
+                
+            )
+        else:
+        # Handle the exception - print an error message or log it
+         self.view.output_display.setText(f"An exception occurred: {e}")
 
     def calculate_dtype(self):
      try:
@@ -459,7 +468,16 @@ class Controller:
             self.view.output_display.setText(f"Column {selected_column} not found in DataFrame.")
 
      except Exception as e:
-        self.view.output_display.setText(f"An exception occurred: {e}")
+        if self.model.data_frame is  None:
+           self.view.output_display.setText(
+                "====================\n"
+                "Load data to view it here.\n"
+                "====================\n"
+                
+            )
+        else:
+        # Handle the exception - print an error message or log it
+         self.view.output_display.setText(f"An exception occurred: {e}")
 
     def calculate_statistics(self):
      try:
@@ -497,7 +515,16 @@ class Controller:
             self.view.output_display.setText(f"Column '{selected_column}' not found in DataFrame.")
 
      except Exception as e:
-        self.view.output_display.setText(f"An exception occurred: {e}")
+        if self.model.data_frame is  None:
+           self.view.output_display.setText(
+                "====================\n"
+                "Load data to view it here.\n"
+                "====================\n"
+                
+            )
+        else:
+        # Handle the exception - print an error message or log it
+         self.view.output_display.setText(f"An exception occurred: {e}")
     def calculate_unique(self):
      try:
         selected_column = self.view.comboBox.currentText()
@@ -518,7 +545,16 @@ class Controller:
             self.view.output_display.setText(f"Column '{selected_column}' not found in DataFrame.")
 
      except Exception as e:
-        self.view.output_display.setText(f"An exception occurred: {e}")
+        if self.model.data_frame is  None:
+           self.view.output_display.setText(
+                "====================\n"
+                "Load data to view it here.\n"
+                "====================\n"
+                
+            )
+        else:
+        # Handle the exception - print an error message or log it
+         self.view.output_display.setText(f"An exception occurred: {e}")
     def calculate_missing(self):
      try:
         selected_column = self.view.comboBox.currentText()
@@ -536,7 +572,16 @@ class Controller:
             self.view.output_display.setText(f"Column {selected_column} not found in DataFrame.")
      except Exception as e:
          # Handle the exception - print an error message or log it
-        self.view.output_display.setText(f"An exception occurred: {e}")
+        if self.model.data_frame is  None:
+           self.view.output_display.setText(
+                "====================\n"
+                "Load data to view it here.\n"
+                "====================\n"
+                
+            )
+        else:
+        # Handle the exception - print an error message or log it
+         self.view.output_display.setText(f"An exception occurred: {e}")
 
     def calculate_shape(self):
      try:
@@ -556,7 +601,16 @@ class Controller:
             self.view.output_display.setText(f"Column {selected_column} not found in DataFrame.")
      except Exception as e:
         # Handle the exception - print an error message or log it
-        self.view.output_display.setText(f"An exception occurred: {e}")
+        if self.model.data_frame is  None:
+           self.view.output_display.setText(
+                "====================\n"
+                "Load data to view it here.\n"
+                "====================\n"
+                
+            )
+        else:
+        # Handle the exception - print an error message or log it
+         self.view.output_display.setText(f"An exception occurred: {e}")
 
 
 
@@ -840,65 +894,122 @@ class Controller:
     # Update the DataFrame
      self.model.data_frame.iloc[row, column] = new_value
     # In controller.py
-     # In your controller class
+        # In your controller class
     def check_index_frequency(self):
-     freq = self.model.get_index_frequency()
-     self.view.show_message("Index Frequency Check", f"The frequency of the DataFrame's index is: {freq}")
-
-    def check_frequency(self):
-    
-     icon_path = os.path.abspath('images/set_frequency_icon.svg')
-     self.view.setWindowIcon(QIcon(icon_path))
-     if self.model.data_frame is not None:
-        current_freq = self.model.data_frame.index.freq
-        freq_str = 'None' if current_freq is None else current_freq.freqstr
-        self.view.show_message("Current Frequency", f"The current frequency is: {freq_str}")
-     else:
-        self.view.show_message("Error", "DataFrame is not loaded or index is not datetime.")
-     icon_path = os.path.abspath('images/bulb_icon.png')
-     self.view.setWindowIcon(QIcon(icon_path))
-    def set_frequency(self):
-     icon_path = os.path.abspath('images/set_frequency_icon.svg')
-     self.view.setWindowIcon(QIcon(icon_path))
-    # Check if data is loaded
-     if self.model.data_frame is None:
-        custom_color = QColor("#B22222")  # OrangeRed color
-        message_text = "Please load data first before accessing this feature."  # Example message text
-        window_title = "Data Not Loaded"  # Example window title
-        icon_text = "X"  # Example icon text
-
-        #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
-        # Optionally, set a specific icon to indicate the need for action or an error state
-        CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec()  # Use the desired color for the custom icon
+        icon_path = os.path.abspath('images/set_frequency_icon.svg')
+        self.view.setWindowIcon(QIcon(icon_path))
+        
+        if self.model.data_frame is not None:
+            try:
+                freq = self.model.get_index_frequency()
+                custom_color = QColor("#4682B4")  # SteelBlue color for information
+                message_text = f"The frequency of the DataFrame's index is: {freq}"
+                window_title = "Index Frequency Check"
+                icon_text = "i"  # Information icon text
+            except Exception as e:
+                custom_color = QColor("#B22222")  # OrangeRed color for error
+                message_text = str(e)
+                window_title = "Error"
+                icon_text = "X"  # Error icon text
+        else:
+            custom_color = QColor("#B22222")  # OrangeRed color for error
+            message_text = "DataFrame is not loaded or index is not datetime."
+            window_title = "Error"
+            icon_text = "X"  # Error icon text
+        
+        CustomMessageBox(custom_color, message_text, window_title, icon_text, self.view).exec()
+        
         icon_path = os.path.abspath('images/bulb_icon.png')
         self.view.setWindowIcon(QIcon(icon_path))
 
-        return  # Exit the function early
+    def check_frequency(self):
+        icon_path = os.path.abspath('images/set_frequency_icon.svg')
+        self.view.setWindowIcon(QIcon(icon_path))
+        
+        if self.model.data_frame is not None:
+            current_freq = self.model.data_frame.index.freq
+            freq_str = 'None' if current_freq is None else current_freq.freqstr
+            custom_color = QColor("#4682B4")  # SteelBlue color for information
+            message_text = f"The current frequency is: {freq_str}"
+            window_title = "Current Frequency"
+            icon_text = "i"  # Information icon text
+        else:
+            custom_color = QColor("#B22222")  # OrangeRed color for error
+            message_text = "DataFrame is not loaded or index is not datetime."
+            window_title = "Error"
+            icon_text = "X"  # Error icon text
+        
+        CustomMessageBox(custom_color, message_text, window_title, icon_text, self.view).exec()
+        
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.view.setWindowIcon(QIcon(icon_path))
 
-     dialog = SetFrequencyDialog(self.view)
-     if dialog.exec():
-        frequency = dialog.get_frequency()
-        try:
-            # Use asfreq if the data conforms to the frequency
-            if frequency.endswith('T'):  # For minute data
-                self.model.data_frame = self.model.data_frame.asfreq(frequency)
-            else:
-                # For non-conforming data, resample without aggregation
-                self.model.data_frame = self.model.data_frame.resample(frequency).asfreq()
-            self.view.show_message("Frequency Updated", f"Frequency set to: {frequency}")
-        except ValueError as e:
+
+
+    def set_frequency(self):
+        icon_path = os.path.abspath('images/set_frequency_icon.svg')
+        self.view.setWindowIcon(QIcon(icon_path))
+        
+        # Check if data is loaded
+        if self.model.data_frame is None:
             custom_color = QColor("#B22222")  # OrangeRed color
-            message_text = str(e) # Example message text
-            window_title = "Error"  # Example window title
+            message_text = "Please load data first before accessing this feature."  # Example message text
+            window_title = "Data Not Loaded"  # Example window title
             icon_text = "X"  # Example icon text
 
-            #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
-            # Optionally, set a specific icon to indicate the need for action or an error state
-            CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
-            
-     icon_path = os.path.abspath('images/bulb_icon.png')
-     self.view.setWindowIcon(QIcon(icon_path))
+            CustomMessageBox(custom_color, message_text, window_title, icon_text, self.view).exec()  # Use the desired color for the custom icon
+            icon_path = os.path.abspath('images/bulb_icon.png')
+            self.view.setWindowIcon(QIcon(icon_path))
 
+            return  # Exit the function early
+        
+        # Check if DataFrame has a datetime index
+        if not isinstance(self.model.data_frame.index, (pd.DatetimeIndex, pd.TimedeltaIndex, pd.PeriodIndex)):
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = "The DataFrame's index is not a datetime type. Please set the index to a datetime type before setting the frequency."  # Example message text
+            window_title = "Invalid Index Type"  # Example window title
+            icon_text = "X"  # Example icon text
+
+            CustomMessageBox(custom_color, message_text, window_title, icon_text, self.view).exec()  # Use the desired color for the custom icon
+            icon_path = os.path.abspath('images/bulb_icon.png')
+            self.view.setWindowIcon(QIcon(icon_path))
+
+            return
+        
+        # If DataFrame has datetime columns, proceed
+        datetime_columns = self.model.data_frame.select_dtypes(include=['datetime64', 'datetime']).columns
+        if datetime_columns.empty:
+            custom_color = QColor("#B22222")  # OrangeRed color
+            message_text = "The loaded data does not contain any datetime columns. Please load data with a datetime column."  # Example message text
+            window_title = "No Datetime Column"  # Example window title
+            icon_text = "X"  # Example icon text
+
+            CustomMessageBox(custom_color, message_text, window_title, icon_text, self.view).exec()  # Use the desired color for the custom icon
+            icon_path = os.path.abspath('images/bulb_icon.png')
+            self.view.setWindowIcon(QIcon(icon_path))
+
+            return
+        
+        dialog = SetFrequencyDialog(self.view)
+        if dialog.exec():
+            frequency = dialog.get_frequency()
+            try:
+                # Use asfreq if the data conforms to the frequency
+                if frequency.endswith('T'):  # For minute data
+                    self.model.data_frame = self.model.data_frame.asfreq(frequency)
+                else:
+                    # For non-conforming data, resample without aggregation
+                    self.model.data_frame = self.model.data_frame.resample(frequency).asfreq()
+            except ValueError as e:
+                custom_color = QColor("#B22222")  # OrangeRed color
+                message_text = str(e)  # Example message text
+                window_title = "Error"  # Example window title
+                icon_text = "X"  # Example icon text
+
+                CustomMessageBox(custom_color, message_text, window_title, icon_text, self.view).exec() 
+                
+        icon_path = os.path.abspath('images/bulb_icon.png')
+        self.view.setWindowIcon(QIcon(icon_path))
 
 
 

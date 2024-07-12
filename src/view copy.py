@@ -3316,15 +3316,13 @@ class ArimaConfigDialog(QDialog):
         if self.dataframe is not None:
             self.columnSelector.addItems(
             [str(col) for col in self.dataframe.columns if np.issubdtype(self.dataframe[col].dtype, np.number)]
-        ) 
+        )  
         elif self.parent().train_data is not None:
-            self.columnSelector.addItems(
-                [str(col) for col in self.parent().train_data.columns if np.issubdtype(self.parent().train_data[col].dtype, np.number)]
-            )
+            self.columnSelector.addItems(self.parent().train_data.columns)
         elif self.parent().test_data is not None:
-            self.columnSelector.addItems(
-                [str(col) for col in self.parent().test_data.columns if np.issubdtype(self.parent().test_data[col].dtype, np.number)]
-            )
+            self.columnSelector.addItems(self.parent().test_data.columns)
+     
+
         self.datasetSelectorLabel = QLabel("Select Dataset:")
         self.datasetSelector = QComboBox()
         if self.dataframe is not None:
@@ -4123,9 +4121,7 @@ class ForecastResultMultivariate(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Multivariate RNN Based - Future Forecasting")
         self.setWindowIcon(QIcon('images/multi_forecast.ico'))  # Setting window icon
-        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
-                            Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
-                            Qt.WindowType.CustomizeWindowHint) 
+       
         self.initUI()
 
     def initUI(self):
@@ -4286,9 +4282,7 @@ class ModelWithParameter(QDialog):
         self.setWindowIcon(QIcon('images/model_parameters_icon.ico'))  # Setting window icon
         self.dataframe = dataframe
         self.initUI()
-        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
-                            Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
-                            Qt.WindowType.CustomizeWindowHint)  
+
     def initUI(self):
         # Creating a scroll area to make the dialog scrollable
         scroll_area = QScrollArea()
@@ -5096,17 +5090,12 @@ class ModelWithParameter(QDialog):
         self.columnSelectorLabel = QLabel("Select Time Series Column:")
         self.columnSelector = QComboBox()
         if self.dataframe is not None:
-            self.columnSelector.addItems(
-                [str(col) for col in self.dataframe.columns if np.issubdtype(self.dataframe[col].dtype, np.number)]
-            )
+            self.columnSelector.addItems(self.dataframe.columns)
         elif self.parent().train_data is not None:
-            self.columnSelector.addItems(
-                [str(col) for col in self.parent().train_data.columns if np.issubdtype(self.parent().train_data[col].dtype, np.number)]
-            )
+            self.columnSelector.addItems(self.parent().train_data.columns)
         elif self.parent().test_data is not None:
-            self.columnSelector.addItems(
-                [str(col) for col in self.parent().test_data.columns if np.issubdtype(self.parent().test_data[col].dtype, np.number)]
-            )
+            self.columnSelector.addItems(self.parent().test_data.columns)
+     
 
 
         self.datasetSelectorLabel = QLabel("Select Dataset:")
@@ -6204,7 +6193,7 @@ class ConfigureRNN(QDialog):
     #     self.refresh_train_tab()
 
     def refresh_train_tab(self):
-        self.run_button.setEnabled(True)
+
         if self.train_results is not None:
             self.mae = mean_absolute_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
             self.mse = mean_squared_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
@@ -7549,43 +7538,70 @@ class MultiRNN(QDialog):
 
             CustomMessageBox(custom_color, warning_message, window_title, icon_text, self).exec()
             return
-        params = (timesteps, num_units, dense_activation, epochs, dense_units,batch_size, selected_column,
-                train_percent, val_percent_of_train, NN_df, self.build_model)
 
-        self.train_thread = TrainThreadMulti(params)
-        self.train_thread.signals.progress.connect(lambda value: self.progress_bar.setValue)
-        self.train_thread.signals.training_finished_multi.connect(self.on_training_finished_multi)
-        self.train_thread.signals.training_error_multi.connect(self.handle_error_multi)
+        X, y = self.df_to_X_y(NN_df, timesteps,selected_column)
+        print(X.shape, y.shape)
+        X_train, X_val, X_test = self.split_data(X, train_percent, val_percent_of_train)
+        y_train, y_val, y_test = self.split_data(y, train_percent, val_percent_of_train)
 
-        self.run_button.setEnabled(False)
-        self.train_thread.start()     
-    
- 
-    def on_training_finished_multi(self, model, train_results, val_results, test_results,test_loss,test_rmse,X_test_scaled,y_train,y_test,y_val):
+        print('X_train:', X_train.shape, '--->>>  y_train:', y_train.shape)
+        print('X_val:', X_val.shape, '--->>>  y_val:', y_val.shape)
+        print('X_test:', X_test.shape, '--->>>  y_test:', y_test.shape)
+
+        scaler = MinMaxScaler(feature_range=(-1, 1))
+
+        # Fit on training data
+        scaler.fit(X_train.reshape(-1, X_train.shape[2]))  # Reshape to 2D array for fitting
+
+        # Transform training, validation, and test data
+        X_train_scaled = scaler.transform(X_train.reshape(-1, X_train.shape[2])).reshape(X_train.shape)
+        X_val_scaled = scaler.transform(X_val.reshape(-1, X_val.shape[2])).reshape(X_val.shape)
+        X_test_scaled = scaler.transform(X_test.reshape(-1, X_test.shape[2])).reshape(X_test.shape)
+        input_shape = X_train_scaled.shape[1:]
+        self.parent().X_test_multi=X_test_scaled
+   
+
+        self.model = self.build_model(input_shape,batch_size, num_units, dense_activation, dense_units, epochs, X_train_scaled, y_train, X_val_scaled, y_val)
+        # training_thread = TrainingThread(self.model, X_train_scaled, y_train, X_val_scaled, y_val, epochs, batch_size, self.use_early_stopping,self.progress_bar)
+        # training_thread.update_progress.connect(self.update_progress)
+        # training_thread.start()
+        #history = self.model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=epochs, callbacks=self.callbacks)
+        train_predictions = self.model.predict(X_train_scaled).flatten()
+        train_results = pd.DataFrame(data={'Train Predictions': train_predictions, 'Actuals': y_train})
+        val_predictions = self.model.predict(X_val_scaled).flatten()
+        val_results = pd.DataFrame(data={'Val Predictions':val_predictions, 'Actuals':y_val})
+        test_predictions = self.model.predict(X_test_scaled).flatten()
+        test_results = pd.DataFrame(data={'Test Predictions':test_predictions, 'Actuals':y_test})
+         
+
         self.tab_widget.setCurrentIndex(0)
-        self.model = model
+        evaluation_results = self.model.evaluate(X_test_scaled, y_test, verbose=0)
+        self.test_loss = evaluation_results[0]
+        self.test_rmse = evaluation_results[1]  # Assuming RootMeanSquaredError is the only metric used
         self.y_test=y_test
         self.y_train=y_train
         self.y_val=y_val
-        self.train_results = train_results
-        self.val_results = val_results
-        self.test_results = test_results
-        self.parent().X_test_multi=X_test_scaled
-        self.test_loss = test_loss
-        self.test_rmse = test_rmse  
-        self.refresh_train_tab()
-
-        if self.tab_widget.currentIndex() == 0 and self.train_results is not None:
+ 
+      
+            
+        # Generate and display the model summary
+        # Only generate plots if the train tab is active
+        if self.train_results is not None:
             self.mae = mean_absolute_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
             self.mse = mean_squared_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
             self.rmse = np.sqrt(self.mse)
             self.generate_plots(self.train_results)
+            self.mae = mean_absolute_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
+            self.mse = mean_squared_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
+            self.rmse = np.sqrt(self.mse)
         if self.tab_widget.currentIndex() == 1 and self.val_results is not None:
             self.mae = mean_absolute_error(self.val_results['Actuals'], self.val_results['Val Predictions'])
             self.mse = mean_squared_error(self.val_results['Actuals'], self.val_results['Val Predictions'])
             self.rmse = np.sqrt(self.mse)
             self.generate_plots_val(self.val_results)
+
         if self.tab_widget.currentIndex() == 2 and self.test_results is not None:
+                    #self.update_predictions_graph_test(self.test_results, 98)
             self.mae = mean_absolute_error(self.test_results['Actuals'], self.test_results['Test Predictions'])
             self.mse = mean_squared_error(self.test_results['Actuals'], self.test_results['Test Predictions'])
             self.rmse = np.sqrt(self.mse)
@@ -7596,13 +7612,8 @@ class MultiRNN(QDialog):
         self.parent().model_multi=self.model
         self.refresh_train_tab()
 
-
-    def handle_error_multi(self, error_message):
-        print(f"Error occurred: {error_message}")
-        self.run_button.setEnabled(True)
-
     def refresh_train_tab(self):
-        self.run_button.setEnabled(True)
+
         if self.train_results is not None:
             self.mae = mean_absolute_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
             self.mse = mean_squared_error(self.train_results['Actuals'], self.train_results['Train Predictions'])
@@ -8320,138 +8331,6 @@ class MultiRNN(QDialog):
 
     def update_progress(self, progress):
         self.progress_bar.setValue(progress)
-
-class TrainerSignalsMulti(QObject):
-    training_finished_multi = pyqtSignal(object, pd.DataFrame, pd.DataFrame, pd.DataFrame, float, float,object,object,object,object)  # Emit model and results
-    update_status_multi = pyqtSignal(str)
-    training_error_multi = pyqtSignal(str)
-    progress = pyqtSignal(int)
-class TrainThreadMulti(QThread):
-    def __init__(self, params, parent=None):
-        super(TrainThreadMulti, self).__init__(parent)
-        self.params = params
-        self.signals = TrainerSignalsMulti()
-    def run(self):
-        try:
-            # Unpack parameters
-            (timesteps, num_units, dense_activation, epochs, dense_units,batch_size, req_col,
-             train_percent, val_percent_of_train, NN_df, build_model) = self.params
-
-            X1, y1 = self.df_to_X_y(NN_df, timesteps,req_col)
-            print(X1.shape, y1.shape)
-            X_train, X_val, X_test = self.split_data(X1, train_percent, val_percent_of_train)
-            y_train, y_val, y_test = self.split_data(y1, train_percent, val_percent_of_train)
-
-            print('X_train:', X_train.shape, '--->>>  y_train:', y_train.shape)
-            print('X_val:', X_val.shape, '--->>>  y_val:', y_val.shape)
-            print('X_test:', X_test.shape, '--->>>  y_test:', y_test.shape)
-            scaler = MinMaxScaler(feature_range=(-1, 1))
-
-            # Fit on training data
-            scaler.fit(X_train.reshape(-1, X_train.shape[2]))  # Reshape to 2D array for fitting
-
-            # Transform training, validation, and test data
-            X_train_scaled = scaler.transform(X_train.reshape(-1, X_train.shape[2])).reshape(X_train.shape)
-            X_val_scaled = scaler.transform(X_val.reshape(-1, X_val.shape[2])).reshape(X_val.shape)
-            X_test_scaled = scaler.transform(X_test.reshape(-1, X_test.shape[2])).reshape(X_test.shape)
-            input_shape = X_train_scaled.shape[1:]
-            self.y_test=y_test
-            self.y_train=y_train
-            self.y_val=y_val
-            model = build_model(input_shape,batch_size, num_units, dense_activation, dense_units, epochs, X_train_scaled, y_train, X_val_scaled, y_val)
-
-            for step in range(epochs):  # Example loop to represent progress
-                time.sleep(0.1)  # Simulate time-consuming work
-                self.signals.progress.emit(int((step / epochs) * 100))
-
-            #history = self.model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=epochs, callbacks=self.callbacks)
-            train_predictions = model.predict(X_train_scaled).flatten()
-            train_results = pd.DataFrame(data={'Train Predictions': train_predictions, 'Actuals': y_train})
-            val_predictions = model.predict(X_val_scaled).flatten()
-            val_results = pd.DataFrame(data={'Val Predictions':val_predictions, 'Actuals':y_val})
-            test_predictions = model.predict(X_test_scaled).flatten()
-            test_results = pd.DataFrame(data={'Test Predictions':test_predictions, 'Actuals':y_test})
-        
-
-                
-            #self.tab_widget.setCurrentIndex(0)
-
-            evaluation_results = model.evaluate(X_test_scaled, y_test, verbose=0)
-            test_loss = evaluation_results[0]
-            test_rmse = evaluation_results[1]  # Assuming RootMeanSquaredError is the only metric used
-            y_test=y_test
-            y_train=y_train
-            y_val=y_val
-
-            self.signals.training_finished_multi.emit(model, train_results, val_results, test_results,test_loss,test_rmse,X_test_scaled,y_train,y_test,y_val)
-        except Exception as e:
-            self.signals.training_error_multi.emit(str(e))
-
-    def df_to_X_y(self,df, timesteps=6, target_column=0):
-        """
-        Converts a DataFrame into input-output sequences for model training.
-
-        Parameters:
-        - df: pandas DataFrame, the input data.
-        - timesteps: int, the number of timesteps per input sequence.
-        - target_column: int or str, the column in df that should be used as the target variable.
-
-        Returns:
-        - X: numpy array, the input sequences.
-        - y: numpy array, the target values associated with each input sequence.
-        """
-        try:
-            df_as_np = df.to_numpy()
-            X, y = [], []
-            if isinstance(target_column, str):
-                target_idx = df.columns.get_loc(target_column)
-            elif isinstance(target_column, int):
-                target_idx = target_column
-            else:
-                raise ValueError("target_column must be an integer index or string column name")
-
-            for i in range(len(df_as_np) - timesteps):
-                row = df_as_np[i:i+timesteps]
-                X.append(row)
-                target = df_as_np[i + timesteps][target_idx]
-                y.append(target)
-        
-            return np.array(X), np.array(y)
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            return None, None
-    def split_data(self,data, train_size, val_size):
-        """
-        Split the data into train, validation, and test sets based on percentage sizes.
-        
-        Parameters:
-            data (np.ndarray): The dataset to split.
-            train_size (float): The proportion of the data to use for training (e.g., 0.6 for 60%).
-            val_size (float): The proportion of the data to use for validation (e.g., 0.2 for 20%).
-            
-        Returns:
-            tuple: Tuple containing train, validation, and test datasets.
-        """
-        try:
-            if train_size + val_size > 1.0:
-                raise ValueError("Sum of train_size and val_size should not exceed 1.0")
-
-            n = len(data)
-            train_end = int(n * train_size)
-            val_end = train_end + int(n * val_size)
-            test_end = n  # Ensures no data is lost due to rounding
-
-            train_data = data[:train_end]
-            val_data = data[train_end:val_end]
-            test_data = data[val_end:test_end]  # Explicit test_end for clarity
-
-            return train_data, val_data, test_data
-        except ValueError as ve:
-            print(f"Input error: {ve}")
-        except Exception as e:
-            print(f"An unexpected error occurred: {e}")
-            return None, None, None
-
 
 class TrainingThread(QThread):
     update_progress = pyqtSignal(int)
