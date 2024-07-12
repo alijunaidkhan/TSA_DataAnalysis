@@ -1187,11 +1187,14 @@ class View(QMainWindow):
             icon_path = os.path.abspath('images/split_dataset.ico')
             self.setWindowIcon(QIcon(icon_path))
             custom_color = QColor("#B22222")  # OrangeRed color
-            message_text = "The index is not set, or the DateTime column may not be in DateTime format, which may cause issues. Please set the index as DateTime using the preprocess menu." # Example message text
+            message_text = "The index is not set, or the DateTime column may not be in DateTime format, which may cause issues. Please set the index as DateTime using the explore menu." # Example message text
             window_title = "Warning"  # Example window title
             icon_text = "!"  # Example icon text
             CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
-            
+            icon_path = os.path.abspath('images/bulb_icon.png')
+            self.setWindowIcon(QIcon(icon_path))
+
+            return
 
         dialog = SplitDatasetDialog(self.controller.model.data_frame, self)
         dialog.exec()
@@ -5455,9 +5458,6 @@ class SplitDatasetDialog(QDialog):
         self.setWindowIcon(QIcon('images/split_dataset.ico'))
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
         self.resize(500, 300)
-        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint |
-                            Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMaximizeButtonHint |
-                            Qt.WindowType.CustomizeWindowHint) 
         self.dataframe = dataframe
 
         layout = QVBoxLayout()
@@ -5467,25 +5467,18 @@ class SplitDatasetDialog(QDialog):
 
         # Add tabs
         self.tab_percentage = QWidget()
-        #self.tab_date = QWidget()
+        self.tab_date = QWidget()
         self.tab_data_points = QWidget()
 
         self.tab_widget.addTab(self.tab_percentage, "Split by Percentage")
-        # Check if there are any datetime columns in the DataFrame
-        # Check if there are any datetime columns in the DataFrame
-        self.datetime_columns = [col for col in dataframe.columns if pd.api.types.is_datetime64_any_dtype(dataframe[col])]
-        if self.datetime_columns:
-            self.tab_date = QWidget()
-            self.tab_widget.addTab(self.tab_date, "Split by Date")
-            self.setup_date_tab()
-
+        self.tab_widget.addTab(self.tab_date, "Split by Date")
         self.tab_widget.addTab(self.tab_data_points, "Split by Number of Data Points")
 
         layout.addWidget(self.tab_widget)
 
         # Input widgets for each tab
         self.setup_percentage_tab()
-       # self.setup_date_tab()
+        self.setup_date_tab()
         self.setup_data_points_tab()
 
         # Buttons
@@ -5520,16 +5513,6 @@ class SplitDatasetDialog(QDialog):
             }
         """)
 
-    @staticmethod
-    def is_datetime_column_fast(column, threshold=0.9):
-        # Convert column to datetime, coercing errors
-        converted = pd.to_datetime(column, errors='coerce')
-        
-        # Calculate the proportion of non-NaT values
-        non_nat_ratio = converted.notna().mean()
-        
-        # Consider it a datetime column if non-NaT ratio is above the threshold
-        return non_nat_ratio >= threshold
     def setup_percentage_tab(self):
         layout = QVBoxLayout()
 
@@ -5616,23 +5599,13 @@ class SplitDatasetDialog(QDialog):
         return combobox
 
     def split_dataset(self):
-      if self.datetime_columns:
         if self.tab_widget.currentIndex() == 0:  # Split by Percentage tab
             training_set_size = int(self.training_set_combobox.currentText())
             self.split_by_percentage(training_set_size)
         elif self.tab_widget.currentIndex() == 1:  # Split by Date tab
-
             split_date = self.date_edit.dateTime().toPyDateTime()
             self.split_by_date(split_date)
         elif self.tab_widget.currentIndex() == 2:  # Split by Data Points tab
-            data_points = int(self.data_points_combobox.currentText())
-            self.split_by_data_points(data_points)
-      else:
-        if self.tab_widget.currentIndex() == 0:  # Split by Percentage tab
-            training_set_size = int(self.training_set_combobox.currentText())
-            self.split_by_percentage(training_set_size)
-
-        elif self.tab_widget.currentIndex() == 1:  # Split by Data Points tab
             data_points = int(self.data_points_combobox.currentText())
             self.split_by_data_points(data_points)
 
@@ -5653,23 +5626,11 @@ class SplitDatasetDialog(QDialog):
         self.set_split_data(train_data, test_data)
 
     def update_test_set_combobox(self):
-      if self.datetime_columns:
         if self.tab_widget.currentIndex() == 0:  # Split by Percentage tab
             training_set_text = self.training_set_combobox.currentText()
             test_set_size = 100 - int(training_set_text)
             self.test_set_combobox.setCurrentText(str(test_set_size))
-            
         elif self.tab_widget.currentIndex() == 2:  # Split by Data Points tab
-            training_set_text = self.data_points_combobox.currentText()
-            test_set_size = len(self.dataframe) - int(training_set_text)
-            self.test_set_combobox_points.setCurrentText(str(test_set_size))
-      else:
-        if self.tab_widget.currentIndex() == 0:  # Split by Percentage tab
-            training_set_text = self.training_set_combobox.currentText()
-            test_set_size = 100 - int(training_set_text)
-            self.test_set_combobox.setCurrentText(str(test_set_size))
-            
-        elif self.tab_widget.currentIndex() == 1:  # Split by Data Points tab
             training_set_text = self.data_points_combobox.currentText()
             test_set_size = len(self.dataframe) - int(training_set_text)
             self.test_set_combobox_points.setCurrentText(str(test_set_size))
@@ -5680,15 +5641,7 @@ class SplitDatasetDialog(QDialog):
         self.parent().train_data = self.train_data
         self.parent().test_data = self.test_data
         self.parent().actual_data = self.dataframe
-        custom_color = QColor("#5cb85c")  # OrangeRed color
-        message_text =  f"Dataset split successful!\nTrain Data: {len(self.train_data)} rows\nTest Data: {len(self.test_data)} rows"# Example message text
-        window_title = "Successfully Done Splitting"  # Example window title
-        icon_text = "✔"  # Example icon text
-    
-        #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
-        # Optionally, set a specific icon to indicate the need for action or an error state
-        CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
-        
+        QMessageBox.information(self, "Success", f"Dataset split successful!\nTrain Data: {len(self.train_data)} rows\nTest Data: {len(self.test_data)} rows")
         self.accept()
 
 
