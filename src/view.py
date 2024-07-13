@@ -980,7 +980,7 @@ class View(QMainWindow):
          icon_path = os.path.abspath('images/multivariate_icon.ico')
          self.setWindowIcon(QIcon(icon_path))
          custom_color = QColor("#B22222")  # OrangeRed color
-         message_text = "The index is not set, or the DateTime column may not be in DateTime format, which may cause issues. Please set the index as DateTime using the preprocess menu." # Example message text
+         message_text = "The index is not set, or the DateTime column may not be in DateTime format, which may cause issues. Please set the index as DateTime using the explore menu." # Example message text
          window_title = "Warning"  # Example window title
          icon_text = "!"  # Example icon text
          CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
@@ -1008,7 +1008,7 @@ class View(QMainWindow):
          icon_path = os.path.abspath('images/univariate_icon.ico')
          self.setWindowIcon(QIcon(icon_path))
          custom_color = QColor("#B22222")  # OrangeRed color
-         message_text = "The index is not set, or the DateTime column may not be in DateTime format, which may cause issues. Please set the index as DateTime using the preprocess menu." # Example message text
+         message_text = "The index is not set, or the DateTime column may not be in DateTime format, which may cause issues. Please set the index as DateTime using the explore menu." # Example message text
          window_title = "Warning"  # Example window title
          icon_text = "!"  # Example icon text
          CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
@@ -1040,7 +1040,7 @@ class View(QMainWindow):
          icon_path = os.path.abspath('images/forecast_icon.ico')
          self.setWindowIcon(QIcon(icon_path))
          custom_color = QColor("#B22222")  # OrangeRed color
-         message_text = "The index is not set, or the DateTime column may not be in DateTime format, which may cause issues. Please set the index as DateTime using the preprocess menu." # Example message text
+         message_text = "The index is not set, or the DateTime column may not be in DateTime format, which may cause issues. Please set the index as DateTime using the explore menu." # Example message text
          window_title = "Warning"  # Example window title
          icon_text = "!"  # Example icon text
          CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
@@ -1079,7 +1079,7 @@ class View(QMainWindow):
          icon_path = os.path.abspath('images/nueral_net.ico')
          self.setWindowIcon(QIcon(icon_path))
          custom_color = QColor("#B22222")  # OrangeRed color
-         message_text = "The index is not set, or the DateTime column may not be in DateTime format, which may cause issues. Please set the index as DateTime using the preprocess menu." # Example message text
+         message_text = "The index is not set, or the DateTime column may not be in DateTime format, which may cause issues. Please set the index as DateTime using the explore menu." # Example message text
          window_title = "Warning"  # Example window title
          icon_text = "!"  # Example icon text
          CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
@@ -1118,7 +1118,7 @@ class View(QMainWindow):
          icon_path = os.path.abspath('images/multi_forecast.ico')
          self.setWindowIcon(QIcon(icon_path))
          custom_color = QColor("#B22222")  # OrangeRed color
-         message_text = "The index is not set, or the DateTime column may not be in DateTime format, which may cause issues. Please set the index as DateTime using the preprocess menu." # Example message text
+         message_text = "The index is not set, or the DateTime column may not be in DateTime format, which may cause issues. Please set the index as DateTime using the explore menu." # Example message text
          window_title = "Warning"  # Example window title
          icon_text = "!"  # Example icon text
          CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
@@ -1157,7 +1157,7 @@ class View(QMainWindow):
          icon_path = os.path.abspath('images/model_parameters_icon.ico')
          self.setWindowIcon(QIcon(icon_path))
          custom_color = QColor("#B22222")  # OrangeRed color
-         message_text = "The index is not set, or the DateTime column may not be in DateTime format, which may cause issues. Please set the index as DateTime using the preprocess menu." # Example message text
+         message_text = "The index is not set, or the DateTime column may not be in DateTime format, which may cause issues. Please set the index as DateTime using the explore menu." # Example message text
          window_title = "Warning"  # Example window title
          icon_text = "!"  # Example icon text
          CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
@@ -1372,7 +1372,7 @@ class View(QMainWindow):
          self.setWindowIcon(QIcon(icon_path))
 
          custom_color = QColor("#B22222")  # OrangeRed color
-         message_text = "The index is not set, or the DateTime column may not be in DateTime format, which may cause issues. Please set the index as DateTime using the preprocess menu." # Example message text
+         message_text = "The index is not set, or the DateTime column may not be in DateTime format, which may cause issues. Please set the index as DateTime using the explore menu." # Example message text
          window_title = "Warning"  # Example window title
          icon_text = "!"  # Example icon text
          CustomMessageBox(custom_color,message_text, window_title, icon_text, self).exec() 
