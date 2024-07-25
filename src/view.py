@@ -2816,9 +2816,9 @@ class ResampleDialog(QDialog):
      custom_message_box = CustomMessageBox(icon_color=QColor("#B22222"),  # Specify the color for the confirmation icon (steel blue color)
                                           message_text="Resampling will modify the current data. Do you want to continue?",
                                           window_title="Confirm Resample",
-                                          icon_text='?',
-                                          standard_buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                                          parent=self)
+                                          icon_text='?',parent=self,
+                                          standardButtons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                                          )
     
      reply = custom_message_box.exec()
      if reply == QMessageBox.StandardButton.Yes:
@@ -5641,7 +5641,13 @@ class SplitDatasetDialog(QDialog):
         self.parent().train_data = self.train_data
         self.parent().test_data = self.test_data
         self.parent().actual_data = self.dataframe
-        QMessageBox.information(self, "Success", f"Dataset split successful!\nTrain Data: {len(self.train_data)} rows\nTest Data: {len(self.test_data)} rows")
+        custom_color = QColor("#5cb85c")  # LimeGreen color for success
+        message_text =  f"Dataset split successful!\nTrain Data: {len(self.train_data)} rows\nTest Data: {len(self.test_data)} rows"
+        window_title = "Successfully Done Splitting"
+        icon_text = "✔"  # Checkmark icon for success
+
+        CustomMessageBox(custom_color, message_text, window_title, icon_text, self).exec()
+
         self.accept()
 
 

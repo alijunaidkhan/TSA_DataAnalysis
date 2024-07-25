@@ -1034,8 +1034,8 @@ class Controller:
         #QMessageBox.warning(self.view, "Data Not Loaded", "Please load data first before accessing this feature.")
         # Optionally, set a specific icon to indicate the need for action or an error state
         CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
-        icon_path = os.path.abspath('images/bulb_icon.png')
-        self.view.setWindowIcon(QIcon(icon_path))
+     icon_path = os.path.abspath('images/bulb_icon.png')
+     self.view.setWindowIcon(QIcon(icon_path))
     def plot_selected_columns(self, selected_columns):
      if selected_columns:
         valid_columns = [col for col in selected_columns if self.is_numeric_column(col)]
@@ -1238,37 +1238,56 @@ class Controller:
             self.view.setWindowIcon(QIcon(icon_path))
             
             if self.loaded_file_path:
-                # Assuming the time column is named 'Time' and is the first column
-                self.model.data_frame['Time'] = pd.to_datetime(self.model.data_frame['Time'])
-                self.model.data_frame.set_index('Time', inplace=True)
+                # Check if the DataFrame index is set to a datetime column
+                if not pd.api.types.is_datetime64_any_dtype(self.model.data_frame.index):
+                    # Find the datetime column
+                    datetime_column = None
+                    for column in self.model.data_frame.columns:
+                        if pd.api.types.is_datetime64_any_dtype(self.model.data_frame[column]):
+                            datetime_column = column
+                            break
+
+                    if datetime_column is not None:
+                        # Ensure the datetime column is in datetime format and set it as index
+                        self.model.data_frame[datetime_column] = pd.to_datetime(self.model.data_frame[datetime_column])
+                        self.model.data_frame.set_index(datetime_column, inplace=True)
+                    else:
+                        # No datetime column found
+                        raise ValueError("No datetime column found in the dataset. Please ensure your data has a datetime column.")
                 
+                # Select numeric columns for resampling
                 numeric_cols = self.model.data_frame.select_dtypes(include=[np.number]).columns
                 
+                # Perform resampling with the specified aggregation method
                 if agg_method in ['mean', 'max', 'min', 'sum', 'first', 'last']:
                     resampled_df = self.model.data_frame[numeric_cols].resample(freq).agg(agg_method)
                 else:
                     resampled_df = self.model.data_frame.resample(freq).agg(agg_method)
                 
+                # Reset the index to make the datetime column a regular column again
                 resampled_df.reset_index(inplace=True)
+                
+                # Display the resampled data
                 self.view.display_data(resampled_df)
             else:
-                custom_color = QColor("#B22222")  # OrangeRed color
-                message_text = "Please load data first before accessing this feature."  # Example message text
-                window_title = "Data Not Loaded"  # Example window title
-                icon_text = "X"  # Example icon text
-                CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
-
+                # Data not loaded
+                custom_color = QColor("#B22222")  # Red color for error
+                message_text = "Please load data first before accessing this feature."
+                window_title = "Data Not Loaded"
+                icon_text = "X"
+                CustomMessageBox(custom_color, message_text, window_title, icon_text, self.view).exec()
         except Exception as e:
-            custom_color = QColor("#B22222")  # OrangeRed color
-            message_text = str(e) # Example message text
-            window_title = "Resampling Error"  # Example window title
-            icon_text = "X"  # Example icon text
-            CustomMessageBox(custom_color,message_text, window_title, icon_text, self.view).exec() 
-
+            # Handle any other exceptions
+            custom_color = QColor("#B22222")  # Red color for error
+            message_text = str(e)
+            window_title = "Resampling Error"
+            icon_text = "X"
+            CustomMessageBox(custom_color, message_text, window_title, icon_text, self.view).exec()
         finally:
+            # Reset the icon
             icon_path = os.path.abspath('images/bulb_icon.png')
             self.view.setWindowIcon(QIcon(icon_path))
-    
+
     def update_progress_bar(self, value):
         self.view.progressBar.setValue(value)
         if value == 100:
